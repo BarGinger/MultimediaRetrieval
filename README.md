@@ -41,5 +41,3 @@ MultimediaRetrieval/
 - **Classes:** Aircraft, Apartment, Animal, Bed, Bicycle, Bird, Car, etc.
 
 ---
-
-*Visualization and Graphics ➤ Interaction ➤ Dept ICS ➤ Faculty of Science ➤ UU*
