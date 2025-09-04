@@ -263,12 +263,13 @@ app.layout = html.Div([
     ])
 ], style={'fontFamily': 'Arial, sans-serif'})
 
-# Callback to update file list based on category filter
+# Callback to update file list based on category filter ONLY
 @app.callback(
     Output('file-list', 'children'),
     Input('category-filter', 'value')
 )
 def update_file_list(selected_category):
+    """Generate file list - no dependency on selection to avoid reloads"""
     if file_df.empty:
         return [html.P("❌ No files found in Data directory", style={'color': 'red', 'textAlign': 'center'})]
     
@@ -282,33 +283,59 @@ def update_file_list(selected_category):
         file_buttons.append(
             html.Button([
                 html.Div([
-                    html.Strong(f"📁 {row['category']}"),
+                    html.Strong(f"📁 {row['category']}", className="category-text"),
                     html.Br(),
-                    html.Span(f"📄 {row['filename']}", style={'fontSize': '0.9em', 'color': '#666'})
+                    html.Span(f"📄 {row['filename']}", className="filename-text")
                 ])
             ],
             id={'type': 'file-btn', 'index': idx},  # Pattern matching ID
-            style={
-                'width': '100%',
-                'marginBottom': '8px',
-                'padding': '12px',
-                'textAlign': 'left',
-                'border': '1px solid #ccc',
-                'backgroundColor': '#f9f9f9',
-                'cursor': 'pointer',
-                'borderRadius': '6px',
-                'transition': 'all 0.2s'
-            },
-            n_clicks=0
+            className='file-button',  # Base CSS class only
+            n_clicks=0,
+            **{'data-file-index': idx}  # Add data attribute for easier JS selection
             )
         )
     
     return file_buttons
 
+# Clientside callback to handle visual selection (runs in browser, no server calls)
+app.clientside_callback(
+    """
+    function(selectedFileIdx) {
+        console.log('Selection callback triggered with index:', selectedFileIdx);
+        
+        if (selectedFileIdx == null || selectedFileIdx === undefined) {
+            return window.dash_clientside.no_update;
+        }
+        
+        // Remove selected class from all file buttons
+        const allButtons = document.querySelectorAll('[data-file-index]');
+        console.log('Found file buttons:', allButtons.length);
+        
+        allButtons.forEach(button => {
+            button.classList.remove('file-button-selected');
+        });
+        
+        // Add selected class to the target button
+        const targetButton = document.querySelector(`[data-file-index="${selectedFileIdx}"]`);
+        if (targetButton) {
+            console.log('Found target button, adding selected class');
+            targetButton.classList.add('file-button-selected');
+        } else {
+            console.log('Target button not found for index:', selectedFileIdx);
+        }
+        
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output('selected-file-store', 'id'),  # Dummy output
+    Input('selected-file-store', 'data')
+)
+
 # Create a callback for file button clicks using pattern matching
 @app.callback(
     [Output('3d-plot', 'figure'),
-     Output('shape-info', 'children')],
+     Output('shape-info', 'children'),
+     Output('selected-file-store', 'data')],
     [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks')],
     prevent_initial_call=True
 )
@@ -317,7 +344,7 @@ def update_3d_plot(n_clicks_list):
     
     # Check if there's a triggered event
     if not ctx.triggered:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     
     # Get the triggered component info
     triggered_info = ctx.triggered[0]
@@ -326,10 +353,10 @@ def update_3d_plot(n_clicks_list):
     
     # Only proceed if a button was actually clicked (value > 0)
     if triggered_value is None or triggered_value == 0:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     
     if 'file-btn' not in triggered_id:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     
     # Extract the file index from the triggered component
     import json
@@ -339,10 +366,10 @@ def update_3d_plot(n_clicks_list):
         print(f"Button clicked: index {file_idx}, n_clicks: {triggered_value}")
     except Exception as e:
         print(f"Error parsing component ID: {e}")
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     
     if file_idx >= len(file_df):
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     
     # Get the file info
     file_info = file_df.iloc[file_idx]
@@ -410,7 +437,7 @@ def update_3d_plot(n_clicks_list):
         fig = create_3d_plot(vertices, faces, f"{category} - {filename}")
         
         print(f"Successfully loaded: {len(vertices)} vertices, {len(faces)} faces")
-        return fig, shape_info
+        return fig, shape_info, file_idx
         
     except Exception as e:
         print(f"Error loading file {filepath}: {str(e)}")
@@ -427,7 +454,7 @@ def update_3d_plot(n_clicks_list):
             ], style={'color': '#e74c3c'})
         ])
         
-        return create_3d_plot(np.array([]), np.array([]), "Error loading shape"), error_info
+        return create_3d_plot(np.array([]), np.array([]), "Error loading shape"), error_info, file_idx
 
 def main():
     """Run the web application"""

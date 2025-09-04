@@ -1,0 +1,50 @@
+/* File button hover effects */
+.file-button:hover {
+    background-color: #e8f4fd !important;
+    border-color: #2196f3 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.2) !important;
+}
+
+.file-button:active {
+    transform: translateY(0px);
+}
+
+/* Selected file button styling */
+.file-button-selected {
+    border: 2px solid #3498db !important;
+    background-color: #e3f2fd !important;
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3) !important;
+}
+
+.file-button-selected .category-text {
+    color: #2980b9 !important;
+}
+
+.file-button-selected .filename-text {
+    color: #1565c0 !important;
+    font-weight: bold !important;
+}
+
+/* Default file button styling */
+.file-button {
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #ccc;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.category-text {
+    color: #333;
+}
+
+.filename-text {
+    font-size: 0.9em;
+    color: #666;
+    font-weight: normal;
+}
