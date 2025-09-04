@@ -91,8 +91,28 @@ def get_file_tree(data_dir="Data"):
     print(f"Total files found: {len(df)}")
     return df
 
-def create_3d_plot(vertices, faces, title="3D Shape"):
-    """Create 3D plotly figure"""
+def create_wireframe_edges(vertices, faces):
+    """Create wireframe edges from mesh faces"""
+    wireframe_x = []
+    wireframe_y = []
+    wireframe_z = []
+    
+    for face in faces:
+        # For each face, connect all vertices in a loop
+        for i in range(len(face)):
+            v1_idx = face[i]
+            v2_idx = face[(i + 1) % len(face)]  # Next vertex (wrap around)
+            
+            if v1_idx < len(vertices) and v2_idx < len(vertices):
+                # Add edge from v1 to v2
+                wireframe_x.extend([vertices[v1_idx][0], vertices[v2_idx][0], None])
+                wireframe_y.extend([vertices[v1_idx][1], vertices[v2_idx][1], None])
+                wireframe_z.extend([vertices[v1_idx][2], vertices[v2_idx][2], None])
+    
+    return wireframe_x, wireframe_y, wireframe_z
+
+def create_3d_plot(vertices, faces, title="3D Shape", show_wireframe=False):
+    """Create 3D plotly figure with optional wireframe"""
     fig = go.Figure()
     
     if len(vertices) == 0:
@@ -103,6 +123,7 @@ def create_3d_plot(vertices, faces, title="3D Shape"):
         x, y, z = vertices.T
         i, j, k = faces.T
         
+        # Add main mesh
         fig.add_trace(go.Mesh3d(
             x=x, y=y, z=z,
             i=i, j=j, k=k,
@@ -118,6 +139,19 @@ def create_3d_plot(vertices, faces, title="3D Shape"):
             ),
             lightposition=dict(x=100, y=200, z=0)
         ))
+        
+        # Add wireframe if requested
+        if show_wireframe:
+            wireframe_x, wireframe_y, wireframe_z = create_wireframe_edges(vertices, faces)
+            fig.add_trace(go.Scatter3d(
+                x=wireframe_x,
+                y=wireframe_y,
+                z=wireframe_z,
+                mode='lines',
+                line=dict(color='black', width=2),
+                name="Wireframe",
+                hoverinfo='skip'
+            ))
     else:
         # Point cloud fallback
         x, y, z = vertices.T
@@ -231,6 +265,19 @@ app.layout = html.Div([
                         'paddingBottom': '10px'
                     }),
                     
+                    # Display options
+                    html.Div([
+                        html.Label("Display Options:", style={'fontWeight': 'bold', 'marginBottom': '8px'}),
+                        dcc.Checklist(
+                            id='display-options',
+                            options=[
+                                {'label': ' Show wireframe edges', 'value': 'wireframe'}
+                            ],
+                            value=[],
+                            style={'marginBottom': '15px'}
+                        )
+                    ], style={'marginBottom': '15px'}),
+                    
                     # Loading indicator for 3D plot
                     dcc.Loading(
                         id="loading-3d",
@@ -238,7 +285,7 @@ app.layout = html.Div([
                             dcc.Graph(
                                 id='3d-plot',
                                 figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
-                                style={'height': '560px'}
+                                style={'height': '520px'}  # Reduced height to make room for controls
                             )
                         ],
                         type="cube",
@@ -333,8 +380,7 @@ app.clientside_callback(
 
 # Create a callback for file button clicks using pattern matching
 @app.callback(
-    [Output('3d-plot', 'figure'),
-     Output('shape-info', 'children'),
+    [Output('shape-info', 'children'),
      Output('selected-file-store', 'data')],
     [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks')],
     prevent_initial_call=True
@@ -342,9 +388,9 @@ app.clientside_callback(
 def update_3d_plot(n_clicks_list):
     ctx = dash.callback_context
     
-    # Check if there's a triggered event
+    # Check if there's a triggered event from file buttons
     if not ctx.triggered:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update
     
     # Get the triggered component info
     triggered_info = ctx.triggered[0]
@@ -353,10 +399,10 @@ def update_3d_plot(n_clicks_list):
     
     # Only proceed if a button was actually clicked (value > 0)
     if triggered_value is None or triggered_value == 0:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update
     
     if 'file-btn' not in triggered_id:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update
     
     # Extract the file index from the triggered component
     import json
@@ -366,10 +412,10 @@ def update_3d_plot(n_clicks_list):
         print(f"Button clicked: index {file_idx}, n_clicks: {triggered_value}")
     except Exception as e:
         print(f"Error parsing component ID: {e}")
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update
     
     if file_idx >= len(file_df):
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update
     
     # Get the file info
     file_info = file_df.iloc[file_idx]
@@ -433,11 +479,8 @@ def update_3d_plot(n_clicks_list):
             ])
         ])
         
-        # Create 3D plot
-        fig = create_3d_plot(vertices, faces, f"{category} - {filename}")
-        
         print(f"Successfully loaded: {len(vertices)} vertices, {len(faces)} faces")
-        return fig, shape_info, file_idx
+        return shape_info, file_idx
         
     except Exception as e:
         print(f"Error loading file {filepath}: {str(e)}")
@@ -454,7 +497,42 @@ def update_3d_plot(n_clicks_list):
             ], style={'color': '#e74c3c'})
         ])
         
-        return create_3d_plot(np.array([]), np.array([]), "Error loading shape"), error_info, file_idx
+        return error_info, file_idx
+
+# Callback to update 3D plot based on selected file and display options
+@app.callback(
+    Output('3d-plot', 'figure'),
+    [Input('display-options', 'value'),
+     Input('selected-file-store', 'data')],
+    prevent_initial_call=True
+)
+def update_3d_visualization(display_options, selected_file_idx):
+    # If no file is selected, show default plot
+    if selected_file_idx is None:
+        return create_3d_plot(np.array([]), np.array([]), "Select a shape to view")
+    
+    try:
+        # Get the currently selected file info
+        file_info = file_df.iloc[selected_file_idx]
+        filepath = file_info['filepath']
+        
+        print(f"Updating 3D visualization for file: {filepath}")
+        
+        # Parse the OBJ file
+        vertices, faces = OBJParser.parse_obj_file(filepath)
+        
+        # Create plot with wireframe setting
+        show_wireframe = 'wireframe' in (display_options or [])
+        filename = file_info['filename']
+        category = file_info['category']
+        fig = create_3d_plot(vertices, faces, f"{category} - {filename}", show_wireframe=show_wireframe)
+        
+        print(f"3D plot updated: {len(vertices)} vertices, {len(faces)} faces, wireframe: {show_wireframe}")
+        return fig
+        
+    except Exception as e:
+        print(f"Error updating 3D visualization: {str(e)}")
+        return create_3d_plot(np.array([]), np.array([]), "Error loading shape")
 
 def main():
     """Run the web application"""
