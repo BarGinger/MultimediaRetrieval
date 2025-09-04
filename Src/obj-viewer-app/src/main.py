@@ -144,15 +144,16 @@ def create_wireframe_edges(vertices, faces):
     
     return wireframe_x, wireframe_y, wireframe_z
 
-def create_3d_plot(vertices, faces, title="3D Shape", show_wireframe=False):
+def create_3d_plot(vertices, faces, title="3D Shape", show_wireframe=False, mesh_color='lightblue'):
     """
-        Create 3D plotly figure with optional wireframe
+        Create 3D plotly figure with optional wireframe and custom color
     
         Parameters:
             - vertices: Nx3 numpy array of vertex coordinates
             - faces: Mx3 numpy array of face vertex indices
             - title: Title of the plot
             - show_wireframe: Boolean to toggle wireframe display
+            - mesh_color: Color of the mesh (default: 'lightblue')
         Returns:
             - fig: Plotly Figure object
     """
@@ -170,7 +171,7 @@ def create_3d_plot(vertices, faces, title="3D Shape", show_wireframe=False):
         fig.add_trace(go.Mesh3d(
             x=x, y=y, z=z,
             i=i, j=j, k=k,
-            color='lightblue',
+            color=mesh_color,
             opacity=0.7,
             name="Mesh",
             lighting=dict(
@@ -311,14 +312,44 @@ app.layout = html.Div([
                     # Display options
                     html.Div([
                         html.Label("Display Options:", style={'fontWeight': 'bold', 'marginBottom': '8px'}),
-                        dcc.Checklist(
-                            id='display-options',
-                            options=[
-                                {'label': ' Show wireframe edges', 'value': 'wireframe'}
-                            ],
-                            value=[],
-                            style={'marginBottom': '15px'}
-                        )
+                        
+                        # Wireframe and Color controls in a row
+                        html.Div([
+                            # Wireframe checkbox
+                            html.Div([
+                                html.Label("Wireframe:", style={'fontWeight': 'bold', 'marginBottom': '5px', 'fontSize': '0.9em'}),
+                                dcc.Checklist(
+                                    id='display-options',
+                                    options=[
+                                        {'label': ' Show edges', 'value': 'wireframe'}
+                                    ],
+                                    value=[],
+                                    style={'marginTop': '5px'}
+                                )
+                            ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'}),
+                            
+                            # Color dropdown
+                            html.Div([
+                                html.Label("Shape Color:", style={'fontWeight': 'bold', 'marginBottom': '5px', 'fontSize': '0.9em'}),
+                                dcc.Dropdown(
+                                    id='color-selector',
+                                    options=[
+                                        {'label': '🔵 Light Blue', 'value': 'lightblue'},
+                                        {'label': '🔴 Light Coral', 'value': 'lightcoral'},
+                                        {'label': '🟢 Light Green', 'value': 'lightgreen'},
+                                        {'label': '🟡 Gold', 'value': 'gold'},
+                                        {'label': '🟣 Plum', 'value': 'plum'},
+                                        {'label': '🟠 Orange', 'value': 'orange'},
+                                        {'label': '🩵 Cyan', 'value': 'cyan'},
+                                        {'label': '🩷 Pink', 'value': 'pink'},
+                                        {'label': '⚪ Silver', 'value': 'silver'},
+                                        {'label': '🟤 Peru', 'value': 'peru'}
+                                    ],
+                                    value='lightblue',
+                                    style={'fontSize': '0.85em'}
+                                )
+                            ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '4%'})
+                        ], style={'marginBottom': '15px'})
                     ], style={'marginBottom': '15px'}),
                     
                     # Loading indicator for 3D plot
@@ -562,16 +593,18 @@ def update_3d_plot(n_clicks_list):
 @app.callback(
     Output('3d-plot', 'figure'),
     [Input('display-options', 'value'),
-     Input('selected-file-store', 'data')],
+     Input('selected-file-store', 'data'),
+     Input('color-selector', 'value')],
     prevent_initial_call=True
 )
-def update_3d_visualization(display_options, selected_file_idx):
+def update_3d_visualization(display_options, selected_file_idx, mesh_color):
     """
     Update 3D plot based on selected file and display options
     
     Parameters:
         - display_options: List of selected display options (e.g., wireframe)
         - selected_file_idx: Index of the selected file
+        - mesh_color: Selected color for the mesh
     Returns:
         - fig: Updated Plotly Figure object
     """
@@ -579,7 +612,7 @@ def update_3d_visualization(display_options, selected_file_idx):
 
     # If no file is selected, show default plot
     if selected_file_idx is None:
-        return create_3d_plot(np.array([]), np.array([]), "Select a shape to view")
+        return create_3d_plot(np.array([]), np.array([]), "Select a shape to view", mesh_color=mesh_color or 'lightblue')
     
     try:
         # Get the currently selected file info
@@ -591,18 +624,20 @@ def update_3d_visualization(display_options, selected_file_idx):
         # Parse the OBJ file
         vertices, faces = OBJParser.parse_obj_file(filepath)
         
-        # Create plot with wireframe setting
+        # Create plot with wireframe setting and color
         show_wireframe = 'wireframe' in (display_options or [])
         filename = file_info['filename']
         category = file_info['category']
-        fig = create_3d_plot(vertices, faces, f"{category} - {filename}", show_wireframe=show_wireframe)
+        fig = create_3d_plot(vertices, faces, f"{category} - {filename}", 
+                           show_wireframe=show_wireframe, 
+                           mesh_color=mesh_color or 'lightblue')
         
         print(f"3D plot updated: {len(vertices)} vertices, {len(faces)} faces, wireframe: {show_wireframe}")
         return fig
         
     except Exception as e:
         print(f"Error updating 3D visualization: {str(e)}")
-        return create_3d_plot(np.array([]), np.array([]), "Error loading shape")
+        return create_3d_plot(np.array([]), np.array([]), "Error loading shape", mesh_color=mesh_color or 'lightblue')
 
 def main():
     """
