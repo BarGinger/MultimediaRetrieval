@@ -92,22 +92,30 @@ def get_file_tree(data_dir="Data"):
     return df
 
 def create_wireframe_edges(vertices, faces):
-    """Create wireframe edges from mesh faces"""
-    wireframe_x = []
-    wireframe_y = []
-    wireframe_z = []
+    """Optimized wireframe edge creation"""
+    if len(faces) == 0:
+        return [], [], []
     
+    # Use sets to avoid duplicate edges
+    edges = set()
+    
+    # Collect unique edges only
     for face in faces:
-        # For each face, connect all vertices in a loop
-        for i in range(len(face)):
-            v1_idx = face[i]
-            v2_idx = face[(i + 1) % len(face)]  # Next vertex (wrap around)
-            
-            if v1_idx < len(vertices) and v2_idx < len(vertices):
-                # Add edge from v1 to v2
-                wireframe_x.extend([vertices[v1_idx][0], vertices[v2_idx][0], None])
-                wireframe_y.extend([vertices[v1_idx][1], vertices[v2_idx][1], None])
-                wireframe_z.extend([vertices[v1_idx][2], vertices[v2_idx][2], None])
+        face_len = len(face)
+        for i in range(face_len):
+            v1, v2 = face[i], face[(i + 1) % face_len]
+            # Store edge in consistent order to avoid duplicates
+            edge = tuple(sorted([v1, v2]))
+            edges.add(edge)
+    
+    # Convert to coordinate arrays
+    wireframe_x, wireframe_y, wireframe_z = [], [], []
+    
+    for v1_idx, v2_idx in edges:
+        if v1_idx < len(vertices) and v2_idx < len(vertices):
+            wireframe_x.extend([vertices[v1_idx][0], vertices[v2_idx][0], None])
+            wireframe_y.extend([vertices[v1_idx][1], vertices[v2_idx][1], None])
+            wireframe_z.extend([vertices[v1_idx][2], vertices[v2_idx][2], None])
     
     return wireframe_x, wireframe_y, wireframe_z
 
