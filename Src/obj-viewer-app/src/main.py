@@ -91,8 +91,36 @@ def get_file_tree(data_dir="Data"):
     print(f"Total files found: {len(df)}")
     return df
 
-def create_3d_plot(vertices, faces, title="3D Shape"):
-    """Create 3D plotly figure"""
+def create_wireframe_edges(vertices, faces):
+    """Optimized wireframe edge creation"""
+    if len(faces) == 0:
+        return [], [], []
+    
+    # Use sets to avoid duplicate edges
+    edges = set()
+    
+    # Collect unique edges only
+    for face in faces:
+        face_len = len(face)
+        for i in range(face_len):
+            v1, v2 = face[i], face[(i + 1) % face_len]
+            # Store edge in consistent order to avoid duplicates
+            edge = tuple(sorted([v1, v2]))
+            edges.add(edge)
+    
+    # Convert to coordinate arrays
+    wireframe_x, wireframe_y, wireframe_z = [], [], []
+    
+    for v1_idx, v2_idx in edges:
+        if v1_idx < len(vertices) and v2_idx < len(vertices):
+            wireframe_x.extend([vertices[v1_idx][0], vertices[v2_idx][0], None])
+            wireframe_y.extend([vertices[v1_idx][1], vertices[v2_idx][1], None])
+            wireframe_z.extend([vertices[v1_idx][2], vertices[v2_idx][2], None])
+    
+    return wireframe_x, wireframe_y, wireframe_z
+
+def create_3d_plot(vertices, faces, title="3D Shape", show_wireframe=False):
+    """Create 3D plotly figure with optional wireframe"""
     fig = go.Figure()
     
     if len(vertices) == 0:
@@ -103,6 +131,7 @@ def create_3d_plot(vertices, faces, title="3D Shape"):
         x, y, z = vertices.T
         i, j, k = faces.T
         
+        # Add main mesh
         fig.add_trace(go.Mesh3d(
             x=x, y=y, z=z,
             i=i, j=j, k=k,
@@ -118,6 +147,19 @@ def create_3d_plot(vertices, faces, title="3D Shape"):
             ),
             lightposition=dict(x=100, y=200, z=0)
         ))
+        
+        # Add wireframe if requested
+        if show_wireframe:
+            wireframe_x, wireframe_y, wireframe_z = create_wireframe_edges(vertices, faces)
+            fig.add_trace(go.Scatter3d(
+                x=wireframe_x,
+                y=wireframe_y,
+                z=wireframe_z,
+                mode='lines',
+                line=dict(color='black', width=2),
+                name="Wireframe",
+                hoverinfo='skip'
+            ))
     else:
         # Point cloud fallback
         x, y, z = vertices.T
@@ -144,7 +186,7 @@ def create_3d_plot(vertices, faces, title="3D Shape"):
     return fig
 
 # Initialize Dash app
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, suppress_callback_exceptions=True)
 app.title = "3D Shape Viewer"
 
 # Get file data
@@ -187,7 +229,7 @@ app.layout = html.Div([
                 type="default"
             )
         ], style={
-            'width': '30%',
+            'width': '20%',
             'display': 'inline-block',
             'verticalAlign': 'top',
             'padding': '20px'
@@ -195,55 +237,80 @@ app.layout = html.Div([
         
         # Right panel - 3D viewer
         html.Div([
-            html.H3("3D Visualization", style={'marginBottom': 20}),
-            
-            # Permanent shape info frame
+            # Top row with Shape Information and 3D Visualization side by side
             html.Div([
-                html.Div(id='shape-info', children=[
-                    html.Div([
-                        html.H4("📄 No File Selected", style={
-                            'marginBottom': '10px', 
-                            'color': '#6c757d',
-                            'textAlign': 'center'
-                        }),
-                        html.P("Click on a file from the left panel to view its details and 3D model.", style={
-                            'textAlign': 'center',
-                            'color': '#6c757d',
-                            'fontStyle': 'italic'
-                        })
+                # Shape Information (left side of right panel)
+                html.Div([
+                    html.H3("📄 Shape Information", style={
+                        'margin': '0 0 15px 0', 
+                        'color': '#2c3e50',
+                        'borderBottom': '2px solid #3498db',
+                        'paddingBottom': '10px'
+                    }),
+                    html.Div(id='shape-info', children=[
+                        html.P("🔍 Select a 3D shape from the list to view details", 
+                               style={'color': '#7f8c8d', 'fontStyle': 'italic'})
                     ])
-                ])
-            ], style={
-                'backgroundColor': '#f8f9fa', 
-                'padding': '20px', 
-                'borderRadius': '12px',
-                'border': '2px solid #e9ecef',
-                'marginBottom': '20px',
-                'minHeight': '120px'
-            }),
-            
-            # Loading indicator for 3D plot
-            dcc.Loading(
-                id="loading-3d",
-                children=[
-                    # 3D plot container
+                ], style={
+                    'backgroundColor': '#f8f9fa',
+                    'border': '1px solid #dee2e6',
+                    'borderRadius': '8px',
+                    'padding': '20px',
+                    'width': '20%',
+                    'display': 'inline-block',
+                    'verticalAlign': 'top',
+                    'marginRight': '2%',
+                    'height': '600px',
+                    'overflowY': 'auto'
+                }),
+                
+                # 3D Visualization (right side of right panel)
+                html.Div([
+                    html.H3("🎮 3D Visualization", style={
+                        'margin': '0 0 15px 0',
+                        'color': '#2c3e50',
+                        'borderBottom': '2px solid #e74c3c',
+                        'paddingBottom': '10px'
+                    }),
+                    
+                    # Display options
                     html.Div([
-                        dcc.Graph(
-                            id='3d-plot',
-                            figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
-                            style={'height': '600px'}
+                        html.Label("Display Options:", style={'fontWeight': 'bold', 'marginBottom': '8px'}),
+                        dcc.Checklist(
+                            id='display-options',
+                            options=[
+                                {'label': ' Show wireframe edges', 'value': 'wireframe'}
+                            ],
+                            value=[],
+                            style={'marginBottom': '15px'}
                         )
-                    ], style={
-                        'border': '2px solid #e9ecef',
-                        'borderRadius': '12px',
-                        'overflow': 'hidden'
-                    })
-                ],
-                type="cube",
-                color="#007bff"
-            )
+                    ], style={'marginBottom': '15px'}),
+                    
+                    # Loading indicator for 3D plot
+                    dcc.Loading(
+                        id="loading-3d",
+                        children=[
+                            dcc.Graph(
+                                id='3d-plot',
+                                figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
+                                style={'height': '520px'}  # Reduced height to make room for controls
+                            )
+                        ],
+                        type="cube",
+                        color="#e74c3c"
+                    )
+                ], style={
+                    'backgroundColor': '#f8f9fa',
+                    'border': '1px solid #dee2e6',
+                    'borderRadius': '8px',
+                    'padding': '20px',
+                    'width': '68%',
+                    'display': 'inline-block',
+                    'verticalAlign': 'top'
+                })
+            ])
         ], style={
-            'width': '65%',
+            'width': '70%',
             'display': 'inline-block',
             'verticalAlign': 'top',
             'padding': '20px'
@@ -251,12 +318,13 @@ app.layout = html.Div([
     ])
 ], style={'fontFamily': 'Arial, sans-serif'})
 
-# Callback to update file list based on category filter
+# Callback to update file list based on category filter ONLY
 @app.callback(
     Output('file-list', 'children'),
     Input('category-filter', 'value')
 )
 def update_file_list(selected_category):
+    """Generate file list - no dependency on selection to avoid reloads"""
     if file_df.empty:
         return [html.P("❌ No files found in Data directory", style={'color': 'red', 'textAlign': 'center'})]
     
@@ -270,51 +338,88 @@ def update_file_list(selected_category):
         file_buttons.append(
             html.Button([
                 html.Div([
-                    html.Strong(f"📁 {row['category']}"),
+                    html.Strong(f"📁 {row['category']}", className="category-text"),
                     html.Br(),
-                    html.Span(f"📄 {row['filename']}", style={'fontSize': '0.9em', 'color': '#666'})
+                    html.Span(f"📄 {row['filename']}", className="filename-text")
                 ])
             ],
-            id=f"file-btn-{idx}",  # Simple ID based on original dataframe index
-            style={
-                'width': '100%',
-                'marginBottom': '8px',
-                'padding': '12px',
-                'textAlign': 'left',
-                'border': '1px solid #ccc',
-                'backgroundColor': '#f9f9f9',
-                'cursor': 'pointer',
-                'borderRadius': '6px',
-                'transition': 'all 0.2s'
-            },
-            n_clicks=0
+            id={'type': 'file-btn', 'index': idx},  # Pattern matching ID
+            className='file-button',  # Base CSS class only
+            n_clicks=0,
+            **{'data-file-index': idx}  # Add data attribute for easier JS selection
             )
         )
     
     return file_buttons
 
-# Create a callback for each possible file button
+# Clientside callback to handle visual selection (runs in browser, no server calls)
+app.clientside_callback(
+    """
+    function(selectedFileIdx) {
+        console.log('Selection callback triggered with index:', selectedFileIdx);
+        
+        if (selectedFileIdx == null || selectedFileIdx === undefined) {
+            return window.dash_clientside.no_update;
+        }
+        
+        // Remove selected class from all file buttons
+        const allButtons = document.querySelectorAll('[data-file-index]');
+        console.log('Found file buttons:', allButtons.length);
+        
+        allButtons.forEach(button => {
+            button.classList.remove('file-button-selected');
+        });
+        
+        // Add selected class to the target button
+        const targetButton = document.querySelector(`[data-file-index="${selectedFileIdx}"]`);
+        if (targetButton) {
+            console.log('Found target button, adding selected class');
+            targetButton.classList.add('file-button-selected');
+        } else {
+            console.log('Target button not found for index:', selectedFileIdx);
+        }
+        
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output('selected-file-store', 'id'),  # Dummy output
+    Input('selected-file-store', 'data')
+)
+
+# Create a callback for file button clicks using pattern matching
 @app.callback(
-    [Output('3d-plot', 'figure'),
-     Output('shape-info', 'children')],
-    [Input(f'file-btn-{i}', 'n_clicks') for i in range(len(file_df))] if not file_df.empty else [Input('category-filter', 'value')],
+    [Output('shape-info', 'children'),
+     Output('selected-file-store', 'data')],
+    [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks')],
     prevent_initial_call=True
 )
-def update_3d_plot(*args):
+def update_3d_plot(n_clicks_list):
     ctx = dash.callback_context
+    
+    # Check if there's a triggered event from file buttons
     if not ctx.triggered:
         return dash.no_update, dash.no_update
     
-    # Find which button was clicked
-    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    # Get the triggered component info
+    triggered_info = ctx.triggered[0]
+    triggered_id = triggered_info['prop_id']
+    triggered_value = triggered_info['value']
     
-    if not triggered_id.startswith('file-btn-'):
+    # Only proceed if a button was actually clicked (value > 0)
+    if triggered_value is None or triggered_value == 0:
         return dash.no_update, dash.no_update
     
-    # Extract the file index
+    if 'file-btn' not in triggered_id:
+        return dash.no_update, dash.no_update
+    
+    # Extract the file index from the triggered component
+    import json
     try:
-        file_idx = int(triggered_id.replace('file-btn-', ''))
-    except:
+        component_id = json.loads(triggered_id.split('.')[0])
+        file_idx = component_id['index']
+        print(f"Button clicked: index {file_idx}, n_clicks: {triggered_value}")
+    except Exception as e:
+        print(f"Error parsing component ID: {e}")
         return dash.no_update, dash.no_update
     
     if file_idx >= len(file_df):
@@ -382,11 +487,8 @@ def update_3d_plot(*args):
             ])
         ])
         
-        # Create 3D plot
-        fig = create_3d_plot(vertices, faces, f"{category} - {filename}")
-        
         print(f"Successfully loaded: {len(vertices)} vertices, {len(faces)} faces")
-        return fig, shape_info
+        return shape_info, file_idx
         
     except Exception as e:
         print(f"Error loading file {filepath}: {str(e)}")
@@ -403,69 +505,42 @@ def update_3d_plot(*args):
             ], style={'color': '#e74c3c'})
         ])
         
-        return create_3d_plot(np.array([]), np.array([]), "Error loading shape"), error_info
+        return error_info, file_idx
 
-def main():
-    # Check if any button was clicked
-    if not n_clicks_list or not any(n_clicks_list):
-        return dash.no_update, dash.no_update, dash.no_update
-    
-    # Find which button was clicked
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return dash.no_update, dash.no_update, dash.no_update
-    
-    # Get the button that triggered the callback
-    triggered_id = ctx.triggered[0]['prop_id']
-    
-    # Extract the index from the triggered button
-    import re
-    match = re.search(r'"index":(\d+)', triggered_id)
-    if not match:
-        return dash.no_update, dash.no_update, dash.no_update
-    
-    file_idx = int(match.group(1))
-    
-    # Get the current filtered dataframe
-    current_df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
-    
-    if file_idx >= len(current_df):
-        return dash.no_update, dash.no_update, dash.no_update
-    
-    # Get the file info
-    file_info = current_df.iloc[file_idx]
-    filepath = file_info['filepath']
+# Callback to update 3D plot based on selected file and display options
+@app.callback(
+    Output('3d-plot', 'figure'),
+    [Input('display-options', 'value'),
+     Input('selected-file-store', 'data')],
+    prevent_initial_call=True
+)
+def update_3d_visualization(display_options, selected_file_idx):
+    # If no file is selected, show default plot
+    if selected_file_idx is None:
+        return create_3d_plot(np.array([]), np.array([]), "Select a shape to view")
     
     try:
+        # Get the currently selected file info
+        file_info = file_df.iloc[selected_file_idx]
+        filepath = file_info['filepath']
+        
+        print(f"Updating 3D visualization for file: {filepath}")
+        
         # Parse the OBJ file
         vertices, faces = OBJParser.parse_obj_file(filepath)
         
-        # Create shape info
+        # Create plot with wireframe setting
+        show_wireframe = 'wireframe' in (display_options or [])
         filename = file_info['filename']
         category = file_info['category']
-        file_size = file_info['size']
+        fig = create_3d_plot(vertices, faces, f"{category} - {filename}", show_wireframe=show_wireframe)
         
-        shape_info = html.Div([
-            html.H4(f"📄 {filename}", style={'marginBottom': '10px', 'color': '#2c3e50'}),
-            html.P(f"📁 Category: {category}"),
-            html.P(f"� File Size: {file_size:,} bytes"),
-            html.P(f"🔺 Vertices: {len(vertices):,}"),
-            html.P(f"🔷 Faces: {len(faces):,}"),
-        ], style={'backgroundColor': '#f8f9fa', 'padding': '15px', 'borderRadius': '8px'})
-        
-        # Create 3D plot
-        fig = create_3d_plot(vertices, faces, f"{category}/{filename}")
-        
-        return fig, shape_info, filepath
+        print(f"3D plot updated: {len(vertices)} vertices, {len(faces)} faces, wireframe: {show_wireframe}")
+        return fig
         
     except Exception as e:
-        error_info = html.Div([
-            html.H4(f"❌ Error Loading File", style={'color': 'red'}),
-            html.P(f"File: {filepath}"),
-            html.P(f"Error: {str(e)}"),
-        ], style={'backgroundColor': '#f8d7da', 'padding': '15px', 'borderRadius': '8px', 'border': '1px solid #f5c6cb'})
-        
-        return create_3d_plot(np.array([]), np.array([]), "Error loading shape"), error_info, None
+        print(f"Error updating 3D visualization: {str(e)}")
+        return create_3d_plot(np.array([]), np.array([]), "Error loading shape")
 
 def main():
     """Run the web application"""
