@@ -1,13 +1,14 @@
 """
 3D Shape Viewer Web App - Step 1
 Interactive web-based viewer with file selection and 3D visualization
+
+Last updated: 4/9/2025
 """
 
 import dash
 from dash import dcc, html, Input, Output, State, callback
 import plotly.graph_objects as go
 import numpy as np
-import os
 from pathlib import Path
 import pandas as pd
 
@@ -16,7 +17,16 @@ class OBJParser:
     
     @staticmethod
     def parse_obj_file(filepath):
-        """Parse OBJ file and return vertices and faces"""
+        """
+        Parse OBJ file and return vertices and faces
+        
+        Parameters:
+            - filepath: Path to the .obj file
+
+        Returns:
+            - vertices: Nx3 numpy array of vertex coordinates
+            - faces: Mx3 numpy array of face vertex indices
+        """
         vertices = []
         faces = []
         
@@ -48,7 +58,14 @@ class OBJParser:
         return np.array(vertices), np.array(faces)
 
 def get_file_tree(data_dir="Data"):
-    """Get file tree structure for the file browser"""
+    """
+        Get file tree structure for the file browser
+        
+        Parameters:
+            - data_dir: Directory containing the data files
+        Returns:
+            - df: DataFrame with file information
+    """
     files_data = []
     
     # Check if running from src directory, go up to find Data
@@ -92,7 +109,15 @@ def get_file_tree(data_dir="Data"):
     return df
 
 def create_wireframe_edges(vertices, faces):
-    """Optimized wireframe edge creation"""
+    """
+    Optimized wireframe edge creation
+
+    Parameters:
+        - vertices: Nx3 numpy array of vertex coordinates
+        - faces: Mx3 numpy array of face vertex indices
+    Returns:
+        - wireframe_x, wireframe_y, wireframe_z: Lists of coordinates for wireframe edges
+    """
     if len(faces) == 0:
         return [], [], []
     
@@ -120,7 +145,17 @@ def create_wireframe_edges(vertices, faces):
     return wireframe_x, wireframe_y, wireframe_z
 
 def create_3d_plot(vertices, faces, title="3D Shape", show_wireframe=False):
-    """Create 3D plotly figure with optional wireframe"""
+    """
+        Create 3D plotly figure with optional wireframe
+    
+        Parameters:
+            - vertices: Nx3 numpy array of vertex coordinates
+            - faces: Mx3 numpy array of face vertex indices
+            - title: Title of the plot
+            - show_wireframe: Boolean to toggle wireframe display
+        Returns:
+            - fig: Plotly Figure object
+    """
     fig = go.Figure()
     
     if len(vertices) == 0:
@@ -324,7 +359,13 @@ app.layout = html.Div([
     Input('category-filter', 'value')
 )
 def update_file_list(selected_category):
-    """Generate file list - no dependency on selection to avoid reloads"""
+    """
+    Generate file list - no dependency on selection to avoid reloads
+    Parameters:
+        - selected_category: Currently selected category filter
+    Returns:
+        - List of HTML buttons for each file
+    """
     if file_df.empty:
         return [html.P("❌ No files found in Data directory", style={'color': 'red', 'textAlign': 'center'})]
     
@@ -394,6 +435,16 @@ app.clientside_callback(
     prevent_initial_call=True
 )
 def update_3d_plot(n_clicks_list):
+    """
+    Update shape info and selected file index based on button clicks
+
+    Parameters:
+        - n_clicks_list: List of n_clicks for all file buttons
+    Returns:
+        - shape_info: HTML content for shape information
+        - selected_file_idx: Index of the selected file
+    """
+
     ctx = dash.callback_context
     
     # Check if there's a triggered event from file buttons
@@ -515,6 +566,17 @@ def update_3d_plot(n_clicks_list):
     prevent_initial_call=True
 )
 def update_3d_visualization(display_options, selected_file_idx):
+    """
+    Update 3D plot based on selected file and display options
+    
+    Parameters:
+        - display_options: List of selected display options (e.g., wireframe)
+        - selected_file_idx: Index of the selected file
+    Returns:
+        - fig: Updated Plotly Figure object
+    """
+
+
     # If no file is selected, show default plot
     if selected_file_idx is None:
         return create_3d_plot(np.array([]), np.array([]), "Select a shape to view")
@@ -543,7 +605,10 @@ def update_3d_visualization(display_options, selected_file_idx):
         return create_3d_plot(np.array([]), np.array([]), "Error loading shape")
 
 def main():
-    """Run the web application"""
+    """
+        Run the web application
+        
+    """
     print("Starting 3D Shape Viewer...")
     print("Open your browser and go to: http://127.0.0.1:8050")
     app.run_server(debug=True, host='127.0.0.1', port=8050)
