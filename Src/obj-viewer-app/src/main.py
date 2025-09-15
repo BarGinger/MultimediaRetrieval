@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import numpy as np
 from pathlib import Path
 import pandas as pd
+import os
 
 class OBJParser:
     """Parser for OBJ 3D mesh files"""
@@ -225,22 +226,93 @@ def create_3d_plot(vertices, faces, title="3D Shape", show_wireframe=False, mesh
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 app.title = "3D Shape Viewer"
 
+
 # Get file data
 file_df = get_file_tree()
+
+# Load analysis results for average/outlier selection
+
+# Try both possible paths for analysis_results.csv
+
+# Use the absolute path based on workspace structure
+csv_path = os.path.join(Path.cwd(), 'Preprocessing', 'analysis_results.csv')
+print(f"Checking for analysis_results.csv at: {csv_path}")
+
+if os.path.exists(csv_path):
+    print(f"Found analysis_results.csv at: {csv_path}")
+    analysis_csv_path = csv_path
+else:
+    print("❌ analysis_results.csv not found at expected location!")
+    analysis_csv_path = None
+
+analysis_df = pd.read_csv(analysis_csv_path) if analysis_csv_path is not None else None
+
+# Debug: Print first few entries from both DataFrames to compare filename/category
+print("\n--- file_df sample ---")
+if not file_df.empty:
+    print(file_df[['category', 'filename']].head(5))
+else:
+    print("file_df is empty!")
+
+print("\n--- analysis_df sample ---")
+if analysis_df is not None:
+    print(analysis_df[['class', 'shape_file']].head(5))
+else:
+    print("analysis_df is None!")
+def get_special_shapes(df):
+    """
+    Returns indices in file_df for average shape and outliers
+    """
+    if df is None or file_df.empty:
+        return None, []
+    # Find average shape (closest to mean vertex/face count)
+    avg_v = df['num_vertices'].mean()
+    avg_f = df['num_faces'].mean()
+    df['dist_to_avg'] = ((df['num_vertices'] - avg_v)**2 + (df['num_faces'] - avg_f)**2)**0.5
+    avg_row = df.loc[df['dist_to_avg'].idxmin()]
+    # Outliers: >2 std dev from mean (vertex or face count)
+    v_std = df['num_vertices'].std()
+    f_std = df['num_faces'].std()
+    outlier_rows = df[(df['num_vertices'] > avg_v + 2*v_std) | (df['num_vertices'] < avg_v - 2*v_std) |
+                     (df['num_faces'] > avg_f + 2*f_std) | (df['num_faces'] < avg_f - 2*f_std)]
+    # Map filenames to file_df indices
+    def find_index(row):
+        shape_file = row['shape_file']
+        class_name = row['class']
+        matches = file_df[(file_df['filename'] == shape_file) & (file_df['category'] == class_name)]
+        if not matches.empty:
+            print(f"Match found: {class_name}/{shape_file} -> index {matches.index[0]}")
+            return matches.index[0]
+        else:
+            print(f"No match for: {class_name}/{shape_file}")
+            return None
+    print("\n--- get_special_shapes mapping ---")
+    print(f"Average shape: {avg_row['class']}/{avg_row['shape_file']}")
+    avg_idx = find_index(avg_row)
+    # Sort outlier_rows by dist_to_avg descending and select top 10
+    outlier_rows_sorted = outlier_rows.sort_values('dist_to_avg', ascending=False).head(10)
+    outlier_indices = []
+    for _, row in outlier_rows_sorted.iterrows():
+        idx = find_index(row)
+        if idx is not None:
+            outlier_indices.append(idx)
+    print(f"Average index: {avg_idx}")
+    print(f"Outlier indices (top 10 extreme): {outlier_indices}")
+    return avg_idx, outlier_indices
+
+avg_shape_idx, outlier_shape_indices = get_special_shapes(analysis_df)
 
 # App layout
 app.layout = html.Div([
     # Store for selected file
     dcc.Store(id='selected-file-store'),
-    
+    dcc.Store(id='special-shape-store'),
     html.H1("3D Shape Viewer", style={'textAlign': 'center', 'marginBottom': 30}),
-    
+
     html.Div([
         # Left panel - File browser
         html.Div([
             html.H3("Select 3D Shape", style={'marginBottom': 20}),
-            
-            # Category filter
             html.Label("Filter by Category:"),
             dcc.Dropdown(
                 id='category-filter',
@@ -249,12 +321,9 @@ app.layout = html.Div([
                 value='all',
                 style={'marginBottom': 20}
             ),
-            
-            # Loading indicator for file list
             dcc.Loading(
                 id="loading-files",
                 children=[
-                    # File list
                     html.Div(id='file-list', style={
                         'height': '500px',
                         'overflowY': 'scroll',
@@ -270,12 +339,44 @@ app.layout = html.Div([
             'verticalAlign': 'top',
             'padding': '20px'
         }),
-        
+
+        # Middle panel - Shape Analysis
+        html.Div([
+            html.H3("Shape Analysis", style={
+                'margin': '0 0 15px 0',
+                'color': '#8e44ad',
+                'borderBottom': '2px solid #8e44ad',
+                'paddingBottom': '10px'
+            }),
+            html.Div([
+                html.Label("Show special shapes:"),
+                dcc.Dropdown(
+                    id='special-shape-dropdown',
+                    options=(
+                        ([{'label': 'Average Shape', 'value': avg_shape_idx}] if avg_shape_idx is not None else []) +
+                        [{'label': f'Outlier {i+1}', 'value': idx} for i, idx in enumerate(outlier_shape_indices)]
+                    ),
+                    placeholder="Select to view...",
+                    style={'marginBottom': 20}
+                ),
+                html.Div(id='special-shape-info')
+            ])
+        ], style={
+            'width': '20%',
+            'display': 'inline-block',
+            'verticalAlign': 'top',
+            'padding': '20px',
+            'backgroundColor': '#f3f0fa',
+            'border': '1px solid #d6c6f2',
+            'borderRadius': '8px',
+            'marginRight': '2%',
+            'height': '600px',
+            'overflowY': 'auto'
+        }),
+
         # Right panel - 3D viewer
         html.Div([
-            # Top row with Shape Information and 3D Visualization side by side
             html.Div([
-                # Shape Information (left side of right panel)
                 html.Div([
                     html.H3("📄 Shape Information", style={
                         'margin': '0 0 15px 0', 
@@ -299,8 +400,6 @@ app.layout = html.Div([
                     'height': '600px',
                     'overflowY': 'auto'
                 }),
-                
-                # 3D Visualization (right side of right panel)
                 html.Div([
                     html.H3("🎮 3D Visualization", style={
                         'margin': '0 0 15px 0',
@@ -308,14 +407,9 @@ app.layout = html.Div([
                         'borderBottom': '2px solid #e74c3c',
                         'paddingBottom': '10px'
                     }),
-                    
-                    # Display options
                     html.Div([
                         html.Label("Display Options:", style={'fontWeight': 'bold', 'marginBottom': '8px'}),
-                        
-                        # Wireframe and Color controls in a row
                         html.Div([
-                            # Wireframe checkbox
                             html.Div([
                                 html.Label("Wireframe:", style={'fontWeight': 'bold', 'marginBottom': '5px', 'fontSize': '0.9em'}),
                                 dcc.Checklist(
@@ -327,8 +421,6 @@ app.layout = html.Div([
                                     style={'marginTop': '5px'}
                                 )
                             ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'}),
-                            
-                            # Color dropdown
                             html.Div([
                                 html.Label("Shape Color:", style={'fontWeight': 'bold', 'marginBottom': '5px', 'fontSize': '0.9em'}),
                                 dcc.Dropdown(
@@ -348,18 +440,16 @@ app.layout = html.Div([
                                     value='lightblue',
                                     style={'fontSize': '0.85em'}
                                 )
-                            ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '4%'})
+                            ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '4%'}),
                         ], style={'marginBottom': '15px'})
                     ], style={'marginBottom': '15px'}),
-                    
-                    # Loading indicator for 3D plot
                     dcc.Loading(
                         id="loading-3d",
                         children=[
                             dcc.Graph(
                                 id='3d-plot',
                                 figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
-                                style={'height': '520px'}  # Reduced height to make room for controls
+                                style={'height': '520px'}
                             )
                         ],
                         type="cube",
@@ -376,13 +466,52 @@ app.layout = html.Div([
                 })
             ])
         ], style={
-            'width': '70%',
+            'width': '58%',
             'display': 'inline-block',
             'verticalAlign': 'top',
             'padding': '20px'
         })
     ])
 ], style={'fontFamily': 'Arial, sans-serif'})
+@app.callback(
+    [Output('special-shape-info', 'children'), Output('special-shape-store', 'data')],
+    [Input('special-shape-dropdown', 'value')],
+    prevent_initial_call=True
+)
+def show_special_shape(selected_idx):
+    if selected_idx is None or file_df.empty:
+        return dash.no_update, dash.no_update
+    try:
+        if selected_idx < 0 or selected_idx >= len(file_df):
+            raise IndexError(f"Selected index {selected_idx} is out of bounds for file_df (len={len(file_df)})")
+        file_info = file_df.iloc[selected_idx]
+        filename = file_info['filename']
+        category = file_info['category']
+        file_size = file_info['size']
+        # Parse OBJ file to get actual vertex and face counts
+        filepath = file_info['filepath']
+        try:
+            vertices, faces = OBJParser.parse_obj_file(filepath)
+            num_vertices_str = f"{len(vertices):,}"
+            num_faces_str = f"{len(faces):,}"
+        except Exception as e:
+            num_vertices_str = "Error"
+            num_faces_str = "Error"
+            print(f"Error parsing OBJ file for special shape: {filepath} - {e}")
+        info = html.Div([
+            html.H4(["⭐ Special Shape: ", filename], style={'color': '#8e44ad', 'marginBottom': '15px'}),
+            html.Div([html.Strong("📁 Category: "), category], style={'marginBottom': '8px'}),
+            html.Div([html.Strong("💾 File Size: "), f"{file_size:,} bytes"], style={'marginBottom': '8px'}),
+            html.Div([html.Strong("🔺 Vertices: "), num_vertices_str], style={'marginBottom': '8px'}),
+            html.Div([html.Strong("🔷 Faces: "), num_faces_str], style={'marginBottom': '8px'})
+        ])
+        return info, selected_idx
+    except Exception as e:
+        error_info = html.Div([
+            html.H4("❌ Error Loading Special Shape", style={'color': '#e74c3c', 'marginBottom': '15px'}),
+            html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
+        ])
+        return error_info, dash.no_update
 
 # Callback to update file list based on category filter ONLY
 @app.callback(
@@ -589,52 +718,35 @@ def update_3d_plot(n_clicks_list):
         
         return error_info, file_idx
 
-# Callback to update 3D plot based on selected file and display options
 @app.callback(
     Output('3d-plot', 'figure'),
     [Input('display-options', 'value'),
      Input('selected-file-store', 'data'),
+     Input('special-shape-store', 'data'),
      Input('color-selector', 'value')],
     prevent_initial_call=True
 )
-def update_3d_visualization(display_options, selected_file_idx, mesh_color):
+def update_3d_visualization(display_options, selected_file_idx, special_shape_idx, mesh_color):
     """
-    Update 3D plot based on selected file and display options
-    
-    Parameters:
-        - display_options: List of selected display options (e.g., wireframe)
-        - selected_file_idx: Index of the selected file
-        - mesh_color: Selected color for the mesh
-    Returns:
-        - fig: Updated Plotly Figure object
+    Update 3D plot based on selected file, special shape, and display options
     """
-
-
-    # If no file is selected, show default plot
-    if selected_file_idx is None:
+    # Prioritize special shape selection if present
+    idx = special_shape_idx if special_shape_idx is not None else selected_file_idx
+    if idx is None:
         return create_3d_plot(np.array([]), np.array([]), "Select a shape to view", mesh_color=mesh_color or 'lightblue')
-    
     try:
-        # Get the currently selected file info
-        file_info = file_df.iloc[selected_file_idx]
+        file_info = file_df.iloc[idx]
         filepath = file_info['filepath']
-        
         print(f"Updating 3D visualization for file: {filepath}")
-        
-        # Parse the OBJ file
         vertices, faces = OBJParser.parse_obj_file(filepath)
-        
-        # Create plot with wireframe setting and color
         show_wireframe = 'wireframe' in (display_options or [])
         filename = file_info['filename']
         category = file_info['category']
         fig = create_3d_plot(vertices, faces, f"{category} - {filename}", 
                            show_wireframe=show_wireframe, 
                            mesh_color=mesh_color or 'lightblue')
-        
         print(f"3D plot updated: {len(vertices)} vertices, {len(faces)} faces, wireframe: {show_wireframe}")
         return fig
-        
     except Exception as e:
         print(f"Error updating 3D visualization: {str(e)}")
         return create_3d_plot(np.array([]), np.array([]), "Error loading shape", mesh_color=mesh_color or 'lightblue')
