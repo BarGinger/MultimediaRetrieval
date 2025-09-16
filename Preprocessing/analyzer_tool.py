@@ -2,6 +2,7 @@ import os
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
+import csv
 
 def analyze_shape(shape_path):
     # OBJ file parser: extracts vertices and faces
@@ -75,12 +76,16 @@ def analyze_database(database_path):
     return results
 
 if __name__ == "__main__":
-    # Example usage: replace 'shapes_database' with your actual database path
-    import csv
-    database_path = 'Data'
-    csv_file = 'analysis_results.csv'
+
+    # --- Toggle for sampled dataset ---
+    USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled, False for full Data
+
+    database_path = 'Data_sampled' if USE_SAMPLED_DATASET else 'Data'
+    suffix = '_sampled' if USE_SAMPLED_DATASET else ''
+    csv_file = f'analysis_results{suffix}.csv'
+
     fieldnames = ['class', 'shape_file', 'num_vertices', 'num_faces', 'face_types', 'bounding_box']
-    GENERATE_CSV = False  # Set to True to regenerate CSV, False to use existing
+    GENERATE_CSV = True  # Set to True to regenerate CSV, False to use existing
 
     if GENERATE_CSV:
         analysis_results = analyze_database(database_path)
@@ -123,36 +128,36 @@ if __name__ == "__main__":
     plt.figure(figsize=(8,5))
     plt.hist(df['num_vertices'], bins=30, color='skyblue', edgecolor='black')
     plt.axvline(avg_vertices, color='blue', linestyle='dashed', linewidth=2, label=f'Average: {avg_vertices:.1f}')
-    plt.title('Histogram of Vertex Counts')
+    plt.title(f'Histogram of Vertex Counts{suffix}')
     plt.xlabel('Number of Vertices')
     plt.ylabel('Number of Shapes')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('shape_histogram_vertices.png')
+    plt.savefig(f'shape_histogram_vertices{suffix}.png')
     plt.close()
-    print('Vertex histogram saved as shape_histogram_vertices.png')
+    print(f'Vertex histogram saved as shape_histogram_vertices{suffix}.png')
 
     # Face count histogram
     plt.figure(figsize=(8,5))
     plt.hist(df['num_faces'], bins=30, color='salmon', edgecolor='black')
     plt.axvline(avg_faces, color='red', linestyle='dashed', linewidth=2, label=f'Average: {avg_faces:.1f}')
-    plt.title('Histogram of Face Counts')
+    plt.title(f'Histogram of Face Counts{suffix}')
     plt.xlabel('Number of Faces')
     plt.ylabel('Number of Shapes')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('shape_histogram_faces.png')
+    plt.savefig(f'shape_histogram_faces{suffix}.png')
     plt.close()
-    print('Face histogram saved as shape_histogram_faces.png')
+    print(f'Face histogram saved as shape_histogram_faces{suffix}.png')
 
     # Shape class histogram (horizontal bar for readability)
     plt.figure(figsize=(12,10))
     class_counts = df['class'].value_counts().sort_values()
     plt.barh(class_counts.index, class_counts.values, color='mediumseagreen', edgecolor='black')
-    plt.title('Histogram of Shape Classes')
+    plt.title(f'Histogram of Shape Classes{suffix}')
     plt.xlabel('Number of Shapes')
     plt.ylabel('Shape Class')
     plt.tight_layout()
-    plt.savefig('shape_histogram_classes.png')
+    plt.savefig(f'shape_histogram_classes{suffix}.png')
     plt.close()
-    print('Class histogram saved as shape_histogram_classes.png')
+    print(f'Class histogram saved as shape_histogram_classes{suffix}.png')

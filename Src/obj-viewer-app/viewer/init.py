@@ -7,7 +7,11 @@ from .callbacks import register_callbacks
 def create_dash_app():
     app = dash.Dash(__name__, suppress_callback_exceptions=True,
                     title="3D Shape Viewer")
-    file_df = get_file_tree()
+
+    # --- Toggle for sampled dataset ---
+    USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled, False for full Data
+    data_dir = 'Data_sampled' if USE_SAMPLED_DATASET else 'Data'
+    file_df = get_file_tree(data_dir)
 
     # Base stores / top-level layout pieces
     app.layout = html.Div([
@@ -16,5 +20,5 @@ def create_dash_app():
     ], style={'fontFamily': 'Arial, sans-serif'})
 
     # Register server callbacks
-    register_callbacks(app, file_df)
+    register_callbacks(app, file_df, USE_SAMPLED_DATASET)
     return app

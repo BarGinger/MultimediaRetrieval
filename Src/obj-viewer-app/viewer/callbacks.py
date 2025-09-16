@@ -1,19 +1,22 @@
+
 from dash import dcc, html, Input, Output, no_update
 import dash
 import numpy as np
+import os
+import pandas as pd
 from core.obj_parser import OBJParser
 from core.plotting import create_3d_plot
 import plotly.graph_objects as go
 
-
-def register_callbacks(app: dash.Dash, file_df):
-
-    # --- Merge file_df with analysis results to add num_vertices and num_faces columns ---
-    import pandas as pd
-    import os
-    # Find CSV path (relative to project root)
-    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'Preprocessing', 'analysis_results.csv')
+def register_callbacks(app: dash.Dash, file_df, USE_SAMPLED_DATASET):
+    # Select and merge CSV for statistics
+    suffix = '_sampled' if USE_SAMPLED_DATASET else ''
+    csv_filename = f'analysis_results{suffix}.csv'
+    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'Preprocessing', csv_filename)
     csv_path = os.path.abspath(csv_path)
+
+    print(f"Loaded {len(file_df)} files from {'Data_sampled' if USE_SAMPLED_DATASET else 'Data'} (USE_SAMPLED_DATASET={USE_SAMPLED_DATASET})")
+
     if os.path.exists(csv_path):
         analysis_df = pd.read_csv(csv_path)
         # Merge on filename and category/class
@@ -24,9 +27,12 @@ def register_callbacks(app: dash.Dash, file_df):
             merged_df['num_faces'] = merged_df['num_faces'].fillna(0)
             file_df = merged_df
         else:
-            print('analysis_results.csv missing required columns.')
+            print(f'{csv_filename} missing required columns.')
     else:
-        print('analysis_results.csv not found, sorting by vertex/face count will not work.')
+        print(f'{csv_filename} not found, sorting by vertex/face count will not work.')
+
+
+
 
     # 1) File list render with sorting
     @app.callback(
