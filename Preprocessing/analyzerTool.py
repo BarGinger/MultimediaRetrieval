@@ -77,7 +77,7 @@ def analyze_database(database_path):
 if __name__ == "__main__":
     # Example usage: replace 'shapes_database' with your actual database path
     import csv
-    database_path = '../Data'
+    database_path = 'Data'
     csv_file = 'analysis_results.csv'
     fieldnames = ['class', 'shape_file', 'num_vertices', 'num_faces', 'face_types', 'bounding_box']
     GENERATE_CSV = False  # Set to True to regenerate CSV, False to use existing

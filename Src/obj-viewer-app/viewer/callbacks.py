@@ -8,22 +8,78 @@ import plotly.graph_objects as go
 
 def register_callbacks(app: dash.Dash, file_df):
 
-    # 1) File list render
+    # --- Merge file_df with analysis results to add num_vertices and num_faces columns ---
+    import pandas as pd
+    import os
+    # Find CSV path (relative to project root)
+    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'Preprocessing', 'analysis_results.csv')
+    csv_path = os.path.abspath(csv_path)
+    if os.path.exists(csv_path):
+        analysis_df = pd.read_csv(csv_path)
+        # Merge on filename and category/class
+        if 'class' in analysis_df.columns:
+            merged_df = pd.merge(file_df, analysis_df, left_on=['filename', 'category'], right_on=['shape_file', 'class'], how='left')
+            # Fill missing values with 0 for sorting
+            merged_df['num_vertices'] = merged_df['num_vertices'].fillna(0)
+            merged_df['num_faces'] = merged_df['num_faces'].fillna(0)
+            file_df = merged_df
+        else:
+            print('analysis_results.csv missing required columns.')
+    else:
+        print('analysis_results.csv not found, sorting by vertex/face count will not work.')
+
+    # 1) File list render with sorting
     @app.callback(
         Output('file-list', 'children'),
-        Input('category-filter', 'value')
+        [Input('average-filter', 'value'),
+         Input('category-filter', 'value'),
+         Input('sort-field', 'value'),
+         Input('sort-order', 'value')]
     )
-    def update_file_list(selected_category):
+    def update_file_list(avg_filter, selected_category, sort_field, sort_order):
         if file_df.empty:
             return [html.P("❌ No files found in Data directory",
                            style={'color': 'red', 'textAlign': 'center'})]
-        filtered_df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
-        if filtered_df.empty:
-            return [html.P(f"❌ No files found for category: {selected_category}",
-                           style={'color': 'orange', 'textAlign': 'center'})]
+
+        # Filter for average shape if requested, within selected category
+        df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
+        if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
+            valid = df['num_faces'].dropna()
+            if not valid.empty:
+                avg_f = valid.mean()
+                idx = (df['num_faces'] - avg_f).abs().idxmin()
+                if idx in df.index:
+                    df = df.loc[[idx]]
+                else:
+                    return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
+            else:
+                return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
+        elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
+            valid = df['num_vertices'].dropna()
+            if not valid.empty:
+                avg_v = valid.mean()
+                idx = (df['num_vertices'] - avg_v).abs().idxmin()
+                if idx in df.index:
+                    df = df.loc[[idx]]
+                else:
+                    return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
+            else:
+                return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
+
+        if df.empty:
+            return [html.P("❌ No files found for selection", style={'color': 'orange', 'textAlign': 'center'})]
+
+        # Sorting logic
+        ascending = True if sort_order == 'asc' else False
+        df = df.copy()
+        if sort_field == 'category':
+            df = df.sort_values(by=['category', 'filename'], ascending=ascending)
+        elif sort_field in ['num_vertices', 'num_faces']:
+            df[sort_field] = df[sort_field].fillna(0)
+            df = df.sort_values(by=sort_field, ascending=ascending)
 
         buttons = []
-        for idx, row in filtered_df.iterrows():
+        for idx, row in df.iterrows():
             buttons.append(html.Button(
                 html.Div([
                     html.Strong(f"📁 {row['category']}", className="category-text"),

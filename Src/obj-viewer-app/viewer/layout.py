@@ -17,11 +17,47 @@ def build_layout(file_df):
             html.Div([
                 html.H3("Select 3D Shape", style={'marginBottom': 20}),
 
+
+                html.Label("Show:"),
+                dcc.Dropdown(
+                    id='average-filter',
+                    options=[
+                        {'label': 'All Shapes', 'value': 'all'},
+                        {'label': 'Average by Faces', 'value': 'avg_faces'},
+                        {'label': 'Average by Vertices', 'value': 'avg_vertices'}
+                    ],
+                    value='all',
+                    style={'marginBottom': 10}
+                ),
+
                 html.Label("Filter by Category:"),
                 dcc.Dropdown(
                     id='category-filter',
                     options=_category_options(file_df),
                     value='all',
+                    style={'marginBottom': 20}
+                ),
+
+                html.Label("Sort by:"),
+                dcc.Dropdown(
+                    id='sort-field',
+                    options=[
+                        {'label': 'Category', 'value': 'category'},
+                        {'label': 'Vertex Count', 'value': 'num_vertices'},
+                        {'label': 'Face Count', 'value': 'num_faces'}
+                    ],
+                    value='category',
+                    style={'marginBottom': 10}
+                ),
+
+                html.Label("Order:"),
+                dcc.Dropdown(
+                    id='sort-order',
+                    options=[
+                        {'label': 'Ascending', 'value': 'asc'},
+                        {'label': 'Descending', 'value': 'desc'}
+                    ],
+                    value='asc',
                     style={'marginBottom': 20}
                 ),
 
