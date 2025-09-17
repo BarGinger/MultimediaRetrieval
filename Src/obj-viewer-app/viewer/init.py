@@ -8,17 +8,18 @@ def create_dash_app():
     app = dash.Dash(__name__, suppress_callback_exceptions=True,
                     title="3D Shape Viewer")
 
-    # --- Toggle for sampled dataset ---
-    USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled, False for full Data
-    data_dir = 'Data_sampled' if USE_SAMPLED_DATASET else 'Data'
-    file_df = get_file_tree(data_dir)
+    # --- Dataset options ---
+    DATASET_OPTIONS = ['Data', 'Data_sampled', 'Data_sampled_resampled']
+    DEFAULT_DATASET = DATASET_OPTIONS[1]
+    file_df = get_file_tree(DEFAULT_DATASET)
 
     # Base stores / top-level layout pieces
     app.layout = html.Div([
         dcc.Store(id="selected-file-store"),
-        build_layout(file_df)
+        dcc.Store(id="selected-dataset-store", data=DEFAULT_DATASET),
+        build_layout(file_df, DATASET_OPTIONS, DEFAULT_DATASET)
     ], style={'fontFamily': 'Arial, sans-serif'})
 
     # Register server callbacks
-    register_callbacks(app, file_df, USE_SAMPLED_DATASET)
+    register_callbacks(app, file_df, DATASET_OPTIONS, DEFAULT_DATASET)
     return app

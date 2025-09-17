@@ -1,81 +1,190 @@
 
-from dash import dcc, html, Input, Output, no_update
+from dash import dcc, html, Input, Output, no_update, State, callback_context
 import dash
 import numpy as np
 import os
 import pandas as pd
+import json
 from core.obj_parser import OBJParser
 from core.plotting import create_3d_plot
 import plotly.graph_objects as go
 
-def register_callbacks(app: dash.Dash, file_df, USE_SAMPLED_DATASET):
-    # Select and merge CSV for statistics
-    suffix = '_sampled' if USE_SAMPLED_DATASET else ''
-    csv_filename = f'analysis_results{suffix}.csv'
-    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'Preprocessing', csv_filename)
-    csv_path = os.path.abspath(csv_path)
-
-    print(f"Loaded {len(file_df)} files from {'Data_sampled' if USE_SAMPLED_DATASET else 'Data'} (USE_SAMPLED_DATASET={USE_SAMPLED_DATASET})")
-
-    if os.path.exists(csv_path):
-        analysis_df = pd.read_csv(csv_path)
-        # Merge on filename and category/class
-        if 'class' in analysis_df.columns:
-            merged_df = pd.merge(file_df, analysis_df, left_on=['filename', 'category'], right_on=['shape_file', 'class'], how='left')
-            # Fill missing values with 0 for sorting
-            merged_df['num_vertices'] = merged_df['num_vertices'].fillna(0)
-            merged_df['num_faces'] = merged_df['num_faces'].fillna(0)
-            file_df = merged_df
-        else:
-            print(f'{csv_filename} missing required columns.')
-    else:
-        print(f'{csv_filename} not found, sorting by vertex/face count will not work.')
-
-
-
-
-    # 1) File list render with sorting
+def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
+    # Combined callback: reset file index on dataset change, set index on file button click
     @app.callback(
-        Output('file-list', 'children'),
-        [Input('average-filter', 'value'),
-         Input('category-filter', 'value'),
-         Input('sort-field', 'value'),
-         Input('sort-order', 'value')]
+        [Output('shape-info', 'children'), Output('selected-file-store', 'data')],
+        [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
+         Input('selected-dataset-store', 'data')],
+        [State('average-filter', 'value'),
+         State('category-filter', 'value'),
+         State('sort-field', 'value'),
+         State('sort-order', 'value')],
+        prevent_initial_call=True
     )
-    def update_file_list(avg_filter, selected_category, sort_field, sort_order):
-        if file_df.empty:
-            return [html.P("❌ No files found in Data directory",
-                           style={'color': 'red', 'textAlign': 'center'})]
-
-        # Filter for average shape if requested, within selected category
+    def update_file_selection_or_reset(n_clicks_list, selected_dataset, avg_filter, selected_category, sort_field, sort_order):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update, no_update
+        triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        # If dataset changed, reset file selection
+        if triggered_id == 'selected-dataset-store':
+            return no_update, None
+        # If file button clicked, select file
+        trig = ctx.triggered[0]
+        if (trig.get('value') or 0) <= 0 or 'file-btn' not in trig['prop_id']:
+            return no_update, no_update
+        try:
+            comp_id = json.loads(trig['prop_id'].split('.')[0])
+            file_idx = comp_id['index']
+        except Exception:
+            return no_update, no_update
+        # Reproduce the same filtering and sorting logic as update_file_list
+        from core.file_index import get_file_tree
+        if not selected_dataset:
+            selected_dataset = 'Data'
+        file_df = get_file_tree(selected_dataset)
+        # Merge analysis CSV columns
+        if selected_dataset == 'Data':
+            analysis_path = 'Preprocessing/analysis_results.csv'
+        elif selected_dataset == 'Data_sampled':
+            analysis_path = 'Preprocessing/analysis_results_sampled.csv'
+        elif selected_dataset == 'Data_sampled_resampled':
+            analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
+        else:
+            analysis_path = None
+        if analysis_path:
+            try:
+                analysis_df = pd.read_csv(analysis_path)
+                analysis_df = analysis_df.rename(columns={
+                    'class': 'category',
+                    'shape_file': 'filename'
+                })
+                file_df = pd.merge(file_df, analysis_df[['category', 'filename', 'num_vertices', 'num_faces']],
+                                   on=['category', 'filename'], how='left')
+            except Exception as e:
+                print(f"[DEBUG] Could not merge analysis CSV: {e}")
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
+        ascending = True if sort_order == 'asc' else False
+        df = df.copy()
+        if sort_field == 'category':
+            df = df.sort_values(by=['category', 'filename'], ascending=ascending)
+        elif sort_field in ['num_vertices', 'num_faces']:
+            df[sort_field] = df[sort_field].fillna(0)
+            df = df.sort_values(by=sort_field, ascending=ascending)
+        # Apply average filtering after sorting
         if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
             valid = df['num_faces'].dropna()
             if not valid.empty:
                 avg_f = valid.mean()
                 idx = (df['num_faces'] - avg_f).abs().idxmin()
                 if idx in df.index:
-                    df = df.loc[[idx]]
+                    df = df.loc[[idx]].reset_index(drop=True)
                 else:
-                    return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
+                    return no_update, no_update
             else:
-                return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
+                return no_update, no_update
         elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
             valid = df['num_vertices'].dropna()
             if not valid.empty:
                 avg_v = valid.mean()
                 idx = (df['num_vertices'] - avg_v).abs().idxmin()
                 if idx in df.index:
-                    df = df.loc[[idx]]
+                    df = df.loc[[idx]].reset_index(drop=True)
                 else:
-                    return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
+                    return no_update, no_update
             else:
-                return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
+                return no_update, no_update
+        # Now use the filtered/sorted DataFrame for index lookup
+        if file_idx >= len(df):
+            return no_update, no_update
+        row = df.iloc[file_idx]
+        vertices, faces = OBJParser.parse_obj_file(row['filepath'])
+        try:
+            if vertices.size > 0:
+                minc = vertices.min(axis=0)
+                maxc = vertices.max(axis=0)
+                dims = maxc - minc
+            else:
+                dims = [0, 0, 0]
+            quality = "Good" if (len(vertices) > 100 and len(faces) > 50) else "Low Resolution"
+            info = html.Div([
+                html.H4(["✅ ", row['filename']], style={
+                    'marginBottom': '15px', 'color': '#27ae60',
+                    'borderBottom': '2px solid #27ae60', 'paddingBottom': '8px'
+                }),
+                html.Div([
+                    html.Div([html.Strong("📁 Category: "), row['category']], style={'marginBottom': '8px'}),
+                    html.Div([html.Strong("💾 File Size: "), f"{row['size']:,} bytes"], style={'marginBottom': '8px'}),
+                    html.Div([html.Strong("🔺 Vertices: "), f"{len(vertices):,}"], style={'marginBottom': '8px'}),
+                    html.Div([html.Strong("🔷 Faces: "), f"{len(faces):,}"], style={'marginBottom': '8px'}),
+                    html.Div([html.Strong("📐 Dimensions: "),
+                              f"X: {dims[0]:.2f}, Y: {dims[1]:.2f}, Z: {dims[2]:.2f}"],
+                             style={'marginBottom': '8px'}),
+                    html.Div([html.Strong("🎯 Quality: "), quality], style={'marginBottom': '8px'}),
+                ])
+            ])
+            return info, file_idx
+        except Exception as e:
+            err = html.Div([
+                html.H4("❌ Error Loading File", style={'color': '#e74c3c', 'marginBottom': '15px'}),
+                html.Div([html.Strong("📄 File: "), row['filepath']], style={'marginBottom': '8px'}),
+                html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
+            ])
+            return err, file_idx
+    # Store current dataset in dcc.Store
+    @app.callback(
+        Output('selected-dataset-store', 'data'),
+        Input('dataset-selector', 'value'),
+        State('selected-dataset-store', 'data')
+    )
+    def update_selected_dataset(selected_dataset, current_dataset):
+        if selected_dataset and selected_dataset != current_dataset:
+            return selected_dataset
+        return current_dataset
 
-        if df.empty:
-            return [html.P("❌ No files found for selection", style={'color': 'orange', 'textAlign': 'center'})]
+    @app.callback(
+        Output('file-list', 'children'),
+        [Input('average-filter', 'value'),
+         Input('category-filter', 'value'),
+         Input('sort-field', 'value'),
+         Input('sort-order', 'value'),
+         Input('selected-dataset-store', 'data')]
+    )
+    def update_file_list(avg_filter, selected_category, sort_field, sort_order, selected_dataset):
+        # Debug: log avg_filter value every time callback runs
+        print(f"[DEBUG] Callback triggered. avg_filter={avg_filter}")
+        from core.file_index import get_file_tree
+        import pandas as pd
+        if not selected_dataset:
+            selected_dataset = 'Data'
+        file_df = get_file_tree(selected_dataset)
+        # Merge analysis CSV columns
+        if selected_dataset == 'Data':
+            analysis_path = 'Preprocessing/analysis_results.csv'
+        elif selected_dataset == 'Data_sampled':
+            analysis_path = 'Preprocessing/analysis_results_sampled.csv'
+        elif selected_dataset == 'Data_sampled_resampled':
+            analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
+        else:
+            analysis_path = None
+        if analysis_path:
+            try:
+                analysis_df = pd.read_csv(analysis_path)
+                # Rename columns to match file_df
+                analysis_df = analysis_df.rename(columns={
+                    'class': 'category',
+                    'shape_file': 'filename'
+                })
+                # Merge on category and filename
+                file_df = pd.merge(file_df, analysis_df[['category', 'filename', 'num_vertices', 'num_faces']],
+                                   on=['category', 'filename'], how='left')
+            except Exception as e:
+                print(f"[DEBUG] Could not merge analysis CSV: {e}")
+        if file_df.empty:
+            return [html.P("❌ No files found in Data directory",
+                           style={'color': 'red', 'textAlign': 'center'})]
+        df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
 
-        # Sorting logic
         ascending = True if sort_order == 'asc' else False
         df = df.copy()
         if sort_field == 'category':
@@ -84,19 +193,50 @@ def register_callbacks(app: dash.Dash, file_df, USE_SAMPLED_DATASET):
             df[sort_field] = df[sort_field].fillna(0)
             df = df.sort_values(by=sort_field, ascending=ascending)
 
+        
+        print(f"[DEBUG] DataFrame columns: {df.columns.tolist()}")
+        print(f"[DEBUG] DataFrame length before avg filter: {len(df)}")
+
+        # Now apply average filtering after sorting
+        if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
+            valid = df['num_faces'].dropna()
+            if not valid.empty:
+                avg_f = valid.mean()
+                idx = (df['num_faces'] - avg_f).abs().idxmin()
+                if idx in df.index:
+                    df = df.loc[[idx]].reset_index(drop=True)
+                else:
+                    return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
+            else:
+                return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
+            print(f"[DEBUG] Rows after avg_faces filter: {len(df)}")
+        elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
+            valid = df['num_vertices'].dropna()
+            if not valid.empty:
+                avg_v = valid.mean()
+                idx = (df['num_vertices'] - avg_v).abs().idxmin()
+                if idx in df.index:
+                    df = df.loc[[idx]].reset_index(drop=True)
+                else:
+                    return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
+            else:
+                return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
+            print(f"[DEBUG] Rows after avg_vertices filter: {len(df)}")
+
         buttons = []
         for idx, row in df.iterrows():
-            buttons.append(html.Button(
+            btn = html.Button(
                 html.Div([
                     html.Strong(f"📁 {row['category']}", className="category-text"),
                     html.Br(),
                     html.Span(f"📄 {row['filename']}", className="filename-text")
                 ]),
-                id={'type': 'file-btn', 'index': idx},
+                id={'type': 'file-btn', 'index': int(idx)},
                 className='file-button',
                 n_clicks=0,
-                **{'data-file-index': idx}
-            ))
+                **{'data-file-index': int(idx)}
+            )
+            buttons.append(btn)
         return buttons
 
     # 2) Selected file highlight (client-side)
@@ -134,85 +274,88 @@ def register_callbacks(app: dash.Dash, file_df, USE_SAMPLED_DATASET):
     )
 
     # 3) Click handler -> loads file, updates info + selected index
-    @app.callback(
-        [Output('shape-info', 'children'),
-         Output('selected-file-store', 'data')],
-        [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks')],
-        prevent_initial_call=True
-    )
-    def select_file(n_clicks_list):
-        ctx = dash.callback_context
-        if not ctx.triggered:
-            return no_update, no_update
-
-        trig = ctx.triggered[0]
-        if (trig.get('value') or 0) <= 0 or 'file-btn' not in trig['prop_id']:
-            return no_update, no_update
-
-        import json
-        try:
-            comp_id = json.loads(trig['prop_id'].split('.')[0])
-            file_idx = comp_id['index']
-        except Exception:
-            return no_update, no_update
-
-        if file_idx >= len(file_df):
-            return no_update, no_update
-
-        row = file_df.iloc[file_idx]
-        filepath = row['filepath']
-
-        try:
-            vertices, faces = OBJParser.parse_obj_file(filepath)
-            if vertices.size > 0:
-                minc = vertices.min(axis=0)
-                maxc = vertices.max(axis=0)
-                dims = maxc - minc
-            else:
-                dims = [0, 0, 0]
-
-            quality = "Good" if (len(vertices) > 100 and len(faces) > 50) else "Low Resolution"
-
-            info = html.Div([
-                html.H4(["✅ ", row['filename']], style={
-                    'marginBottom': '15px', 'color': '#27ae60',
-                    'borderBottom': '2px solid #27ae60', 'paddingBottom': '8px'
-                }),
-                html.Div([
-                    html.Div([html.Strong("📁 Category: "), row['category']], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("💾 File Size: "), f"{row['size']:,} bytes"], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("🔺 Vertices: "), f"{len(vertices):,}"], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("🔷 Faces: "), f"{len(faces):,}"], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("📐 Dimensions: "),
-                              f"X: {dims[0]:.2f}, Y: {dims[1]:.2f}, Z: {dims[2]:.2f}"],
-                             style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("🎯 Quality: "), quality], style={'marginBottom': '8px'}),
-                ])
-            ])
-            return info, file_idx
-
-        except Exception as e:
-            err = html.Div([
-                html.H4("❌ Error Loading File", style={'color': '#e74c3c', 'marginBottom': '15px'}),
-                html.Div([html.Strong("📄 File: "), filepath], style={'marginBottom': '8px'}),
-                html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
-            ])
-            return err, file_idx
-
     # 4) 3D viewer update
     @app.callback(
         Output('3d-plot', 'figure'),
         [Input('display-options', 'value'),
          Input('selected-file-store', 'data'),
-         Input('color-selector', 'value')],
+         Input('color-selector', 'value'),
+         Input('selected-dataset-store', 'data')],
+        [State('average-filter', 'value'),
+         State('category-filter', 'value'),
+         State('sort-field', 'value'),
+         State('sort-order', 'value')],
         prevent_initial_call=True
     )
-    def update_plot(display_options, selected_file_idx, mesh_color):
+    def update_plot(display_options, selected_file_idx, mesh_color, selected_dataset, avg_filter, selected_category, sort_field, sort_order):
         if selected_file_idx is None:
             return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
                                   mesh_color=mesh_color or 'lightblue')
-
-        row = file_df.iloc[selected_file_idx]
+        if not selected_dataset:
+            selected_dataset = 'Data'
+        from core.file_index import get_file_tree
+        import pandas as pd
+        file_df = get_file_tree(selected_dataset)
+        # Merge analysis CSV columns
+        if selected_dataset == 'Data':
+            analysis_path = 'Preprocessing/analysis_results.csv'
+        elif selected_dataset == 'Data_sampled':
+            analysis_path = 'Preprocessing/analysis_results_sampled.csv'
+        elif selected_dataset == 'Data_sampled_resampled':
+            analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
+        else:
+            analysis_path = None
+        if analysis_path:
+            try:
+                analysis_df = pd.read_csv(analysis_path)
+                analysis_df = analysis_df.rename(columns={
+                    'class': 'category',
+                    'shape_file': 'filename'
+                })
+                file_df = pd.merge(file_df, analysis_df[['category', 'filename', 'num_vertices', 'num_faces']],
+                                   on=['category', 'filename'], how='left')
+            except Exception as e:
+                print(f"[DEBUG] Could not merge analysis CSV: {e}")
+        df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
+        ascending = True if sort_order == 'asc' else False
+        df = df.copy()
+        if sort_field == 'category':
+            df = df.sort_values(by=['category', 'filename'], ascending=ascending)
+        elif sort_field in ['num_vertices', 'num_faces']:
+            df[sort_field] = df[sort_field].fillna(0)
+            df = df.sort_values(by=sort_field, ascending=ascending)
+        # Apply average filtering after sorting
+        if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
+            valid = df['num_faces'].dropna()
+            if not valid.empty:
+                avg_f = valid.mean()
+                idx = (df['num_faces'] - avg_f).abs().idxmin()
+                if idx in df.index:
+                    df = df.loc[[idx]].reset_index(drop=True)
+                else:
+                    return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
+                                         mesh_color=mesh_color or 'lightblue')
+            else:
+                return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
+                                     mesh_color=mesh_color or 'lightblue')
+        elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
+            valid = df['num_vertices'].dropna()
+            if not valid.empty:
+                avg_v = valid.mean()
+                idx = (df['num_vertices'] - avg_v).abs().idxmin()
+                if idx in df.index:
+                    df = df.loc[[idx]].reset_index(drop=True)
+                else:
+                    return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
+                                         mesh_color=mesh_color or 'lightblue')
+            else:
+                return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
+                                     mesh_color=mesh_color or 'lightblue')
+        # Now use the filtered/sorted DataFrame for index lookup
+        if selected_file_idx >= len(df):
+            return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
+                                  mesh_color=mesh_color or 'lightblue')
+        row = df.iloc[selected_file_idx]
         vertices, faces = OBJParser.parse_obj_file(row['filepath'])
         show_wire = 'wireframe' in (display_options or [])
         title = f"{row['category']} - {row['filename']}"

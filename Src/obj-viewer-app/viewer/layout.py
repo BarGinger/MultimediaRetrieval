@@ -8,11 +8,18 @@ def _category_options(file_df):
     return [{'label': 'All Categories', 'value': 'all'}] + \
            [{'label': cat, 'value': cat} for cat in sorted(file_df['category'].unique())]
 
-def build_layout(file_df):
+def build_layout(file_df, dataset_options, selected_dataset):
     return html.Div([
         html.H1("3D Shape Viewer", style={'textAlign': 'center', 'marginBottom': 30}),
 
         html.Div([
+            html.Label("Select Dataset:"),
+            dcc.Dropdown(
+                id='dataset-selector',
+                options=[{'label': name, 'value': name} for name in dataset_options],
+                value=selected_dataset,
+                style={'marginBottom': 20}
+            ),
             # Left panel: file browser
             html.Div([
                 html.H3("Select 3D Shape", style={'marginBottom': 20}),
