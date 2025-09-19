@@ -80,8 +80,8 @@ if __name__ == "__main__":
     # --- Toggle for sampled dataset ---
     USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled, False for full Data
 
-    database_path = 'Data_sampled' if USE_SAMPLED_DATASET else 'Data'
-    suffix = '_sampled' if USE_SAMPLED_DATASET else ''
+    database_path = 'Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Data'
+    suffix = '_sampled_resampled' if USE_SAMPLED_DATASET else ''
     csv_file = f'analysis_results{suffix}.csv'
 
     fieldnames = ['class', 'shape_file', 'num_vertices', 'num_faces', 'face_types', 'bounding_box']
