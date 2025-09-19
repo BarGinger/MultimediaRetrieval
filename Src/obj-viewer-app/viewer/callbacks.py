@@ -14,21 +14,23 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     @app.callback(
         [Output('shape-info', 'children'), Output('selected-file-store', 'data')],
         [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
-         Input('selected-dataset-store', 'data')],
-        [State('average-filter', 'value'),
-         State('category-filter', 'value'),
-         State('sort-field', 'value'),
-         State('sort-order', 'value')],
+         Input('selected-dataset-store', 'data'),
+         Input('sort-field', 'value'),
+         Input('sort-order', 'value'),
+         Input('category-filter', 'value'),
+         Input('average-filter', 'value')],
         prevent_initial_call=True
     )
-    def update_file_selection_or_reset(n_clicks_list, selected_dataset, avg_filter, selected_category, sort_field, sort_order):
+    def update_file_selection_or_reset(n_clicks_list, selected_dataset, sort_field_input, sort_order_input, selected_category, avg_filter):
         ctx = dash.callback_context
         if not ctx.triggered:
             return no_update, no_update
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        # If dataset changed, reset file selection
-        if triggered_id == 'selected-dataset-store':
+        
+        # If any filter/sort changed, reset file selection
+        if triggered_id in ['selected-dataset-store', 'sort-field', 'sort-order', 'category-filter', 'average-filter']:
             return no_update, None
+            
         # If file button clicked, select file
         trig = ctx.triggered[0]
         if (trig.get('value') or 0) <= 0 or 'file-btn' not in trig['prop_id']:
@@ -38,7 +40,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             file_idx = comp_id['index']
         except Exception:
             return no_update, no_update
-        # Reproduce the same filtering and sorting logic as update_file_list
+        # Now get the current filtered/sorted DataFrame and find the file at the clicked index
         from core.file_index import get_file_tree
         if not selected_dataset:
             selected_dataset = 'Data'
@@ -63,14 +65,18 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                                    on=['category', 'filename'], how='left')
             except Exception as e:
                 print(f"[DEBUG] Could not merge analysis CSV: {e}")
+        
+        # Apply the same filtering and sorting as the file list
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
-        ascending = True if sort_order == 'asc' else False
+        ascending = True if sort_order_input == 'asc' else False
         df = df.copy()
-        if sort_field == 'category':
+        if sort_field_input == 'category':
             df = df.sort_values(by=['category', 'filename'], ascending=ascending)
-        elif sort_field in ['num_vertices', 'num_faces']:
-            df[sort_field] = df[sort_field].fillna(0)
-            df = df.sort_values(by=sort_field, ascending=ascending)
+        elif sort_field_input in ['num_vertices', 'num_faces']:
+            df[sort_field_input] = df[sort_field_input].fillna(0)
+            df = df.sort_values(by=sort_field_input, ascending=ascending)
+        # Reset index after sorting/filtering for consistent button indexing
+        df = df.reset_index(drop=True)
         # Apply average filtering after sorting
         if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
             valid = df['num_faces'].dropna()
@@ -94,7 +100,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     return no_update, no_update
             else:
                 return no_update, no_update
-        # Now use the filtered/sorted DataFrame for index lookup
+        
+        # Final reset of index to ensure sequential 0,1,2,... indices matching button creation
+        df = df.reset_index(drop=True)
+        
+        # Now get the file at the clicked index
         if file_idx >= len(df):
             return no_update, no_update
         row = df.iloc[file_idx]
@@ -152,7 +162,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     )
     def update_file_list(avg_filter, selected_category, sort_field, sort_order, selected_dataset):
         # Debug: log avg_filter value every time callback runs
-        print(f"[DEBUG] Callback triggered. avg_filter={avg_filter}")
         from core.file_index import get_file_tree
         import pandas as pd
         if not selected_dataset:
@@ -193,10 +202,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             df[sort_field] = df[sort_field].fillna(0)
             df = df.sort_values(by=sort_field, ascending=ascending)
 
-        
-        print(f"[DEBUG] DataFrame columns: {df.columns.tolist()}")
-        print(f"[DEBUG] DataFrame length before avg filter: {len(df)}")
-
         # Now apply average filtering after sorting
         if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
             valid = df['num_faces'].dropna()
@@ -209,7 +214,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
             else:
                 return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
-            print(f"[DEBUG] Rows after avg_faces filter: {len(df)}")
         elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
             valid = df['num_vertices'].dropna()
             if not valid.empty:
@@ -221,20 +225,22 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
             else:
                 return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
-            print(f"[DEBUG] Rows after avg_vertices filter: {len(df)}")
+
+        # Final reset of index to ensure sequential 0,1,2,... indices for button creation
+        df = df.reset_index(drop=True)
 
         buttons = []
-        for idx, row in df.iterrows():
+        for btn_idx, (df_idx, row) in enumerate(df.iterrows()):
             btn = html.Button(
                 html.Div([
                     html.Strong(f"📁 {row['category']}", className="category-text"),
                     html.Br(),
                     html.Span(f"📄 {row['filename']}", className="filename-text")
                 ]),
-                id={'type': 'file-btn', 'index': int(idx)},
+                id={'type': 'file-btn', 'index': int(btn_idx)},
                 className='file-button',
                 n_clicks=0,
-                **{'data-file-index': int(idx)}
+                **{'data-file-index': int(btn_idx)}
             )
             buttons.append(btn)
         return buttons
@@ -324,6 +330,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         elif sort_field in ['num_vertices', 'num_faces']:
             df[sort_field] = df[sort_field].fillna(0)
             df = df.sort_values(by=sort_field, ascending=ascending)
+        # Reset index after sorting/filtering for consistent button indexing
+        df = df.reset_index(drop=True)
         # Apply average filtering after sorting
         if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
             valid = df['num_faces'].dropna()
