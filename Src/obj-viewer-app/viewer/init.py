@@ -9,7 +9,7 @@ def create_dash_app():
                     title="3D Shape Viewer")
 
     # --- Dataset options ---
-    DATASET_OPTIONS = ['Data', 'Data_sampled', 'Data_sampled_resampled']
+    DATASET_OPTIONS = ['Data', 'Data_sampled', 'Data_sampled_resampled', 'Data_sampled_resampled_normalized']
     DEFAULT_DATASET = DATASET_OPTIONS[1]
     file_df = get_file_tree(DEFAULT_DATASET)
 
