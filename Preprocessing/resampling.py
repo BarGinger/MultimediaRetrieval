@@ -12,6 +12,153 @@ TARGET_VERTEX_COUNT = 5000
 TOLERANCE = 0.25  # 25% tolerance for resampling
 
 
+def edge_split_subdivision(mesh, target_vertices):
+    """
+    Feature-preserving subdivision using edge splitting instead of smoothing.
+    This method preserves sharp edges and geometric features better than loop subdivision.
+    """
+    import copy
+    
+    # Make a copy to avoid modifying the original
+    result_mesh = copy.deepcopy(mesh)
+    current_count = len(result_mesh.vertices)
+    
+    # Calculate how many iterations we might need
+    # Edge splitting roughly doubles vertex count per iteration
+    multiplier_needed = target_vertices / current_count
+    iterations = max(1, int(np.log2(multiplier_needed)))
+    iterations = min(iterations, 3)  # Limit to prevent excessive subdivision
+    
+    print(f"      Edge split subdivision: {iterations} iterations planned")
+    
+    for i in range(iterations):
+        try:
+            # Use midpoint subdivision as it's more feature-preserving
+            result_mesh = result_mesh.subdivide_midpoint(number_of_iterations=1)
+            new_count = len(result_mesh.vertices)
+            print(f"        Iteration {i+1}: {current_count} -> {new_count} vertices")
+            current_count = new_count
+            
+            # Stop if we've reached our target
+            if current_count >= target_vertices * 0.8:
+                break
+                
+        except Exception as e:
+            print(f"      Edge split iteration {i+1} failed: {e}")
+            break
+    
+    return result_mesh
+
+
+def controlled_remeshing(mesh, target_vertices):
+    """
+    Alternative feature-preserving remeshing approach.
+    Uses mesh repair and careful subdivision.
+    """
+    try:
+        # First ensure mesh is manifold and clean
+        mesh.remove_degenerate_triangles()
+        mesh.remove_duplicated_triangles()
+        mesh.remove_duplicated_vertices()
+        mesh.remove_non_manifold_edges()
+        
+        # If mesh is very sparse, use multiple careful subdivisions
+        current_vertices = len(mesh.vertices)
+        result_mesh = mesh
+        
+        # Use iterative approach with small steps
+        while len(result_mesh.vertices) < target_vertices * 0.8:
+            # Check if we can safely do midpoint subdivision
+            test_mesh = result_mesh.subdivide_midpoint(number_of_iterations=1)
+            
+            if len(test_mesh.vertices) <= target_vertices * 1.4:
+                result_mesh = test_mesh
+                print(f"      Controlled remesh step: {len(result_mesh.vertices)} vertices")
+            else:
+                # Would overshoot, stop here
+                break
+        
+        return result_mesh
+        
+    except Exception as e:
+        print(f"      Controlled remeshing failed: {e}")
+        return mesh
+
+
+def iterative_decimation(mesh, target_vertices, max_iterations=5):
+    """
+    Iteratively decimate mesh to precisely reach target vertex count.
+    Uses binary search approach to find the right face count.
+    """
+    current_vertices = len(mesh.vertices)
+    current_faces = len(mesh.triangles)
+    
+    if current_vertices <= target_vertices:
+        return mesh
+    
+    print(f"      Starting iterative decimation: {current_vertices} -> {target_vertices} vertices")
+    
+    # Initial bounds for binary search
+    min_faces = max(100, int(target_vertices * 0.5))  # Conservative minimum
+    max_faces = current_faces
+    
+    best_mesh = mesh
+    best_vertex_count = current_vertices
+    best_error = abs(current_vertices - target_vertices)
+    
+    for iteration in range(max_iterations):
+        # Binary search for optimal face count
+        target_faces = (min_faces + max_faces) // 2
+        
+        try:
+            # Try decimation with current target_faces
+            test_mesh = mesh.simplify_quadric_decimation(target_faces)
+            test_vertices = len(test_mesh.vertices)
+            
+            # Calculate error
+            error = abs(test_vertices - target_vertices)
+            
+            print(f"        Iteration {iteration + 1}: {target_faces} faces -> {test_vertices} vertices (error: {error})")
+            
+            # Update best result if this is better
+            if error < best_error:
+                best_mesh = test_mesh
+                best_vertex_count = test_vertices
+                best_error = error
+            
+            # Check if we're close enough
+            tolerance_range = target_vertices * 0.05  # 5% tolerance for convergence
+            if error <= tolerance_range:
+                print(f"        ✅ Converged with {test_vertices} vertices (error: {error})")
+                return test_mesh
+            
+            # Adjust search bounds
+            if test_vertices > target_vertices:
+                # Too many vertices, need fewer faces
+                max_faces = target_faces - 1
+            else:
+                # Too few vertices, need more faces
+                min_faces = target_faces + 1
+            
+            # Check if search space is exhausted
+            if min_faces >= max_faces:
+                break
+                
+        except Exception as e:
+            print(f"        Iteration {iteration + 1} failed: {e}")
+            # Adjust bounds to avoid this face count
+            if target_faces == min_faces:
+                min_faces += 1
+            else:
+                max_faces = target_faces - 1
+            
+            if min_faces >= max_faces:
+                break
+    
+    print(f"        Final result: {best_vertex_count} vertices (error: {best_error})")
+    return best_mesh
+
+
 def resample_mesh(input_path, output_path, target_vertices=TARGET_VERTEX_COUNT):
     """
     Resample mesh to target vertex count if it's outside the tolerance range.
@@ -44,11 +191,8 @@ def resample_mesh(input_path, output_path, target_vertices=TARGET_VERTEX_COUNT):
             action = "subdivided"
         else:
             # Too large - need to simplify/decimate
-            # NOTE: simplify_quadric_decimation targets NUMBER OF FACES, not vertices!
-            # We need to estimate target faces from target vertices
-            # Typical ratio: faces ≈ 2 × vertices for well-formed meshes
-            target_faces = int(target_vertices * 1.8)  # Conservative estimate
-            mesh_resampled = mesh.simplify_quadric_decimation(target_faces)
+            # Use iterative decimation to precisely target vertex count
+            mesh_resampled = iterative_decimation(mesh, target_vertices)
             action = "simplified"
         
         # Ensure we have a valid mesh
@@ -88,56 +232,57 @@ def subdivide_mesh(mesh, target_vertices):
 
 
 def subdivide_small_mesh(mesh, target_vertices):
-    """Handle very small meshes with careful subdivision."""
+    """Handle very small meshes with feature-preserving subdivision."""
     current_vertices = len(mesh.vertices)
     subdivided_mesh = mesh
     
-    # For very small meshes, we might need multiple subdivisions
-    # But we need to be very careful not to overshoot
+    # For very small meshes, we need to be extremely careful to preserve shape
+    # Use edge splitting and midpoint subdivision to avoid smoothing
     max_iterations = 3
     
     for i in range(max_iterations):
         current_count = len(subdivided_mesh.vertices)
         
-        # Estimate what the next subdivision will produce
-        # Loop subdivision typically increases vertices by factor of 3.5-4.5
-        estimated_next = current_count * 4
+        # Calculate how much more density we need
+        multiplier_needed = target_vertices / current_count
         
-        # If the next subdivision would overshoot significantly, try different approach
-        if estimated_next > target_vertices * 1.3:
-            # Use edge split instead of full loop subdivision for more control
+        # If we're close enough, stop
+        if current_count >= target_vertices * 0.75:
+            break
+            
+        # Choose subdivision method based on how much we need to grow
+        if multiplier_needed > 3.5:
+            # Need significant growth - use midpoint subdivision (preserves features)
             try:
                 subdivided_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
-            except:
-                # If midpoint fails, try one loop subdivision and then decimate
-                try:
-                    subdivided_mesh = subdivided_mesh.subdivide_loop(number_of_iterations=1)                    # Immediately decimate if we overshot
-                    if len(subdivided_mesh.vertices) > target_vertices * 1.2:
-                        target_faces = int(target_vertices * 1.8)
-                        subdivided_mesh = subdivided_mesh.simplify_quadric_decimation(target_faces)
-                except Exception as e:
-                    print(f"⚠️ Small mesh subdivision failed: {e}")
-                    break
-            break
-        else:
-            # Safe to do loop subdivision
-            try:
-                subdivided_mesh = subdivided_mesh.subdivide_loop(number_of_iterations=1)
-                current_count = len(subdivided_mesh.vertices)
-                
-                # Stop if we're close enough to target
-                if current_count >= target_vertices * 0.8:
-                    break
-                    
+                print(f"      Applied midpoint subdivision: {current_count} -> {len(subdivided_mesh.vertices)} vertices")
             except Exception as e:
-                print(f"⚠️ Small mesh loop subdivision failed: {e}")
+                # If midpoint fails, try controlled edge split
+                print(f"      Midpoint failed, trying edge split subdivision")
+                subdivided_mesh = edge_split_subdivision(subdivided_mesh, target_vertices)
                 break
-      # Final adjustment if needed
+        else:
+            # Moderate growth needed - try one careful iteration
+            try:
+                # First try midpoint (most conservative)
+                test_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
+                if len(test_mesh.vertices) <= target_vertices * 1.3:
+                    subdivided_mesh = test_mesh
+                    print(f"      Applied controlled midpoint: {current_count} -> {len(subdivided_mesh.vertices)} vertices")
+                else:
+                    # Midpoint would overshoot, try edge split
+                    subdivided_mesh = edge_split_subdivision(subdivided_mesh, target_vertices)
+                    break
+            except Exception as e:
+                print(f"⚠️ Small mesh subdivision failed: {e}")
+                break
+    
+    # Final adjustment if we overshot
     final_count = len(subdivided_mesh.vertices)
     if final_count > target_vertices * 1.3:
         try:
-            target_faces = int(target_vertices * 1.8)
-            subdivided_mesh = subdivided_mesh.simplify_quadric_decimation(target_faces)
+            subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
+            print(f"      Final decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
         except Exception as e:
             print(f"⚠️ Small mesh final decimation failed: {e}")
     
@@ -145,64 +290,86 @@ def subdivide_small_mesh(mesh, target_vertices):
 
 
 def subdivide_medium_mesh(mesh, target_vertices):
-    """Handle medium-sized meshes with controlled subdivision."""
+    """Handle medium-sized meshes with feature-preserving subdivision."""
     current_vertices = len(mesh.vertices)
     subdivided_mesh = mesh
     
-    # For medium meshes, usually 1-2 subdivisions should be enough
+    # For medium meshes, prioritize feature preservation
     multiplier_needed = target_vertices / current_vertices
     
-    if multiplier_needed <= 4:
-        # One subdivision should be sufficient
+    if multiplier_needed <= 3:
+        # Moderate growth - use midpoint subdivision (most conservative)
         try:
-            subdivided_mesh = subdivided_mesh.subdivide_loop(number_of_iterations=1)
-              # Fine-tune if needed
+            subdivided_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
+            print(f"      Applied midpoint subdivision: {current_vertices} -> {len(subdivided_mesh.vertices)} vertices")
+            
+            # Fine-tune if needed
             final_count = len(subdivided_mesh.vertices)
             if final_count > target_vertices * 1.2:
-                target_faces = int(target_vertices * 1.8)
-                subdivided_mesh = subdivided_mesh.simplify_quadric_decimation(target_faces)
+                subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
+                print(f"      Post-subdivision decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
                 
         except Exception as e:
-            print(f"⚠️ Medium mesh subdivision failed: {e}")
+            print(f"⚠️ Medium mesh midpoint subdivision failed, trying alternative: {e}")
+            # Fallback to controlled remeshing
+            subdivided_mesh = controlled_remeshing(mesh, target_vertices)
     else:
-        # Need more than one subdivision, but be careful
+        # Need more significant growth - use multiple conservative steps
         try:
-            # First subdivision
-            subdivided_mesh = subdivided_mesh.subdivide_loop(number_of_iterations=1)
+            # First midpoint subdivision
+            subdivided_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
             intermediate_count = len(subdivided_mesh.vertices)
+            print(f"      First midpoint: {current_vertices} -> {intermediate_count} vertices")
             
-            # Check if we need another
+            # Check if we need another iteration
             if intermediate_count < target_vertices * 0.7:
-                # Try midpoint subdivision for more controlled growth
-                subdivided_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
-              # Final adjustment
+                # Apply second midpoint subdivision carefully
+                test_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
+                if len(test_mesh.vertices) <= target_vertices * 1.4:
+                    subdivided_mesh = test_mesh
+                    print(f"      Second midpoint: {intermediate_count} -> {len(subdivided_mesh.vertices)} vertices")
+                else:
+                    # Would overshoot, try edge split instead
+                    subdivided_mesh = edge_split_subdivision(subdivided_mesh, target_vertices)
+            
+            # Final adjustment if needed
             final_count = len(subdivided_mesh.vertices)
             if final_count > target_vertices * 1.2:
-                target_faces = int(target_vertices * 1.8)
-                subdivided_mesh = subdivided_mesh.simplify_quadric_decimation(target_faces)
+                subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
+                print(f"      Final decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
                 
         except Exception as e:
             print(f"⚠️ Medium mesh complex subdivision failed: {e}")
+            # Fallback to simple approach
+            try:
+                subdivided_mesh = mesh.subdivide_midpoint(number_of_iterations=1)
+            except:
+                subdivided_mesh = mesh  # Last resort - return original
     
     return subdivided_mesh
 
 
 def subdivide_large_mesh(mesh, target_vertices):
-    """Handle larger meshes that still need some subdivision."""
+    """Handle larger meshes that still need some subdivision with feature preservation."""
     # For meshes that are already reasonably large but still below target,
-    # use minimal subdivision
+    # use only the most conservative subdivision methods
     try:
-        # Try midpoint subdivision first (more conservative)
+        # Always try midpoint subdivision first (most feature-preserving)
         subdivided_mesh = mesh.subdivide_midpoint(number_of_iterations=1)
+        print(f"      Applied midpoint subdivision: {len(mesh.vertices)} -> {len(subdivided_mesh.vertices)} vertices")
         
-        # If still not enough, try one loop subdivision
+        # If still not enough and we can safely do another iteration
         if len(subdivided_mesh.vertices) < target_vertices * 0.8:
-            subdivided_mesh = mesh.subdivide_loop(number_of_iterations=1)
-              # Adjust if overshot
+            test_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
+            if len(test_mesh.vertices) <= target_vertices * 1.3:
+                subdivided_mesh = test_mesh
+                print(f"      Second midpoint subdivision: -> {len(subdivided_mesh.vertices)} vertices")
+        
+        # Adjust if overshot
         final_count = len(subdivided_mesh.vertices)
         if final_count > target_vertices * 1.2:
-            target_faces = int(target_vertices * 1.8)
-            subdivided_mesh = subdivided_mesh.simplify_quadric_decimation(target_faces)
+            subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
+            print(f"      Post-subdivision decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
             
     except Exception as e:
         print(f"⚠️ Large mesh subdivision failed: {e}")
