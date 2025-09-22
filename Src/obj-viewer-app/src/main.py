@@ -449,7 +449,8 @@ app.layout = html.Div([
                             dcc.Graph(
                                 id='3d-plot',
                                 figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
-                                style={'height': '520px'}
+                                # style={'height': '120px !important', 'width': '100%'}
+                                className='three-d-plot'
                             )
                         ],
                         type="cube",

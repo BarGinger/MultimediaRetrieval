@@ -58,7 +58,7 @@ def create_3d_plot(vertices: np.ndarray,
             aspectmode="data",
             camera=dict(eye=dict(x=1.5, y=1.5, z=1.5))
         ),
-        height=600,
+        height=350,
         margin=dict(l=0, r=0, t=30, b=0)
     )
     return fig

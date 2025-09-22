@@ -10,150 +10,112 @@ def _category_options(file_df):
 
 def build_layout(file_df):
     return html.Div([
-        html.H1("3D Shape Viewer", style={'textAlign': 'center', 'marginBottom': 30}),
+    html.H1("3D Shape Viewer", className="main-title"),
 
-        html.Div([
+    html.Div([
             # Left panel: file browser
             html.Div([
-                html.H3("Select 3D Shape", style={'marginBottom': 20}),
+                html.H3("Select 3D Shape", className="panel-title"),
 
                 html.Label("Filter by Category:"),
                 dcc.Dropdown(
                     id='category-filter',
                     options=_category_options(file_df),
                     value='all',
-                    style={'marginBottom': 20}
+                    className="category-dropdown"
                 ),
 
                 dcc.Loading(
                     id="loading-files",
                     children=[html.Div(
                         id='file-list',
-                        style={'height': '600px', 'overflowY': 'scroll',
-                               'border': '1px solid #ddd', 'padding': '10px'}
+                        className="file-list-panel"
                     )],
                     type="default"
                 )
-            ], style={'width': '20%', 'display': 'inline-block',
-                      'verticalAlign': 'top', 'padding': '20px', 'backgroundColor': '#f8f9fa',
-                      'border': '1px solid #dee2e6', 'borderRadius': '8px'}),
+            ], className="side-panel"),
 
-            # Right panel: info + 3D
+            # Center panel: 3D Visualization + Shape Info
             html.Div([
                 html.Div([
+                    html.H3("🎮 3D Visualization", className="panel-title viz-title"),
+
                     html.Div([
-                        html.H3("📄 Shape Information", style={
-                            'margin': '0 0 15px 0', 'color': '#2c3e50',
-                            'borderBottom': '2px solid #3498db', 'paddingBottom': '10px'
-                        }),
+                        html.H4("📄 Shape Info", className="shape-info-title"),
                         html.Div(id='shape-info', children=[
-                            html.P("🔍 Select a 3D shape from the list to view details",
-                                   style={'color': '#7f8c8d', 'fontStyle': 'italic'})
-                        ])
-                    ], style={
-                        'backgroundColor': '#f8f9fa', 'border': '1px solid #dee2e6',
-                        'borderRadius': '8px', 'padding': '20px', 'width': '20%',
-                        'display': 'inline-block', 'verticalAlign': 'top',
-                        'marginRight': '2%', 'height': '700px', 'overflowY': 'auto'
-                    }),
+                            html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint"),
+                        ], className="shape-info-properties")
+                    ], className="shape-info-card"),
 
                     html.Div([
-                        html.H3("🎮 3D Visualization", style={
-                            'margin': '0 0 15px 0', 'color': '#2c3e50',
-                            'borderBottom': '2px solid #e74c3c', 'paddingBottom': '10px'
-                        }),
-
+                        html.Label("Display Options:", className="display-options-label"),
                         html.Div([
-                            html.Label("Display Options:", style={'fontWeight': 'bold', 'marginBottom': '8px'}),
                             html.Div([
-                                html.Div([
-                                    html.Label("Wireframe:", style={'fontWeight': 'bold', 'marginBottom': '5px', 'fontSize': '0.9em'}),
-                                    dcc.Checklist(
-                                        id='display-options',
-                                        options=[{'label': ' Show edges', 'value': 'wireframe'}],
-                                        value=[],
-                                        style={'marginTop': '5px'}
-                                    )
-                                ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'}),
+                                html.Label("Wireframe:", className="display-wireframe-label"),
+                                dcc.Checklist(
+                                    id='display-options',
+                                    options=[{'label': ' Show edges', 'value': 'wireframe'}],
+                                    value=[],
+                                    className="display-wireframe-checklist"
+                                )
+                            ], className="display-wireframe-panel"),
 
-                                html.Div([
-                                    html.Label("Shape Color:", style={'fontWeight': 'bold', 'marginBottom': '5px', 'fontSize': '0.9em'}),
-                                    dcc.Dropdown(
-                                        id='color-selector',
-                                        options=[
-                                            {'label': '🔵 Light Blue', 'value': 'lightblue'},
-                                            {'label': '🔴 Light Coral', 'value': 'lightcoral'},
-                                            {'label': '🟢 Light Green', 'value': 'lightgreen'},
-                                            {'label': '🟡 Gold', 'value': 'gold'},
-                                            {'label': '🟣 Plum', 'value': 'plum'},
-                                            {'label': '🟠 Orange', 'value': 'orange'},
-                                            {'label': '🩵 Cyan', 'value': 'cyan'},
-                                            {'label': '🩷 Pink', 'value': 'pink'},
-                                            {'label': '⚪ Silver', 'value': 'silver'},
-                                            {'label': '🟤 Peru', 'value': 'peru'},
-                                        ],
-                                        value='lightblue',
-                                        style={'fontSize': '0.85em'}
-                                    )
-                                ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '4%'}),
-                            ], style={'marginBottom': '15px'})
-                        ], style={'marginBottom': '15px'}),
+                            html.Div([
+                                html.Label("Shape Color:", className="display-color-label"),
+                                dcc.Dropdown(
+                                    id='color-selector',
+                                    options=[
+                                        {'label': '🔵 Light Blue', 'value': 'lightblue'},
+                                        {'label': '🔴 Light Coral', 'value': 'lightcoral'},
+                                        {'label': '🟢 Light Green', 'value': 'lightgreen'},
+                                        {'label': '🟡 Gold', 'value': 'gold'},
+                                        {'label': '🟣 Plum', 'value': 'plum'},
+                                        {'label': '🟠 Orange', 'value': 'orange'},
+                                        {'label': '🩵 Cyan', 'value': 'cyan'},
+                                        {'label': '🩷 Pink', 'value': 'pink'},
+                                        {'label': '⚪ Silver', 'value': 'silver'},
+                                        {'label': '🟤 Peru', 'value': 'peru'},
+                                    ],
+                                    value='lightblue',
+                                    className="display-color-dropdown"
+                                )
+                            ], className="display-color-panel"),
+                        ], className="display-options-row")
+                    ], className="display-options-panel"),
 
-                        dcc.Loading(
-                            id="loading-3d",
-                            children=[dcc.Graph(
-                                id='3d-plot',
-                                figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
-                                style={'height': '100%'}
-                            )],
-                            type="cube",
-                            color="#e74c3c"
-                        )
-                    ], style={
-                        'backgroundColor': '#f8f9fa', 'border': '1px solid #dee2e6',
-                        'borderRadius': '8px', 'padding': '20px', 'width': '68%',
-                        'display': 'inline-block', 'verticalAlign': 'top'
-                    }),
+                    dcc.Loading(
+                        id="loading-3d",
+                        children=[dcc.Graph(
+                            id='3d-plot',
+                            figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
+                            className='main-three-d-plot'
+                        )],
+                        type="cube",
+                        color="#e74c3c"
+                    )
                 ])
-            ], style={
-                'width': '70%',
-                'display': 'inline-block',
-                'verticalAlign': 'top',
-                'padding': '20px'
-                })
-        ]),
+            ], className="center-panel"),
 
-        # Bottom panel: similar shapes plots
-        html.Div([
-            html.H3("📊 Additional Plots", style={
-                'margin': '10px 0 8px 0', 'color': '#2c3e50',
-                'borderBottom': '2px solid #8e44ad', 'paddingBottom': '6px'
-            }),
+            # Right panel: Additional Plots
+            html.Div([
+                html.H3("📊 Additional Plots", className="panel-title aux-title"),
 
-            html.Button(
-                'Find similar shapes',
-                id='find-shapes-button',
-                n_clicks=0
-            ),
+                html.Button(
+                    'Find similar shapes',
+                    id='find-shapes-button',
+                    n_clicks=0,
+                    className="aux-btn"
+                ),
 
-            dcc.Slider(
-                id='amount-plots-slider',
-                min=1, max=10, step=1, value=5,
-                marks={1:'1', 2:'2', 3:'3', 4:'4', 5:'5',6:'6',7:'7',8:'8',9:'9',10:'10'},
-                tooltip={'always_visible': False}
-            ),
-            
+                dcc.Slider(
+                    id='amount-plots-slider',
+                    min=1, max=10, step=1, value=5,
+                    marks={1:'1', 2:'2', 3:'3', 4:'4', 5:'5',6:'6',7:'7',8:'8',9:'9',10:'10'},
+                    tooltip={'always_visible': False},
+                    className="aux-slider"
+                ),
 
-            html.Div(id='aux-plots-row', style={
-                'display': 'flex',
-                'flexWrap': 'nowrap',
-                'gap': '12px',
-                'overflowX': 'auto',
-                'padding': '8px 2px',
-                'border': '1px solid #dee2e6',
-                'borderRadius': '8px',
-                'backgroundColor': '#fafafa',
-                'height': '400px'
-            }),
-        ], style={'margin': '10px 20px 20px 20px'})
+                html.Div(id='aux-plots-row', className="aux-plots-row"),
+            ], className="right-panel"),
+        ], className="main-row")
     ])

@@ -4,6 +4,7 @@ import numpy as np
 from core.obj_parser import OBJParser
 from core.plotting import create_3d_plot
 import plotly.graph_objects as go
+import json
 
 
 def register_callbacks(app: dash.Dash, file_df):
@@ -87,7 +88,7 @@ def register_callbacks(app: dash.Dash, file_df):
         if (trig.get('value') or 0) <= 0 or 'file-btn' not in trig['prop_id']:
             return no_update, no_update
 
-        import json
+        
         try:
             comp_id = json.loads(trig['prop_id'].split('.')[0])
             file_idx = comp_id['index']
@@ -111,22 +112,7 @@ def register_callbacks(app: dash.Dash, file_df):
 
             quality = "Good" if (len(vertices) > 100 and len(faces) > 50) else "Low Resolution"
 
-            info = html.Div([
-                html.H4(["✅ ", row['filename']], style={
-                    'marginBottom': '15px', 'color': '#27ae60',
-                    'borderBottom': '2px solid #27ae60', 'paddingBottom': '8px'
-                }),
-                html.Div([
-                    html.Div([html.Strong("📁 Category: "), row['category']], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("💾 File Size: "), f"{row['size']:,} bytes"], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("🔺 Vertices: "), f"{len(vertices):,}"], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("🔷 Faces: "), f"{len(faces):,}"], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("📐 Dimensions: "),
-                              f"X: {dims[0]:.2f}, Y: {dims[1]:.2f}, Z: {dims[2]:.2f}"],
-                             style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("🎯 Quality: "), quality], style={'marginBottom': '8px'}),
-                ])
-            ])
+            info = get_card_header(row, vertices, faces, dims, quality)
             return info, file_idx
 
         except Exception as e:
@@ -147,15 +133,78 @@ def register_callbacks(app: dash.Dash, file_df):
     )
     def update_plot(display_options, selected_file_idx, mesh_color):
         if selected_file_idx is None:
-            return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
+            fig = create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
                                   mesh_color=mesh_color or 'lightblue')
-
-        row = file_df.iloc[selected_file_idx]
-        vertices, faces = OBJParser.parse_obj_file(row['filepath'])
-        show_wire = 'wireframe' in (display_options or [])
-        title = f"{row['category']} - {row['filename']}"
-        return create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
+        else:
+            row = file_df.iloc[selected_file_idx]
+            vertices, faces = OBJParser.parse_obj_file(row['filepath'])
+            show_wire = 'wireframe' in (display_options or [])
+            title = f"{row['category']} - {row['filename']}"
+            fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
                               mesh_color=mesh_color or 'lightblue')
+        # Return only the Plotly figure object
+        return fig
+
+
+    def _num(n):
+            return f"{int(n):,}"
+
+    def _bytes(b):
+        try:
+            b = int(b)
+        except Exception:
+            return "-"
+        units = ["B","KB","MB","GB","TB"]
+        i = 0
+        x = float(b)
+        while x >= 1024 and i < len(units)-1:
+            x /= 1024.0
+            i += 1
+        return f"{x:.1f} {units[i]}"
+
+    def get_card_header(row, vertices, faces, dims, quality):
+        """
+        Generate the header part of the shape card with metadata.
+
+        Parameters:
+        row: pd.Series - DataFrame row with file metadata
+        vertices: np.ndarray - Array of vertices
+        faces: np.ndarray - Array of faces
+        dims: list - Dimensions of the shape
+        quality: str - Quality description of the shape
+
+        Returns:
+        html.Div - Dash HTML Div component with formatted metadata
+        """
+
+        header = html.Div([
+                html.Div([
+                    html.Span("📁 ", className="shape-info-icon"), html.Strong("Category: "),
+                    html.Span(row['category'])
+                ], className="shape-info-prop"),
+                html.Div([
+                    html.Span("💾 ", className="shape-info-icon"), html.Strong("Size: "),
+                    html.Span(_bytes(row.get('size', 0)))
+                ], className="shape-info-prop"),
+                html.Div([
+                    html.Span("🔺 ", className="shape-info-icon"), html.Strong("Vertices: "),
+                    html.Span(_num(len(vertices)))
+                ], className="shape-info-prop"),
+                html.Div([
+                    html.Span("🔷 ", className="shape-info-icon"), html.Strong("Faces: "),
+                    html.Span(_num(len(faces)))
+                ], className="shape-info-prop"),
+                html.Div([
+                    html.Span("📐 ", className="shape-info-icon"), html.Strong("Dims: "),
+                    html.Span(f"X {dims[0]:.2f} · Y {dims[1]:.2f} · Z {dims[2]:.2f}")
+                ], className="shape-info-prop"),
+                html.Div([
+                    html.Span("🎯 ", className="shape-info-icon"), html.Strong("Quality: "),
+                    html.Span(quality)
+                ], className="shape-info-prop"),
+            ], className="shape-info-header")
+        
+        return header
 
     # 5) Similar shapes rendering
     @app.callback(
@@ -207,72 +256,26 @@ def register_callbacks(app: dash.Dash, file_df):
 
         quality = "Good" if (len(vertices) > 100 and len(faces) > 50) else "Low Resolution"
 
-        def _num(n):
-            return f"{int(n):,}"
 
-        def _bytes(b):
-            try:
-                b = int(b)
-            except Exception:
-                return "-"
-            units = ["B","KB","MB","GB","TB"]
-            i = 0
-            x = float(b)
-            while x >= 1024 and i < len(units)-1:
-                x /= 1024.0
-                i += 1
-            return f"{x:.1f} {units[i]}"
-
-        # Render cards ()
+        # Render cards with independent plot objects
         cards = []
         for i in range(total):
-            fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
+            # Deep copy vertices and faces to ensure independence
+            v_copy = np.copy(vertices)
+            f_copy = np.copy(faces)
+            card_title = f"{title} (Aux {i+1})"
+            fig = create_3d_plot(v_copy, f_copy, card_title, show_wireframe=show_wire,
                                 mesh_color=mesh_color or 'lightblue')
 
-            header = html.Div([
-                html.Div([
-                    html.Span("📁 ", style={'marginRight': '4px'}), html.Strong("Category: "),
-                    html.Span(row['category'])
-                ], style={'marginRight': '12px'}),
-                html.Div([
-                    html.Span("💾 ", style={'marginRight': '4px'}), html.Strong("Size: "),
-                    html.Span(_bytes(row.get('size', 0)))
-                ], style={'marginRight': '12px'}),
-                html.Div([
-                    html.Span("🔺 ", style={'marginRight': '4px'}), html.Strong("Vertices: "),
-                    html.Span(_num(len(vertices)))
-                ], style={'marginRight': '12px'}),
-                html.Div([
-                    html.Span("🔷 ", style={'marginRight': '4px'}), html.Strong("Faces: "),
-                    html.Span(_num(len(faces)))
-                ], style={'marginRight': '12px'}),
-                html.Div([
-                    html.Span("📐 ", style={'marginRight': '4px'}), html.Strong("Dims: "),
-                    html.Span(f"X {dims[0]:.2f} · Y {dims[1]:.2f} · Z {dims[2]:.2f}")
-                ], style={'marginRight': '12px'}),
-                html.Div([
-                    html.Span("🎯 ", style={'marginRight': '4px'}), html.Strong("Quality: "),
-                    html.Span(quality)
-                ]),
-            ], style={
-                'display': 'flex',
-                'flexWrap': 'wrap',
-                'rowGap': '4px',
-                'columnGap': '8px',
-                'fontSize': '12px',
-                'color': '#2c3e50',
-                'padding': '6px 6px 4px 6px',
-                'borderBottom': '1px solid #eee',
-                'marginBottom': '6px',
-                'height': '50px'
-            })
+            header = get_card_header(row, v_copy, f_copy, dims, quality)
 
             card = html.Div([
                 header,
-                dcc.Graph(figure=fig, style={'height': '220px', 'width': '360px'})
+                dcc.Graph(figure=fig, 
+                          className='three-d-plot')
             ], style={
                 'minWidth': '360px',
-                'height': '350px',
+                'height': '200px',
                 'backgroundColor': '#fff',
                 'border': '1px solid #e1e1e1',
                 'borderRadius': '8px',
