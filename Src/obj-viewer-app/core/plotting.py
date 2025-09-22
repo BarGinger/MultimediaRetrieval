@@ -51,6 +51,23 @@ def create_3d_plot(vertices: np.ndarray,
                                    marker=dict(size=2, color=mesh_color),
                                    name="Point Cloud"))
 
+    # Always add a red dot at the origin (0,0,0) to highlight the barycenter
+    # Make it always visible by rendering it last and with special properties
+    fig.add_trace(go.Scatter3d(
+        x=[0], y=[0], z=[0],
+        mode="markers",
+        marker=dict(
+            size=8,
+            color="red", 
+            symbol="circle",
+            line=dict(color="darkred", width=2),  # Dark red outline for better visibility
+            opacity=0.9  # Slightly transparent so it's visible even when occluded
+        ),
+        name="Barycenter (Origin)",
+        hovertemplate="<b>Barycenter</b><br>Position: (0, 0, 0)<extra></extra>",
+        showlegend=True
+    ))
+
     fig.update_layout(
         title=title,
         scene=dict(

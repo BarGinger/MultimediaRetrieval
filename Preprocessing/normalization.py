@@ -3,7 +3,7 @@
 Mesh Normalization Tool
 
 This script normalizes 3D meshes by:
-1. Translating each mesh so its barycenter (center of mass) coincides with the origin (0,0,0)
+1. Translating each mesh so its mass barycenter (center of mass weighted by face areas) coincides with the origin (0,0,0)
 2. Scaling each mesh uniformly so it tightly fits within a unit cube [-0.5, 0.5]³
 
 The normalization ensures all meshes have consistent positioning and scale,
@@ -18,12 +18,65 @@ from pathlib import Path
 USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled_resampled, False for Data_resampled
 BASE = Path(__file__).parent.parent.resolve()
 SOURCE_ROOT = BASE / ('Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Data_resampled')
-TARGET_ROOT = BASE / ('Data_sampled_normalized' if USE_SAMPLED_DATASET else 'Data_normalized')
+TARGET_ROOT = BASE / ('Data_sampled_resampled_normalized' if USE_SAMPLED_DATASET else 'Data_normalized')
+
+def calculate_mass_barycenter(vertices, triangles):
+    """
+    Calculate the mass barycenter (center of mass) of a mesh weighted by face areas.
+    
+    For each triangle face:
+    1. Calculate the face centroid (average of its 3 vertices)
+    2. Calculate the face area
+    3. Weight the face centroid by its area
+    4. Sum all weighted centroids and divide by total area
+    
+    Args:
+        vertices: numpy array of shape (N, 3) containing vertex coordinates
+        triangles: numpy array of shape (M, 3) containing triangle indices
+        
+    Returns:
+        numpy array of shape (3,) representing the mass barycenter
+    """
+    if len(triangles) == 0:
+        # Fallback to geometric centroid if no faces
+        return np.mean(vertices, axis=0)
+    
+    total_weighted_centroid = np.zeros(3)
+    total_area = 0.0
+    
+    for triangle in triangles:
+        # Get the three vertices of this triangle
+        v0 = vertices[triangle[0]]
+        v1 = vertices[triangle[1]]
+        v2 = vertices[triangle[2]]
+        
+        # Calculate face centroid (average of the 3 vertices)
+        face_centroid = (v0 + v1 + v2) / 3.0
+        
+        # Calculate face area using cross product
+        # Area = 0.5 * ||(v1-v0) × (v2-v0)||
+        edge1 = v1 - v0
+        edge2 = v2 - v0
+        cross_product = np.cross(edge1, edge2)
+        face_area = 0.5 * np.linalg.norm(cross_product)
+        
+        # Add weighted contribution of this face
+        total_weighted_centroid += face_centroid * face_area
+        total_area += face_area
+    
+    # Calculate mass barycenter
+    if total_area > 0:
+        mass_barycenter = total_weighted_centroid / total_area
+    else:
+        # Fallback to geometric centroid if total area is zero
+        mass_barycenter = np.mean(vertices, axis=0)
+    
+    return mass_barycenter
 
 def normalize_mesh(input_path, output_path):
     """
     Normalize a mesh by:
-    1. Centering at origin (translate barycenter to 0,0,0)
+    1. Centering at origin (translate mass barycenter to 0,0,0)
     2. Scaling to fit in unit cube [-0.5, 0.5]³
     
     Args:
@@ -40,12 +93,12 @@ def normalize_mesh(input_path, output_path):
             print(f"[X] Empty mesh: {input_path}")
             return False, None, None
         
-        # Get vertices as numpy array for easier manipulation
+        # Get vertices and faces as numpy arrays for easier manipulation
         vertices = np.asarray(mesh.vertices)
+        triangles = np.asarray(mesh.triangles)
         
-        # Step 1: Calculate barycenter (center of mass)
-        # For a mesh, barycenter is simply the mean of all vertex positions
-        barycenter = np.mean(vertices, axis=0)
+        # Step 1: Calculate mass barycenter (center of mass) weighted by face areas
+        barycenter = calculate_mass_barycenter(vertices, triangles)
         
         # Step 2: Translate to center at origin
         vertices_centered = vertices - barycenter
@@ -105,9 +158,10 @@ def verify_normalization(mesh_path):
             return False, False, 0
         
         vertices = np.asarray(mesh.vertices)
+        triangles = np.asarray(mesh.triangles)
         
-        # Check if centered (barycenter should be close to origin)
-        barycenter = np.mean(vertices, axis=0)
+        # Check if centered (mass barycenter should be close to origin)
+        barycenter = calculate_mass_barycenter(vertices, triangles)
         is_centered = np.allclose(barycenter, [0, 0, 0], atol=1e-6)
         
         # Check if fits in unit cube
@@ -126,7 +180,7 @@ def main():
     print(f"Source exists: {SOURCE_ROOT.exists()}")
     print(f"Source is dir: {SOURCE_ROOT.is_dir()}")
     print("Normalization process:")
-    print("  1. Center barycenter at origin (0,0,0)")
+    print("  1. Center mass barycenter at origin (0,0,0)")
     print("  2. Scale to fit in unit cube [-0.5, 0.5]³")
     print("-" * 60)
     

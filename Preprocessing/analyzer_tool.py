@@ -80,8 +80,8 @@ if __name__ == "__main__":
     # --- Toggle for sampled dataset ---
     USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled, False for full Data
 
-    database_path = 'Data_sampled_resampled_normalized' if USE_SAMPLED_DATASET else 'Data'
-    suffix = '_sampled_resampled_normalized' if USE_SAMPLED_DATASET else ''
+    database_path = 'Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Data'
+    suffix = '_sampled_resampled' if USE_SAMPLED_DATASET else ''
     csv_file = f'analysis_results{suffix}.csv'
 
     fieldnames = ['class', 'shape_file', 'num_vertices', 'num_faces', 'face_types', 'bounding_box']
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     plt.ylabel('Number of Shapes')
     plt.legend()
     plt.tight_layout()
-    # plt.savefig(f'shape_histogram_vertices{suffix}.png')
+    plt.savefig(f'shape_histogram_vertices{suffix}.png')
     plt.close()
     print(f'Vertex histogram saved as shape_histogram_vertices{suffix}.png')
 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     plt.ylabel('Number of Shapes')
     plt.legend()
     plt.tight_layout()
-    # plt.savefig(f'shape_histogram_faces{suffix}.png')
+    plt.savefig(f'shape_histogram_faces{suffix}.png')
     plt.close()
     print(f'Face histogram saved as shape_histogram_faces{suffix}.png')
 
@@ -158,6 +158,6 @@ if __name__ == "__main__":
     plt.xlabel('Number of Shapes')
     plt.ylabel('Shape Class')
     plt.tight_layout()
-    # plt.savefig(f'shape_histogram_classes{suffix}.png')
+    plt.savefig(f'shape_histogram_classes{suffix}.png')
     plt.close()
     print(f'Class histogram saved as shape_histogram_classes{suffix}.png')
