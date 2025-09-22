@@ -48,7 +48,6 @@ def build_layout(file_df):
                     ], className="shape-info-card"),
 
                     html.Div([
-                        html.Label("Display Options:", className="display-options-label"),
                         html.Div([
                             html.Div([
                                 html.Label("Wireframe:", className="display-wireframe-label"),
@@ -83,7 +82,7 @@ def build_layout(file_df):
                                     className="display-color-dropdown"
                                 )
                             ], className="display-color-panel"),
-                        ], className="display-options-row")
+                        ], className="display-toolbar"),
                     ], className="display-options-panel"),
 
                     dcc.Loading(

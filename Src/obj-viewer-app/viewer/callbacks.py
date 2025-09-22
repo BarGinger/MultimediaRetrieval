@@ -128,11 +128,15 @@ def register_callbacks(app: dash.Dash, file_df):
         Output('3d-plot', 'figure'),
         [Input('display-options', 'value'),
          Input('selected-file-store', 'data'),
-         Input('color-selector', 'value')],
+         Input('color-selector', 'value'),
+         Input('3d-plot', 'figure')],
         prevent_initial_call=True
     )
-    def update_plot(display_options, selected_file_idx, mesh_color):
+    def update_plot(display_options, selected_file_idx, mesh_color, current_fig):
         smooth_shading = 'smooth_shading' in (display_options or [])
+        camera = None
+        if current_fig and 'layout' in current_fig and 'scene' in current_fig['layout']:
+            camera = current_fig['layout']['scene'].get('camera', None)
         if selected_file_idx is None:
             fig = create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
                                   mesh_color=mesh_color or 'lightblue',
@@ -145,7 +149,8 @@ def register_callbacks(app: dash.Dash, file_df):
             fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
                               mesh_color=mesh_color or 'lightblue',
                               smooth_shading=smooth_shading)
-        # Return only the Plotly figure object
+        if camera:
+            fig.update_layout(scene_camera=camera)
         return fig
 
 
