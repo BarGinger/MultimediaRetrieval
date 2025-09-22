@@ -13,7 +13,8 @@ Build a content-based 3D shape retrieval system that, given a 3D shape, finds an
 | Name | Email | Git User |
 |------|-------|----------|
 | Bar Melinarskiy | b.melinarskiy@students.uu.nl | @BarGinger |
-| [Contributor 2] | [email2@example.com] | [@username2] |
+| Arie Klaver | a.c.klaver@students.uu.nl | Arie-K |
+| Rutger Vincken | r.l.g.vincken@students.uu.nl | rutgervincken |
 
 ## 📁 Project Structure
 
