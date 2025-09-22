@@ -1,3 +1,16 @@
+def compute_vertex_normals(vertices, faces):
+    normals = np.zeros(vertices.shape, dtype=float)
+    for tri in faces:
+        v1, v2, v3 = vertices[tri]
+        face_normal = np.cross(v2 - v1, v3 - v1)
+        norm = np.linalg.norm(face_normal) + 1e-8
+        if norm > 0:
+            face_normal /= norm
+        for idx in tri:
+            normals[idx] += face_normal
+    norms = np.linalg.norm(normals, axis=1, keepdims=True) + 1e-8
+    normals /= norms
+    return normals
 import numpy as np
 import plotly.graph_objects as go
 
@@ -21,7 +34,8 @@ def create_3d_plot(vertices: np.ndarray,
                    faces: np.ndarray,
                    title: str = "3D Shape",
                    show_wireframe: bool = False,
-                   mesh_color: str = "lightblue"):
+                   mesh_color: str = "lightblue",
+                   smooth_shading: bool = False):
     fig = go.Figure()
     if vertices.size == 0:
         fig.add_annotation(text="No data to display", showarrow=False)
@@ -35,6 +49,7 @@ def create_3d_plot(vertices: np.ndarray,
             x=x, y=y, z=z,
             i=i, j=j, k=k,
             color=mesh_color, opacity=0.7, name="Mesh",
+            flatshading=not smooth_shading,
             lighting=dict(ambient=0.18, diffuse=1, fresnel=0.1, specular=1, roughness=0.05),
             lightposition=dict(x=100, y=200, z=0)
         ))

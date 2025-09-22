@@ -54,7 +54,10 @@ def build_layout(file_df):
                                 html.Label("Wireframe:", className="display-wireframe-label"),
                                 dcc.Checklist(
                                     id='display-options',
-                                    options=[{'label': ' Show edges', 'value': 'wireframe'}],
+                                    options=[
+                                        {'label': ' Show edges', 'value': 'wireframe'},
+                                        {'label': ' Smooth shading', 'value': 'smooth_shading'}
+                                    ],
                                     value=[],
                                     className="display-wireframe-checklist"
                                 )

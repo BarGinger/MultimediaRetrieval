@@ -132,16 +132,19 @@ def register_callbacks(app: dash.Dash, file_df):
         prevent_initial_call=True
     )
     def update_plot(display_options, selected_file_idx, mesh_color):
+        smooth_shading = 'smooth_shading' in (display_options or [])
         if selected_file_idx is None:
             fig = create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
-                                  mesh_color=mesh_color or 'lightblue')
+                                  mesh_color=mesh_color or 'lightblue',
+                                  smooth_shading=smooth_shading)
         else:
             row = file_df.iloc[selected_file_idx]
             vertices, faces = OBJParser.parse_obj_file(row['filepath'])
             show_wire = 'wireframe' in (display_options or [])
             title = f"{row['category']} - {row['filename']}"
             fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
-                              mesh_color=mesh_color or 'lightblue')
+                              mesh_color=mesh_color or 'lightblue',
+                              smooth_shading=smooth_shading)
         # Return only the Plotly figure object
         return fig
 
@@ -243,10 +246,10 @@ def register_callbacks(app: dash.Dash, file_df):
             return []
 
         show_wire = 'wireframe' in (display_opts or [])
+        smooth_shading = 'smooth_shading' in (display_opts or [])
         total = int(n_plots or 5)
         title = f"{row['category']} - {row['filename']}"
 
-        
         if vertices.size > 0:
             minc = vertices.min(axis=0)
             maxc = vertices.max(axis=0)
@@ -256,7 +259,6 @@ def register_callbacks(app: dash.Dash, file_df):
 
         quality = "Good" if (len(vertices) > 100 and len(faces) > 50) else "Low Resolution"
 
-
         # Render cards with independent plot objects
         cards = []
         for i in range(total):
@@ -265,7 +267,8 @@ def register_callbacks(app: dash.Dash, file_df):
             f_copy = np.copy(faces)
             card_title = f"{title} (Aux {i+1})"
             fig = create_3d_plot(v_copy, f_copy, card_title, show_wireframe=show_wire,
-                                mesh_color=mesh_color or 'lightblue')
+                                mesh_color=mesh_color or 'lightblue',
+                                smooth_shading=smooth_shading)
 
             header = get_card_header(row, v_copy, f_copy, dims, quality)
 
