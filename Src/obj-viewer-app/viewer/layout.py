@@ -12,32 +12,18 @@ def build_layout(file_df, dataset_options, selected_dataset):
     return html.Div([
     html.H1("3D Shape Viewer", className="main-title"),
 
-    html.Div([
-            html.Label("Select Dataset:"),
-            dcc.Dropdown(
-                id='dataset-selector',
-                options=[{'label': name, 'value': name} for name in dataset_options],
-                value=selected_dataset,
-                style={'marginBottom': 20}
-            ),
+    html.Div([            
             # Left panel: file browser
             html.Div([
                 html.H3("Select 3D Shape", className="panel-title"),
 
-
-                html.Label("Show:"),
+                html.Label("Select Dataset:"),
                 dcc.Dropdown(
-                    id='average-filter',
-                    options=[
-                        {'label': 'All Shapes', 'value': 'all'},
-                        {'label': 'Average by Faces', 'value': 'avg_faces'},
-                        {'label': 'Average by Vertices', 'value': 'avg_vertices'}
-                    ],
-                    value='all',
-                    style={'marginBottom': 10}
+                    id='dataset-selector',
+                    options=[{'label': name, 'value': name} for name in dataset_options],
+                    value=selected_dataset,
+                    style={'marginBottom': 20}
                 ),
-
-
                 html.Label("Show:"),
                 dcc.Dropdown(
                     id='average-filter',
@@ -56,29 +42,6 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     options=_category_options(file_df),
                     value='all',
                     className="category-dropdown"
-                ),
-
-                html.Label("Sort by:"),
-                dcc.Dropdown(
-                    id='sort-field',
-                    options=[
-                        {'label': 'Category', 'value': 'category'},
-                        {'label': 'Vertex Count', 'value': 'num_vertices'},
-                        {'label': 'Face Count', 'value': 'num_faces'}
-                    ],
-                    value='category',
-                    style={'marginBottom': 10}
-                ),
-
-                html.Label("Order:"),
-                dcc.Dropdown(
-                    id='sort-order',
-                    options=[
-                        {'label': 'Ascending', 'value': 'asc'},
-                        {'label': 'Descending', 'value': 'desc'}
-                    ],
-                    value='asc',
-                    style={'marginBottom': 20}
                 ),
 
                 html.Label("Sort by:"),

@@ -8,9 +8,6 @@ import json
 from core.obj_parser import OBJParser
 from core.plotting import create_3d_plot
 import plotly.graph_objects as go
-from core.file_index import get_file_tree
-
-
 
 def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
     # Combined callback: reset file index on dataset change, set index on file button click
@@ -144,11 +141,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
             ])
             return err, file_idx
+    # Store current dataset in dcc.Store
+    @app.callback(
+        Output('selected-dataset-store', 'data'),
+        Input('dataset-selector', 'value'),
+        State('selected-dataset-store', 'data')
+    )
+    def update_selected_dataset(selected_dataset, current_dataset):
+        if selected_dataset and selected_dataset != current_dataset:
+            return selected_dataset
+        return current_dataset
 
-
-def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
-
-    # 1) File list render
     @app.callback(
         Output('file-list', 'children'),
         [Input('average-filter', 'value'),
@@ -157,18 +160,13 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          Input('sort-order', 'value'),
          Input('selected-dataset-store', 'data')]
     )
-    def update_file_list(avg_filter, selected_category, sort_field, sort_order, selected_dataset):        
-        
+    def update_file_list(avg_filter, selected_category, sort_field, sort_order, selected_dataset):
         # Debug: log avg_filter value every time callback runs
-        data_dir = 'Data'
-        if selected_dataset not in ["all", "", None]:
-            data_dir = selected_dataset
-
-        if selected_dataset is None or selected_dataset == "":
+        from core.file_index import get_file_tree
+        import pandas as pd
+        if not selected_dataset:
             selected_dataset = 'Data'
-
         file_df = get_file_tree(selected_dataset)
-
         # Merge analysis CSV columns
         if selected_dataset == 'Data':
             analysis_path = 'Preprocessing/analysis_results.csv'
@@ -282,120 +280,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     )
 
     # 3) Click handler -> loads file, updates info + selected index
-    @app.callback(
-        [Output('shape-info', 'children'),
-         Output('selected-file-store', 'data')],
-        [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
-         Input('average-filter', 'value'),
-         Input('category-filter', 'value'),
-         Input('sort-field', 'value'),
-         Input('sort-order', 'value'),
-         Input('selected-dataset-store', 'data')],
-        prevent_initial_call=True
-    )
-    def select_or_reset_file(n_clicks_list, avg_filter, selected_category, sort_field, sort_order, selected_dataset):
-        ctx = dash.callback_context
-        if not ctx.triggered:
-            return no_update, no_update
-
-        trig = ctx.triggered[0]
-        prop_id = trig['prop_id']
-
-        # If triggered by file button click
-        if 'file-btn' in prop_id:
-            if (trig.get('value') or 0) <= 0:
-                return no_update, no_update
-            try:
-                comp_id = json.loads(prop_id.split('.')[0])
-                file_idx = comp_id['index']
-            except Exception:
-                return no_update, no_update
-
-            # Rebuild file_df for current filters
-            data_dir = 'Data'
-            if selected_dataset not in ["all", "", None]:
-                data_dir = selected_dataset
-            if selected_dataset is None or selected_dataset == "":
-                selected_dataset = 'Data'
-            file_df_local = get_file_tree(data_dir)
-            # Merge analysis CSV columns
-            if selected_dataset == 'Data':
-                analysis_path = 'Preprocessing/analysis_results.csv'
-            elif selected_dataset == 'Data_sampled':
-                analysis_path = 'Preprocessing/analysis_results_sampled.csv'
-            elif selected_dataset == 'Data_sampled_resampled':
-                analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
-            else:
-                analysis_path = None
-            if analysis_path:
-                try:
-                    analysis_df = pd.read_csv(analysis_path)
-                    analysis_df = analysis_df.rename(columns={
-                        'class': 'category',
-                        'shape_file': 'filename'
-                    })
-                    file_df_local = pd.merge(file_df_local, analysis_df[['category', 'filename', 'num_vertices', 'num_faces']],
-                                       on=['category', 'filename'], how='left')
-                except Exception as e:
-                    print(f"[DEBUG] Could not merge analysis CSV: {e}")
-            df = file_df_local if selected_category == 'all' else file_df_local[file_df_local['category'] == selected_category]
-            ascending = True if sort_order == 'asc' else False
-            df = df.copy()
-            if sort_field == 'category':
-                df = df.sort_values(by=['category', 'filename'], ascending=ascending)
-            elif sort_field in ['num_vertices', 'num_faces']:
-                df[sort_field] = df[sort_field].fillna(0)
-                df = df.sort_values(by=sort_field, ascending=ascending)
-            # Apply average filtering after sorting
-            if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
-                valid = df['num_faces'].dropna()
-                if not valid.empty:
-                    avg_f = valid.mean()
-                    idx = (df['num_faces'] - avg_f).abs().idxmin()
-                    if idx in df.index:
-                        df = df.loc[[idx]].reset_index(drop=True)
-                    else:
-                        return no_update, no_update
-                else:
-                    return no_update, no_update
-            elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
-                valid = df['num_vertices'].dropna()
-                if not valid.empty:
-                    avg_v = valid.mean()
-                    idx = (df['num_vertices'] - avg_v).abs().idxmin()
-                    if idx in df.index:
-                        df = df.loc[[idx]].reset_index(drop=True)
-                    else:
-                        return no_update, no_update
-                else:
-                    return no_update, no_update
-            df = df.reset_index(drop=True)
-            if file_idx >= len(df):
-                return no_update, no_update
-            row = df.iloc[file_idx]
-            filepath = row['filepath']
-            try:
-                vertices, faces = OBJParser.parse_obj_file(filepath)
-                if vertices.size > 0:
-                    minc = vertices.min(axis=0)
-                    maxc = vertices.max(axis=0)
-                    dims = maxc - minc
-                else:
-                    dims = [0, 0, 0]
-                quality = "Good" if (len(vertices) > 100 and len(faces) > 50) else "Low Resolution"
-                info = get_card_header(row, vertices, faces, dims, quality)
-                return info, file_idx
-            except Exception as e:
-                err = html.Div([
-                    html.H4("❌ Error Loading File", style={'color': '#e74c3c', 'marginBottom': '15px'}),
-                    html.Div([html.Strong("📄 File: "), filepath], style={'marginBottom': '8px'}),
-                    html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
-                ])
-                return err, file_idx
-        else:
-            # If triggered by filter/sort/dataset change, reset selection
-            return no_update, None
-
     # 4) 3D viewer update
     @app.callback(
         Output('3d-plot', 'figure'),
@@ -406,35 +290,18 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         [State('average-filter', 'value'),
          State('category-filter', 'value'),
          State('sort-field', 'value'),
-         State('sort-order', 'value'),
-         Input('3d-plot', 'figure')],
+         State('sort-order', 'value')],
         prevent_initial_call=True
     )
-    def update_plot(display_options, 
-                    selected_file_idx, 
-                    mesh_color,                      
-                    selected_dataset,
-                    avg_filter, 
-                    selected_category, 
-                    sort_field, 
-                    sort_order,
-                    current_fig):
-        smooth_shading = 'smooth_shading' in (display_options or [])
-        camera = None
-        if current_fig and 'layout' in current_fig and 'scene' in current_fig['layout']:
-            camera = current_fig['layout']['scene'].get('camera', None)
+    def update_plot(display_options, selected_file_idx, mesh_color, selected_dataset, avg_filter, selected_category, sort_field, sort_order):
         if selected_file_idx is None:
             return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
                                   mesh_color=mesh_color or 'lightblue')
-
-        data_dir = 'Data'
-        if selected_dataset not in ["all", "", None]:
-            data_dir = selected_dataset
-
-        if selected_dataset:
+        if not selected_dataset:
             selected_dataset = 'Data'
-        
-        file_df = get_file_tree(data_dir)
+        from core.file_index import get_file_tree
+        import pandas as pd
+        file_df = get_file_tree(selected_dataset)
         # Merge analysis CSV columns
         if selected_dataset == 'Data':
             analysis_path = 'Preprocessing/analysis_results.csv'
@@ -455,11 +322,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                                    on=['category', 'filename'], how='left')
             except Exception as e:
                 print(f"[DEBUG] Could not merge analysis CSV: {e}")
-
-        if file_df is None or file_df.empty:
-            return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
-                                  mesh_color=mesh_color or 'lightblue')
-
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
         ascending = True if sort_order == 'asc' else False
         df = df.copy()
@@ -505,18 +367,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         vertices, faces = OBJParser.parse_obj_file(row['filepath'])
         show_wire = 'wireframe' in (display_options or [])
         title = f"{row['category']} - {row['filename']}"
-
-
-        fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
-                              mesh_color=mesh_color or 'lightblue',
-                              smooth_shading=smooth_shading)
-        if camera:
-            fig.update_layout(scene_camera=camera)
-        return fig
-
-        # return create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
-        #                       mesh_color=mesh_color or 'lightblue')
-
+        return create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
+                              mesh_color=mesh_color or 'lightblue')
 
     # 5) Similar shapes rendering
     @app.callback(
@@ -555,10 +407,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return []
 
         show_wire = 'wireframe' in (display_opts or [])
-        smooth_shading = 'smooth_shading' in (display_opts or [])
         total = int(n_plots or 5)
         title = f"{row['category']} - {row['filename']}"
 
+        
         if vertices.size > 0:
             minc = vertices.min(axis=0)
             maxc = vertices.max(axis=0)
@@ -568,26 +420,72 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         quality = "Good" if (len(vertices) > 100 and len(faces) > 50) else "Low Resolution"
 
-        # Render cards with independent plot objects
+        def _num(n):
+            return f"{int(n):,}"
+
+        def _bytes(b):
+            try:
+                b = int(b)
+            except Exception:
+                return "-"
+            units = ["B","KB","MB","GB","TB"]
+            i = 0
+            x = float(b)
+            while x >= 1024 and i < len(units)-1:
+                x /= 1024.0
+                i += 1
+            return f"{x:.1f} {units[i]}"
+
+        # Render cards ()
         cards = []
         for i in range(total):
-            # Deep copy vertices and faces to ensure independence
-            v_copy = np.copy(vertices)
-            f_copy = np.copy(faces)
-            card_title = f"{title} (Aux {i+1})"
-            fig = create_3d_plot(v_copy, f_copy, card_title, show_wireframe=show_wire,
-                                mesh_color=mesh_color or 'lightblue',
-                                smooth_shading=smooth_shading)
+            fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
+                                mesh_color=mesh_color or 'lightblue')
 
-            header = get_card_header(row, v_copy, f_copy, dims, quality)
+            header = html.Div([
+                html.Div([
+                    html.Span("📁 ", style={'marginRight': '4px'}), html.Strong("Category: "),
+                    html.Span(row['category'])
+                ], style={'marginRight': '12px'}),
+                html.Div([
+                    html.Span("💾 ", style={'marginRight': '4px'}), html.Strong("Size: "),
+                    html.Span(_bytes(row.get('size', 0)))
+                ], style={'marginRight': '12px'}),
+                html.Div([
+                    html.Span("🔺 ", style={'marginRight': '4px'}), html.Strong("Vertices: "),
+                    html.Span(_num(len(vertices)))
+                ], style={'marginRight': '12px'}),
+                html.Div([
+                    html.Span("🔷 ", style={'marginRight': '4px'}), html.Strong("Faces: "),
+                    html.Span(_num(len(faces)))
+                ], style={'marginRight': '12px'}),
+                html.Div([
+                    html.Span("📐 ", style={'marginRight': '4px'}), html.Strong("Dims: "),
+                    html.Span(f"X {dims[0]:.2f} · Y {dims[1]:.2f} · Z {dims[2]:.2f}")
+                ], style={'marginRight': '12px'}),
+                html.Div([
+                    html.Span("🎯 ", style={'marginRight': '4px'}), html.Strong("Quality: "),
+                    html.Span(quality)
+                ]),
+            ], style={
+                'display': 'flex',
+                'flexWrap': 'wrap',
+                'rowGap': '4px',
+                'columnGap': '8px',
+                'fontSize': '12px',
+                'color': '#2c3e50',
+                'padding': '6px 6px 4px 6px',
+                'borderBottom': '1px solid #eee',
+                'marginBottom': '6px',
+                'height': '50px'
+            })
 
             card = html.Div([
                 header,
-                dcc.Graph(figure=fig, 
-                          className='three-d-plot')
+                dcc.Graph(figure=fig, style={'height': '220px', 'width': '360px'})
             ], style={
                 'minWidth': '360px',
-                'height': '200px',
+                'height': '350px',
                 'backgroundColor': '#fff',
                 'border': '1px solid #e1e1e1',
                 'borderRadius': '8px',
@@ -598,75 +496,3 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             cards.append(card)
 
         return cards
-    
-     # Store current dataset in dcc.Store
-    @app.callback(
-        Output('selected-dataset-store', 'data'),
-        Input('dataset-selector', 'value'),
-        State('selected-dataset-store', 'data')
-    )
-    def update_selected_dataset(selected_dataset, current_dataset):
-        if selected_dataset and selected_dataset != current_dataset:
-            return selected_dataset
-        return current_dataset
-
-
-    def _num(n):
-            return f"{int(n):,}"
-
-    def _bytes(b):
-        try:
-            b = int(b)
-        except Exception:
-            return "-"
-        units = ["B","KB","MB","GB","TB"]
-        i = 0
-        x = float(b)
-        while x >= 1024 and i < len(units)-1:
-            x /= 1024.0
-            i += 1
-        return f"{x:.1f} {units[i]}"
-
-    def get_card_header(row, vertices, faces, dims, quality):
-        """
-        Generate the header part of the shape card with metadata.
-
-        Parameters:
-        row: pd.Series - DataFrame row with file metadata
-        vertices: np.ndarray - Array of vertices
-        faces: np.ndarray - Array of faces
-        dims: list - Dimensions of the shape
-        quality: str - Quality description of the shape
-
-        Returns:
-        html.Div - Dash HTML Div component with formatted metadata
-        """
-
-        header = html.Div([
-                html.Div([
-                    html.Span("📁 ", className="shape-info-icon"), html.Strong("Category: "),
-                    html.Span(row['category'])
-                ], className="shape-info-prop"),
-                html.Div([
-                    html.Span("💾 ", className="shape-info-icon"), html.Strong("Size: "),
-                    html.Span(_bytes(row.get('size', 0)))
-                ], className="shape-info-prop"),
-                html.Div([
-                    html.Span("🔺 ", className="shape-info-icon"), html.Strong("Vertices: "),
-                    html.Span(_num(len(vertices)))
-                ], className="shape-info-prop"),
-                html.Div([
-                    html.Span("🔷 ", className="shape-info-icon"), html.Strong("Faces: "),
-                    html.Span(_num(len(faces)))
-                ], className="shape-info-prop"),
-                html.Div([
-                    html.Span("📐 ", className="shape-info-icon"), html.Strong("Dims: "),
-                    html.Span(f"X {dims[0]:.2f} · Y {dims[1]:.2f} · Z {dims[2]:.2f}")
-                ], className="shape-info-prop"),
-                html.Div([
-                    html.Span("🎯 ", className="shape-info-icon"), html.Strong("Quality: "),
-                    html.Span(quality)
-                ], className="shape-info-prop"),
-            ], className="shape-info-header")
-        
-        return header
