@@ -55,6 +55,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             analysis_path = 'Preprocessing/analysis_results_sampled.csv'
         elif selected_dataset == 'Data_sampled_resampled':
             analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
+        elif selected_dataset == 'Data_sampled_resampled_normalized':
+            analysis_path = 'Preprocessing/analysis_results_sampled_resampled_normalized.csv'
         else:
             analysis_path = None
         if analysis_path:
@@ -76,6 +78,20 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if sort_field_input == 'category':
             df = df.sort_values(by=['category', 'filename'], ascending=ascending)
         elif sort_field_input in ['num_vertices', 'num_faces']:
+            # Check if required columns exist for sorting
+            if sort_field_input not in df.columns:
+                error_info = html.Div([
+                    html.H4("⚠️ Sorting Not Available", style={'color': '#f39c12', 'marginBottom': '15px'}),
+                    html.Div([
+                        html.Strong("Missing Data: "), 
+                        f"Cannot sort by {sort_field_input} - analysis data not available for this dataset."
+                    ], style={'marginBottom': '8px'}),
+                    html.Div([
+                        html.Strong("Suggestion: "), 
+                        "Try sorting by Category instead, or ensure the analysis CSV file exists."
+                    ], style={'color': '#7f8c8d'})
+                ])
+                return error_info, None
             df[sort_field_input] = df[sort_field_input].fillna(0)
             df = df.sort_values(by=sort_field_input, ascending=ascending)
         # Reset index after sorting/filtering for consistent button indexing
@@ -176,6 +192,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             analysis_path = 'Preprocessing/analysis_results_sampled.csv'
         elif selected_dataset == 'Data_sampled_resampled':
             analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
+        elif selected_dataset == 'Data_sampled_resampled_normalized':
+            analysis_path = 'Preprocessing/analysis_results_sampled_resampled_normalized.csv'
         else:
             analysis_path = None
         if analysis_path:
@@ -201,6 +219,19 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if sort_field == 'category':
             df = df.sort_values(by=['category', 'filename'], ascending=ascending)
         elif sort_field in ['num_vertices', 'num_faces']:
+            # Check if required columns exist for sorting
+            if sort_field not in df.columns:
+                return [html.Div([
+                    html.P("⚠️ Sorting Not Available", style={
+                        'color': '#f39c12', 'fontWeight': 'bold', 'textAlign': 'center', 'marginBottom': '10px'
+                    }),
+                    html.P(f"Cannot sort by {sort_field} - analysis data not available for this dataset.", style={
+                        'color': '#7f8c8d', 'textAlign': 'center', 'marginBottom': '5px'
+                    }),
+                    html.P("Try sorting by Category instead.", style={
+                        'color': '#7f8c8d', 'textAlign': 'center', 'fontSize': '0.9em'
+                    })
+                ])]
             df[sort_field] = df[sort_field].fillna(0)
             df = df.sort_values(by=sort_field, ascending=ascending)
 
@@ -233,11 +264,22 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         buttons = []
         for btn_idx, (df_idx, row) in enumerate(df.iterrows()):
+            # Get vertex and face counts if available
+            vertices_count = f"{int(row.get('num_vertices', 0)):,}" if pd.notna(row.get('num_vertices')) else "N/A"
+            faces_count = f"{int(row.get('num_faces', 0)):,}" if pd.notna(row.get('num_faces')) else "N/A"
+            
             btn = html.Button(
                 html.Div([
-                    html.Strong(f"📁 {row['category']}", className="category-text"),
-                    html.Br(),
-                    html.Span(f"📄 {row['filename']}", className="filename-text")
+                    html.Div([
+                        html.Strong(f"📁 {row['category']}", className="category-text", style={'fontSize': '0.9em'}),
+                        html.Span(f" | 📄 {row['filename']}", className="filename-text", style={'fontSize': '0.85em', 'color': '#555'})
+                    ], style={'marginBottom': '2px'}),
+                    html.Div([
+                        html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", 
+                                style={'marginRight': '8px', 'fontSize': '0.75em', 'color': '#888'}),
+                        html.Span(f"🔷 Faces: {faces_count}", className="stats-text", 
+                                style={'fontSize': '0.75em', 'color': '#888'})
+                    ])
                 ]),
                 id={'type': 'file-btn', 'index': int(btn_idx)},
                 className='file-button',
@@ -325,6 +367,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 analysis_path = 'Preprocessing/analysis_results_sampled.csv'
             elif selected_dataset == 'Data_sampled_resampled':
                 analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
+            elif selected_dataset == 'Data_sampled_resampled_normalized':
+                analysis_path = 'Preprocessing/analysis_results_sampled_resampled_normalized.csv'
             else:
                 analysis_path = None
             if analysis_path:
@@ -344,6 +388,20 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             if sort_field == 'category':
                 df = df.sort_values(by=['category', 'filename'], ascending=ascending)
             elif sort_field in ['num_vertices', 'num_faces']:
+                # Check if required columns exist for sorting
+                if sort_field not in df.columns:
+                    error_info = html.Div([
+                        html.H4("⚠️ Sorting Not Available", style={'color': '#f39c12', 'marginBottom': '15px'}),
+                        html.Div([
+                            html.Strong("Missing Data: "), 
+                            f"Cannot sort by {sort_field} - analysis data not available for this dataset."
+                        ], style={'marginBottom': '8px'}),
+                        html.Div([
+                            html.Strong("Suggestion: "), 
+                            "Try sorting by Category instead, or ensure the analysis CSV file exists."
+                        ], style={'color': '#7f8c8d'})
+                    ])
+                    return error_info, None
                 df[sort_field] = df[sort_field].fillna(0)
                 df = df.sort_values(by=sort_field, ascending=ascending)
             # Apply average filtering after sorting
@@ -393,8 +451,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 ])
                 return err, file_idx
         else:
-            # If triggered by filter/sort/dataset change, reset selection
-            return no_update, None
+            # If triggered by filter/sort/dataset change, clear selection
+            empty_info = html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint")
+            return empty_info, None
 
     # 4) 3D viewer update
     @app.callback(
@@ -442,6 +501,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             analysis_path = 'Preprocessing/analysis_results_sampled.csv'
         elif selected_dataset == 'Data_sampled_resampled':
             analysis_path = 'Preprocessing/analysis_results_sampled_resampled.csv'
+        elif selected_dataset == 'Data_sampled_resampled_normalized':
+            analysis_path = 'Preprocessing/analysis_results_sampled_resampled_normalized.csv'
         else:
             analysis_path = None
         if analysis_path:
@@ -466,6 +527,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if sort_field == 'category':
             df = df.sort_values(by=['category', 'filename'], ascending=ascending)
         elif sort_field in ['num_vertices', 'num_faces']:
+            # Check if required columns exist for sorting
+            if sort_field not in df.columns:
+                return create_3d_plot(np.array([]), np.array([]), 
+                                    f"⚠️ Cannot sort by {sort_field} - analysis data not available",
+                                    mesh_color=mesh_color or 'lightblue')
             df[sort_field] = df[sort_field].fillna(0)
             df = df.sort_values(by=sort_field, ascending=ascending)
         # Reset index after sorting/filtering for consistent button indexing
@@ -610,6 +676,34 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return selected_dataset
         return current_dataset
 
+    # Update category filter options when dataset changes
+    @app.callback(
+        [Output('category-filter', 'options'), Output('category-filter', 'value')],
+        Input('selected-dataset-store', 'data'),
+        State('category-filter', 'value')
+    )
+    def update_category_options(selected_dataset, current_category):
+        if not selected_dataset:
+            selected_dataset = 'Data'
+        
+        try:
+            file_df = get_file_tree(selected_dataset)
+            if file_df.empty:
+                options = [{'label': 'All Categories', 'value': 'all'}]
+                return options, 'all'
+            
+            options = [{'label': 'All Categories', 'value': 'all'}] + \
+                     [{'label': cat, 'value': cat} for cat in sorted(file_df['category'].unique())]
+            
+            # Check if current category is still valid
+            valid_values = [opt['value'] for opt in options]
+            if current_category in valid_values:
+                return options, current_category
+            else:
+                return options, 'all'
+        except Exception as e:
+            print(f"[DEBUG] Error updating category options: {e}")
+            return [{'label': 'All Categories', 'value': 'all'}], 'all'
 
     def _num(n):
             return f"{int(n):,}"
