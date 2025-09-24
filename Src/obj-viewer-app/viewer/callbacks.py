@@ -176,9 +176,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     def update_file_list(avg_filter, selected_category, sort_field, sort_order, selected_dataset):        
         
         # Debug: log avg_filter value every time callback runs
-        data_dir = 'Data'
-        if selected_dataset not in ["all", "", None]:
-            data_dir = selected_dataset
+        # data_dir = 'Data'
+        # if selected_dataset not in ["all", "", None]:
+        #     data_dir = selected_dataset
 
         if selected_dataset is None or selected_dataset == "":
             selected_dataset = 'Data'
@@ -354,12 +354,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 return no_update, no_update
 
             # Rebuild file_df for current filters
-            data_dir = 'Data'
-            if selected_dataset not in ["all", "", None]:
-                data_dir = selected_dataset
+            # data_dir = 'Data'
+            # if selected_dataset not in ["all", "", None]:
+            #     data_dir = selected_dataset
             if selected_dataset is None or selected_dataset == "":
                 selected_dataset = 'Data'
-            file_df_local = get_file_tree(data_dir)
+            file_df_local = get_file_tree(selected_dataset)
             # Merge analysis CSV columns
             if selected_dataset == 'Data':
                 analysis_path = 'Preprocessing/analysis_results.csv'
@@ -486,14 +486,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
                                   mesh_color=mesh_color or 'lightblue')
 
-        data_dir = 'Data'
-        if selected_dataset not in ["all", "", None]:
-            data_dir = selected_dataset
+        # data_dir = 'Data'
+        # if selected_dataset not in ["all", "", None]:
+        #     data_dir = selected_dataset
 
-        if selected_dataset:
+        if selected_dataset is None or selected_dataset == "":
             selected_dataset = 'Data'
         
-        file_df = get_file_tree(data_dir)
+        file_df = get_file_tree(selected_dataset)
         # Merge analysis CSV columns
         if selected_dataset == 'Data':
             analysis_path = 'Preprocessing/analysis_results.csv'
