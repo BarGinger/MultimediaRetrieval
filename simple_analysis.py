@@ -3,8 +3,9 @@ from pathlib import Path
 import statistics
 
 # Compare original vs resampled files
-original_dir = Path('Data_sampled')
-resampled_dir = Path('Data_sampled_resampled')
+datasets_dir = Path('Datasets')
+original_dir = datasets_dir / 'Data_sampled'
+resampled_dir = datasets_dir / 'Data_sampled_resampled'
 TARGET_VERTEX_COUNT = 5000
 TOLERANCE = 0.25
 

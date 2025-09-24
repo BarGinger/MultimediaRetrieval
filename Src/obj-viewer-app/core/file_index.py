@@ -4,12 +4,14 @@ import pandas as pd
 def get_file_tree(data_dir: str = "Data") -> pd.DataFrame:
     """
     Return DataFrame with columns: category, filename, filepath, size.
-    Searches CWD/../.. for 'Data' to be dev-friendly.
+    Searches CWD/../.. for 'Datasets/{data_dir}' to be dev-friendly.
     """
     files_data = []
     cwd = Path.cwd()
 
-    candidates = [cwd / data_dir, cwd.parent / data_dir, cwd.parent.parent / data_dir]
+    # Look for data_dir within Datasets folder
+    dataset_path = f"Datasets/{data_dir}"
+    candidates = [cwd / dataset_path, cwd.parent / dataset_path, cwd.parent.parent / dataset_path]
     data_path = next((p for p in candidates if p.exists()), candidates[0])
 
     if data_path.exists():

@@ -6,8 +6,8 @@ from pathlib import Path
 # --- Toggle for sampled dataset ---
 USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled, False for full Data
 BASE = Path(__file__).parent.parent.resolve()
-SOURCE_ROOT = BASE / ('Data_sampled' if USE_SAMPLED_DATASET else 'Data')
-TARGET_ROOT = BASE / ('Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Data_resampled')
+SOURCE_ROOT = BASE / ('Datasets/Data_sampled' if USE_SAMPLED_DATASET else 'Datasets/Data')
+TARGET_ROOT = BASE / ('Datasets/Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Datasets/Data_resampled')
 TARGET_VERTEX_COUNT = 5000
 TOLERANCE = 0.25  # 25% tolerance for resampling
 

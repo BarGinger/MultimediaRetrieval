@@ -17,8 +17,8 @@ from pathlib import Path
 # --- Configuration ---
 USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled_resampled, False for Data_resampled
 BASE = Path(__file__).parent.parent.resolve()
-SOURCE_ROOT = BASE / ('Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Data_resampled')
-TARGET_ROOT = BASE / ('Data_sampled_resampled_normalized' if USE_SAMPLED_DATASET else 'Data_normalized')
+SOURCE_ROOT = BASE / ('Datasets/Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Datasets/Data_resampled')
+TARGET_ROOT = BASE / ('Datasets/Data_sampled_resampled_normalized' if USE_SAMPLED_DATASET else 'Datasets/Data_normalized')
 
 def calculate_mass_barycenter(vertices, triangles):
     """

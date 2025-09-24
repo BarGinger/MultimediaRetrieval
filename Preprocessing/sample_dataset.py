@@ -4,8 +4,8 @@ import random
 import math
 
 # Settings
-SOURCE_DIR = 'Data'
-SAMPLED_DIR = 'Data_sampled'
+SOURCE_DIR = 'Datasets/Data'
+SAMPLED_DIR = 'Datasets/Data_sampled'
 SAMPLE_RATIO = 0.1  # 10%
 SEED = 42  # For reproducibility
 
