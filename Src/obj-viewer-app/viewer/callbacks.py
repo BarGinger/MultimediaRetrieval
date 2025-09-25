@@ -10,7 +10,7 @@ from core.plotting import create_3d_plot
 import plotly.graph_objects as go
 from core.file_index import get_file_tree
 from core.analysis_cache import merge_analysis_data
-from core.mash import ShapeMesh
+from core.shapeMesh import ShapeMesh
 
 
 
