@@ -175,6 +175,210 @@ class ShapeMesh:
         """Assess the quality of the mesh based on vertex and face count."""
         return "Good" if (len(self.vertices) > 100 and len(self.faces) > 50) else "Low Resolution"
     
+    def analyze_object_orientation(self):
+        """
+        Analyze the object's natural orientation based on its geometry.
+        Returns information about which axis should be "up" for proper viewing.
+        """
+        if len(self.vertices) == 0:
+            return {"up_axis": "z", "confidence": 0.0, "reasoning": "No vertices"}
+        
+        # Get bounding box dimensions
+        dims = self.dimensions
+        if np.sum(dims) == 0:
+            return {"up_axis": "z", "confidence": 0.0, "reasoning": "Zero dimensions"}
+        
+        # Find the dominant axis (usually height for most objects)
+        dominant_axis_idx = np.argmax(dims)
+        axis_names = ["x", "y", "z"]
+        dominant_axis = axis_names[dominant_axis_idx]
+        
+        # Calculate confidence based on how much taller the dominant axis is
+        sorted_dims = np.sort(dims)
+        if sorted_dims[1] > 0:
+            aspect_ratio = sorted_dims[2] / sorted_dims[1]  # tallest / second tallest
+        else:
+            aspect_ratio = 1.0
+        
+        confidence = min(1.0, (aspect_ratio - 1.0) / 2.0)  # Scale 0-1 based on aspect ratio
+        
+        # Category-specific heuristics
+        reasoning = f"Dominant axis ({dominant_axis}) is {aspect_ratio:.2f}x larger"
+        
+        if self.category:
+            category_lower = self.category.lower()
+            
+            # Objects that should be tall (Z-up)
+            if any(keyword in category_lower for keyword in 
+                   ['tree', 'building', 'skyscraper', 'tower', 'lamp', 'bottle', 'vase', 'rocket', 'humanoid', 'human']):
+                if dominant_axis != 'z':
+                    # Suggest rotation if object isn't already Z-up
+                    reasoning += f" (Category '{self.category}' suggests Z-up orientation)"
+                    return {"up_axis": "z", "confidence": 0.8, "reasoning": reasoning, "needs_rotation": True}
+                else:
+                    reasoning += f" (Category '{self.category}' confirms Z-up)"
+                    confidence = max(confidence, 0.8)
+            
+            # Objects that are typically horizontal
+            elif any(keyword in category_lower for keyword in 
+                     ['car', 'vehicle', 'truck', 'bus', 'plane', 'aircraft', 'ship', 'boat', 'table', 'bed']):
+                if dominant_axis == 'z':
+                    # These objects might be lying on their side
+                    reasoning += f" (Category '{self.category}' suggests Y-up orientation)"
+                    return {"up_axis": "y", "confidence": 0.7, "reasoning": reasoning, "needs_rotation": True}
+            
+            # Animals/creatures (usually Y-up or Z-up depending on pose)
+            elif any(keyword in category_lower for keyword in 
+                     ['animal', 'bird', 'fish', 'quadruped', 'insect']):
+                reasoning += f" (Category '{self.category}' - natural pose)"
+                confidence = max(confidence, 0.6)
+        
+        return {
+            "up_axis": dominant_axis, 
+            "confidence": confidence, 
+            "reasoning": reasoning,
+            "needs_rotation": False
+        }
+    
+    def get_optimal_orientation(self):
+        """
+        Get the optimal orientation by rotating the object if needed.
+        Returns rotated vertices and the rotation matrix applied.
+        """
+        if len(self.vertices) == 0:
+            return self.vertices.copy(), np.eye(3), {"needs_rotation": False}
+        
+        orientation = self.analyze_object_orientation()
+        
+        # TEMPORARILY DISABLE VERTEX ROTATION - TEST CAMERA APPROACH ONLY
+        return self.vertices.copy(), np.eye(3), orientation
+        
+        if not orientation.get("needs_rotation", False):
+            # Object is already properly oriented
+            return self.vertices.copy(), np.eye(3), orientation
+        
+        # Get current dimensions to determine rotation needed
+        dims = self.dimensions
+        # Find which axis is currently dominant (tallest)
+        dominant_axis_idx = np.argmax(dims)
+        axis_names = ["x", "y", "z"]
+        current_up = axis_names[dominant_axis_idx]
+        desired_up = orientation["up_axis"]  # This is what we want (usually "z")
+        
+        # Create rotation matrix
+        rotation_matrix = np.eye(3)
+        
+        if current_up == "y" and desired_up == "z":
+            # Rotate around X-axis by 90 degrees to make Y->Z
+            angle = np.pi / 2
+            rotation_matrix = np.array([
+                [1, 0, 0],
+                [0, np.cos(angle), -np.sin(angle)],
+                [0, np.sin(angle), np.cos(angle)]
+            ])
+        elif current_up == "x" and desired_up == "z":
+            # Rotate around Y-axis by 90 degrees to make X->Z
+            angle = np.pi / 2
+            rotation_matrix = np.array([
+                [np.cos(angle), 0, np.sin(angle)],
+                [0, 1, 0],
+                [-np.sin(angle), 0, np.cos(angle)]
+            ])
+        
+        # Apply rotation to vertices
+        center = self.vertices.mean(axis=0)
+        centered_vertices = self.vertices - center
+        rotated_vertices = centered_vertices @ rotation_matrix.T
+        final_vertices = rotated_vertices + center
+        
+        # Debug logging
+        if not np.allclose(rotation_matrix, np.eye(3)):
+            print(f"[DEBUG] Rotating {current_up}-up to {desired_up}-up")
+            print(f"[DEBUG] Original dims: x={dims[0]:.3f}, y={dims[1]:.3f}, z={dims[2]:.3f}")
+            new_dims = np.ptp(final_vertices, axis=0)
+            print(f"[DEBUG] Rotated dims: x={new_dims[0]:.3f}, y={new_dims[1]:.3f}, z={new_dims[2]:.3f}")
+            
+            # Check vertex ranges before and after
+            orig_min, orig_max = self.vertices.min(axis=0), self.vertices.max(axis=0)
+            new_min, new_max = final_vertices.min(axis=0), final_vertices.max(axis=0)
+            print(f"[DEBUG] Original Z range: {orig_min[2]:.3f} to {orig_max[2]:.3f}")
+            print(f"[DEBUG] Rotated Z range: {new_min[2]:.3f} to {new_max[2]:.3f}")
+        
+        return final_vertices, rotation_matrix, orientation
+
+    def get_optimal_camera_position(self, distance_factor=2.0, rotated_vertices=None):
+        """
+        Calculate optimal camera position for viewing this object.
+        
+        Args:
+            distance_factor: Multiplier for camera distance from object
+            rotated_vertices: Optional pre-rotated vertices to use for positioning
+            
+        Returns:
+            dict: Camera configuration for Plotly
+        """
+        vertices_to_use = rotated_vertices if rotated_vertices is not None else self.vertices
+        
+        if len(vertices_to_use) == 0:
+            return {
+                "eye": {"x": 1.5, "y": 1.5, "z": 1.5},
+                "center": {"x": 0, "y": 0, "z": 0},
+                "up": {"x": 0, "y": 0, "z": 1}
+            }
+        
+        # Get object center and dimensions from potentially rotated vertices
+        center = vertices_to_use.mean(axis=0)
+        min_coords = vertices_to_use.min(axis=0)
+        max_coords = vertices_to_use.max(axis=0)
+        dims = max_coords - min_coords
+        max_dim = np.max(dims)
+        
+        # Set camera distance based on object size
+        distance = max_dim * distance_factor
+        
+        # Determine the dominant axis for camera up vector
+        dominant_axis_idx = np.argmax(dims)
+        
+        # Set camera up vector to match object's natural orientation
+        if dominant_axis_idx == 0:  # X is dominant
+            up_vector = {"x": 1, "y": 0, "z": 0}
+        elif dominant_axis_idx == 1:  # Y is dominant  
+            up_vector = {"x": 0, "y": 1, "z": 0}
+        else:  # Z is dominant
+            up_vector = {"x": 0, "y": 0, "z": 1}
+        
+        # Adjust camera position based on the up vector
+        if dominant_axis_idx == 1:  # Y-up objects
+            eye = {
+                "x": center[0] + distance * 0.8,
+                "y": center[1],  # Keep Y center
+                "z": center[2] + distance * 0.8
+            }
+        elif dominant_axis_idx == 0:  # X-up objects
+            eye = {
+                "x": center[0],  # Keep X center
+                "y": center[1] + distance * 0.8,
+                "z": center[2] + distance * 0.8
+            }
+        else:  # Z-up objects (standard)
+            eye = {
+                "x": center[0] + distance * 0.8,
+                "y": center[1] + distance * 0.8, 
+                "z": center[2] + distance * 0.6
+            }
+        
+        camera_config = {
+            "eye": eye,
+            "center": {"x": center[0], "y": center[1], "z": center[2]},
+            "up": up_vector
+        }
+        
+        # Debug output
+        axis_names = ["X", "Y", "Z"]
+        print(f"[DEBUG] Object dominant axis: {axis_names[dominant_axis_idx]}, camera up: {up_vector}")
+        
+        return camera_config
+    
     def get_card_header_html(self):
         """
         Generate the header part of the shape card with metadata for Dash HTML.
@@ -210,7 +414,27 @@ class ShapeMesh:
                 html.Span("🎯 ", className="shape-info-icon"), html.Strong("Quality: "),
                 html.Span(self.quality)
             ], className="shape-info-prop"),
+            html.Div([
+                html.Span("📹 ", className="shape-info-icon"), html.Strong("View: "),
+                html.Span(self._get_orientation_display())
+            ], className="shape-info-prop"),
         ], className="shape-info-header")
+    
+    def _get_orientation_display(self):
+        """Get a short display string for the object's orientation."""
+        try:
+            orientation = self.analyze_object_orientation()
+            up_axis = orientation["up_axis"].upper()
+            confidence = orientation["confidence"]
+            
+            if confidence > 0.7:
+                return f"{up_axis}-up (Auto)"
+            elif confidence > 0.4:
+                return f"{up_axis}-up (Est.)"
+            else:
+                return "Standard view"
+        except Exception:
+            return "Standard view"
     
     def get_formatted_info(self):
         """

@@ -386,14 +386,37 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
                                   mesh_color=mesh_color or 'lightblue')
         row = df.iloc[selected_file_idx]
-        vertices, faces = OBJParser.parse_obj_file(row['filepath'])
+        
+        # Create ShapeMesh instance for intelligent orientation and camera positioning
+        try:
+            mesh = ShapeMesh.from_file_row(row)
+            
+            # Get optimal orientation (may rotate the object)
+            rotated_vertices, rotation_matrix, orientation_info = mesh.get_optimal_orientation()
+            vertices, faces = rotated_vertices, mesh.faces
+            
+            # Get optimal camera position (only for new selections, not camera movements)
+            camera_config = None
+            if not camera:  # Only apply intelligent positioning when no camera state exists
+                camera_config = mesh.get_optimal_camera_position(rotated_vertices=rotated_vertices)
+                print(f"[DEBUG] Orientation for {row['category']}-{row['filename']}: {orientation_info}")
+                print(f"[DEBUG] Camera config: {camera_config}")
+                
+        except Exception as e:
+            print(f"[DEBUG] ShapeMesh failed: {e}")
+            # Fallback to original method if ShapeMesh fails
+            vertices, faces = OBJParser.parse_obj_file(row['filepath'])
+            camera_config = None
+        
         show_wire = 'wireframe' in (display_options or [])
         title = f"{row['category']} - {row['filename']}"
 
-
         fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
                               mesh_color=mesh_color or 'lightblue',
-                              smooth_shading=smooth_shading)
+                              smooth_shading=smooth_shading,
+                              camera_config=camera_config)
+        
+        # If user had a previous camera position, restore it
         if camera:
             fig.update_layout(scene_camera=camera)
         return fig
@@ -463,7 +486,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             card_title = f"{title} (Aux {i+1})"
             fig = create_3d_plot(v_copy, f_copy, card_title, show_wireframe=show_wire,
                                 mesh_color=mesh_color or 'lightblue',
-                                smooth_shading=smooth_shading)
+                                smooth_shading=smooth_shading,
+                                camera_config=None,
+                                use_rotated_vertices=False)
 
             # Create a simple header for aux plots
             header = html.Div([

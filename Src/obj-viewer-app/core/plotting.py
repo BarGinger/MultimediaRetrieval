@@ -35,7 +35,9 @@ def create_3d_plot(vertices: np.ndarray,
                    title: str = "3D Shape",
                    show_wireframe: bool = False,
                    mesh_color: str = "lightblue",
-                   smooth_shading: bool = False):
+                   smooth_shading: bool = False,
+                   camera_config: dict = None,
+                   use_rotated_vertices: bool = True):
     fig = go.Figure()
     if vertices.size == 0:
         fig.add_annotation(text="No data to display", showarrow=False)
@@ -83,12 +85,22 @@ def create_3d_plot(vertices: np.ndarray,
         showlegend=True
     ))
 
+    # Configure camera
+    if camera_config:
+        camera_dict = {
+            "eye": camera_config.get("eye", {"x": 1.5, "y": 1.5, "z": 1.5}),
+            "center": camera_config.get("center", {"x": 0, "y": 0, "z": 0}),
+            "up": camera_config.get("up", {"x": 0, "y": 0, "z": 1})
+        }
+    else:
+        camera_dict = {"eye": {"x": 1.5, "y": 1.5, "z": 1.5}}
+
     fig.update_layout(
         title=title,
         scene=dict(
             xaxis_title="X", yaxis_title="Y", zaxis_title="Z",
             aspectmode="data",
-            camera=dict(eye=dict(x=1.5, y=1.5, z=1.5))
+            camera=camera_dict
         ),
         height=350,
         margin=dict(l=0, r=0, t=30, b=0)
