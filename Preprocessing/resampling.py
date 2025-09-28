@@ -1,15 +1,60 @@
 import os
+import json
 import open3d as o3d
 import numpy as np
 from pathlib import Path
+from datetime import datetime
 
 # --- Toggle for sampled dataset ---
 USE_SAMPLED_DATASET = True  # Set to True to use Data_sampled, False for full Data
 BASE = Path(__file__).parent.parent.resolve()
 SOURCE_ROOT = BASE / ('Datasets/Data_sampled' if USE_SAMPLED_DATASET else 'Datasets/Data')
 TARGET_ROOT = BASE / ('Datasets/Data_sampled_resampled' if USE_SAMPLED_DATASET else 'Datasets/Data_resampled')
-TARGET_VERTEX_COUNT = 5000
-TOLERANCE = 0.25  # 25% tolerance for resampling
+TARGET_VERTEX_COUNT = 7500
+# Custom range: 5000-10000 vertices is acceptable (no tolerance-based calculation)
+MIN_ACCEPTABLE_VERTICES = 5000
+MAX_ACCEPTABLE_VERTICES = 10000
+ENFORCE_UPPER_BOUND = True  # If True, always decimate anything ending above max acceptable / target buffer
+
+# Safety factors
+MAX_TARGET_RATIO_AFTER_SUBDIV = 1.15  # If we exceed 115% of target, decimate back
+MAX_ABSOLUTE_AFTER_SUBDIV = MAX_ACCEPTABLE_VERTICES  # Hard ceiling before forced decimation
+
+# Outlier / debug configuration
+DEBUG_OUTLIERS_ONLY = True  # When True, only re-process meshes whose existing resampled version is out-of-range
+OUTLIER_MIN_THRESHOLD = MIN_ACCEPTABLE_VERTICES  # Anything below this after resampling considered under-shoot
+OUTLIER_MAX_THRESHOLD = MAX_ACCEPTABLE_VERTICES  # Anything above this considered over-shoot
+SAVE_DEBUG_STEPS = True  # Save per-mesh JSON logs of decision path
+DEBUG_LOG_DIR = BASE / 'Preprocessing' / 'resample_debug_logs'
+DEBUG_LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+def _new_debug_context():
+    return {
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'steps': [],
+        'parameters': {
+            'target': TARGET_VERTEX_COUNT,
+            'acceptable_range': [MIN_ACCEPTABLE_VERTICES, MAX_ACCEPTABLE_VERTICES],
+            'enforce_upper_bound': ENFORCE_UPPER_BOUND,
+            'max_target_ratio_after_subdiv': MAX_TARGET_RATIO_AFTER_SUBDIV,
+            'max_absolute_after_subdiv': MAX_ABSOLUTE_AFTER_SUBDIV
+        }
+    }
+
+def _log_step(ctx, phase, **data):
+    if ctx is not None:
+        entry = {'phase': phase, **data}
+        ctx['steps'].append(entry)
+
+def _write_debug_log(ctx, category, filename):
+    if ctx is None or not SAVE_DEBUG_STEPS:
+        return
+    out_path = DEBUG_LOG_DIR / f"{category}__{filename}.json"
+    try:
+        with open(out_path, 'w', encoding='utf-8') as f:
+            json.dump(ctx, f, indent=2)
+    except Exception as e:
+        print(f"[WARN] Failed writing debug log {out_path}: {e}")
 
 
 def edge_split_subdivision(mesh, target_vertices):
@@ -159,12 +204,12 @@ def iterative_decimation(mesh, target_vertices, max_iterations=5):
     return best_mesh
 
 
-def resample_mesh(input_path, output_path, target_vertices=TARGET_VERTEX_COUNT):
+def resample_mesh(input_path, output_path, target_vertices=TARGET_VERTEX_COUNT, debug_ctx=None, category=None):
     """
-    Resample mesh to target vertex count if it's outside the tolerance range.
-    - Too small shapes (< 75% of target): subdivide/refine
-    - Too large shapes (> 125% of target): simplify/decimate
-    - Shapes within tolerance: copy as-is
+    Resample mesh to target vertex count if it's outside the acceptable range.
+    - Too small shapes (< 5000 vertices): subdivide/refine
+    - Too large shapes (> 10000 vertices): simplify/decimate
+    - Shapes within range (5000-10000): copy as-is
     """
     mesh = o3d.io.read_triangle_mesh(str(input_path))
     if mesh.is_empty():
@@ -174,15 +219,16 @@ def resample_mesh(input_path, output_path, target_vertices=TARGET_VERTEX_COUNT):
     original_vertices = len(mesh.vertices)
     original_faces = len(mesh.triangles)
     
-    # Calculate tolerance bounds
-    min_vertices = int(target_vertices * (1 - TOLERANCE))  # 3750
-    max_vertices = int(target_vertices * (1 + TOLERANCE))  # 6250
+    # Use fixed acceptable range
+    min_vertices = MIN_ACCEPTABLE_VERTICES  # 5000
+    max_vertices = MAX_ACCEPTABLE_VERTICES  # 10000
     
     # Check if resampling is needed
     if min_vertices <= original_vertices <= max_vertices:
-        # Within tolerance, copy as-is
+        # Within acceptable range, copy as-is
         o3d.io.write_triangle_mesh(str(output_path), mesh)
-        print(f"[OK] No resampling needed: {original_vertices} vertices (within tolerance)")
+        print(f"[OK] No resampling needed: {original_vertices} vertices (within acceptable range)")
+        _log_step(debug_ctx, 'skip_resample', reason='already_in_range', original_vertices=original_vertices)
         return True, original_vertices, original_vertices
     
     try:
@@ -191,23 +237,48 @@ def resample_mesh(input_path, output_path, target_vertices=TARGET_VERTEX_COUNT):
             action = "subdivided"
         else:
             # Too large - need to simplify/decimate
-            # Use iterative decimation to precisely target vertex count
             mesh_resampled = iterative_decimation(mesh, target_vertices)
             action = "simplified"
-        
+        _log_step(debug_ctx, 'initial_action', action=action, original_vertices=original_vertices, post_vertices=len(mesh_resampled.vertices))
+
+        # Post-processing enforcement (handles overshoot / undershoot)
+        final_count_pre = len(mesh_resampled.vertices)
+        adjusted = False
+
+        # Enforce upper bound or excessive overshoot above target
+        if ENFORCE_UPPER_BOUND and (final_count_pre > MAX_ABSOLUTE_AFTER_SUBDIV or final_count_pre > TARGET_VERTEX_COUNT * MAX_TARGET_RATIO_AFTER_SUBDIV):
+            before = final_count_pre
+            mesh_resampled = iterative_decimation(mesh_resampled, target_vertices)
+            adjusted = True
+            print(f"      [ADJUST] Upper bound enforcement: {before} -> {len(mesh_resampled.vertices)} vertices")
+            _log_step(debug_ctx, 'adjust_upper', before=before, after=len(mesh_resampled.vertices))
+
+        # If still below minimum acceptable after subdivision (rare), try controlled remeshing
+        if len(mesh_resampled.vertices) < MIN_ACCEPTABLE_VERTICES * 0.9:
+            before = len(mesh_resampled.vertices)
+            mesh_resampled = controlled_remeshing(mesh_resampled, target_vertices)
+            adjusted = True
+            print(f"      [ADJUST] Low vertex remediation: {before} -> {len(mesh_resampled.vertices)} vertices")
+            _log_step(debug_ctx, 'adjust_low', before=before, after=len(mesh_resampled.vertices))
+
         # Ensure we have a valid mesh
         if mesh_resampled.is_empty() or len(mesh_resampled.vertices) == 0:
             print(f"[X] Resampling resulted in empty mesh: {input_path}")
             return False, original_vertices, 0
-        
+
         # Write the resampled mesh
         o3d.io.write_triangle_mesh(str(output_path), mesh_resampled)
         final_vertices = len(mesh_resampled.vertices)
-        print(f"[OK] {action.capitalize()}: {original_vertices} -> {final_vertices} vertices")
+        status_note = " (adjusted)" if adjusted else ""
+        print(f"[OK] {action.capitalize()}: {original_vertices} -> {final_vertices} vertices{status_note}")
+        _log_step(debug_ctx, 'final', final_vertices=final_vertices, adjusted=adjusted)
+        _write_debug_log(debug_ctx, category or 'uncat', Path(input_path).name)
         return True, original_vertices, final_vertices
-        
+
     except Exception as e:
         print(f"[X] Error resampling {input_path}: {e}")
+        _log_step(debug_ctx, 'error', message=str(e))
+        _write_debug_log(debug_ctx, category or 'uncat', Path(input_path).name)
         return False, original_vertices, 0
 
 
@@ -252,12 +323,19 @@ def subdivide_small_mesh(mesh, target_vertices):
             
         # Choose subdivision method based on how much we need to grow
         if multiplier_needed > 3.5:
-            # Need significant growth - use midpoint subdivision (preserves features)
+            # Predict overshoot using a probe subdivision
             try:
-                subdivided_mesh = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
-                print(f"      Applied midpoint subdivision: {current_count} -> {len(subdivided_mesh.vertices)} vertices")
-            except Exception as e:
-                # If midpoint fails, try controlled edge split
+                probe = subdivided_mesh.subdivide_midpoint(number_of_iterations=1)
+                probe_count = len(probe.vertices)
+                if probe_count > MAX_ABSOLUTE_AFTER_SUBDIV:
+                    # Too large – instead grow using controlled remeshing (gentler) then break
+                    print(f"      Skipping aggressive subdivision (would overshoot to {probe_count}); using controlled remeshing")
+                    subdivided_mesh = controlled_remeshing(subdivided_mesh, target_vertices)
+                    break
+                subdivided_mesh = probe
+                print(f"      Applied midpoint subdivision: {current_count} -> {probe_count} vertices")
+            except Exception:
+                # Fallback to edge split approach
                 print(f"      Midpoint failed, trying edge split subdivision")
                 subdivided_mesh = edge_split_subdivision(subdivided_mesh, target_vertices)
                 break
@@ -279,7 +357,7 @@ def subdivide_small_mesh(mesh, target_vertices):
     
     # Final adjustment if we overshot
     final_count = len(subdivided_mesh.vertices)
-    if final_count > target_vertices * 1.3:
+    if final_count > MAX_ABSOLUTE_AFTER_SUBDIV or final_count > target_vertices * MAX_TARGET_RATIO_AFTER_SUBDIV:
         try:
             subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
             print(f"      Final decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
@@ -305,7 +383,7 @@ def subdivide_medium_mesh(mesh, target_vertices):
             
             # Fine-tune if needed
             final_count = len(subdivided_mesh.vertices)
-            if final_count > target_vertices * 1.2:
+            if final_count > MAX_ABSOLUTE_AFTER_SUBDIV or final_count > target_vertices * (MAX_TARGET_RATIO_AFTER_SUBDIV - 0.02):
                 subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
                 print(f"      Post-subdivision decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
                 
@@ -334,7 +412,7 @@ def subdivide_medium_mesh(mesh, target_vertices):
             
             # Final adjustment if needed
             final_count = len(subdivided_mesh.vertices)
-            if final_count > target_vertices * 1.2:
+            if final_count > MAX_ABSOLUTE_AFTER_SUBDIV or final_count > target_vertices * (MAX_TARGET_RATIO_AFTER_SUBDIV - 0.02):
                 subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
                 print(f"      Final decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
                 
@@ -367,7 +445,7 @@ def subdivide_large_mesh(mesh, target_vertices):
         
         # Adjust if overshot
         final_count = len(subdivided_mesh.vertices)
-        if final_count > target_vertices * 1.2:
+        if final_count > MAX_ABSOLUTE_AFTER_SUBDIV or final_count > target_vertices * (MAX_TARGET_RATIO_AFTER_SUBDIV - 0.02):
             subdivided_mesh = iterative_decimation(subdivided_mesh, target_vertices)
             print(f"      Post-subdivision decimation: {final_count} -> {len(subdivided_mesh.vertices)} vertices")
             
@@ -377,10 +455,38 @@ def subdivide_large_mesh(mesh, target_vertices):
     
     return subdivided_mesh
 
+def identify_outliers():
+    """Scan existing resampled directory (if present) and return mapping of category->set(filenames) that are outliers.
+    Outlier definition: outside acceptable range OR (optionally) extremely far from target (future extension).
+    """
+    outliers = {}
+    if not TARGET_ROOT.exists():
+        return outliers
+    for category_dir in TARGET_ROOT.iterdir():
+        if not category_dir.is_dir():
+            continue
+        for obj_file in category_dir.glob('*.obj'):
+            try:
+                mesh = o3d.io.read_triangle_mesh(str(obj_file))
+                if mesh.is_empty():
+                    continue
+                vcount = len(mesh.vertices)
+                if vcount < OUTLIER_MIN_THRESHOLD or vcount > OUTLIER_MAX_THRESHOLD:
+                    outliers.setdefault(category_dir.name, set()).add(obj_file.name)
+            except Exception:
+                continue
+    return outliers
+
+
 def main():
     print(f"Resampling meshes from {SOURCE_ROOT} to {TARGET_ROOT}")
-    print(f"Target: {TARGET_VERTEX_COUNT} vertices (±{TOLERANCE*100}% tolerance)")
-    print(f"Range: {int(TARGET_VERTEX_COUNT * (1-TOLERANCE))} - {int(TARGET_VERTEX_COUNT * (1+TOLERANCE))} vertices")
+    print(f"Target: {TARGET_VERTEX_COUNT} vertices")
+    print(f"Acceptable range: {MIN_ACCEPTABLE_VERTICES} - {MAX_ACCEPTABLE_VERTICES} vertices")
+    if DEBUG_OUTLIERS_ONLY:
+        print(f"[MODE] Outlier-only mode enabled. Scanning existing resampled directory for outliers...")
+        outlier_map = identify_outliers()
+        total_outliers = sum(len(v) for v in outlier_map.values())
+        print(f"[MODE] Found {total_outliers} outlier meshes to reprocess.")
     print("-" * 60)
     
     # Statistics tracking
@@ -402,18 +508,28 @@ def main():
         out_category_dir.mkdir(parents=True, exist_ok=True)
         
         category_files = list(category_dir.glob('*.obj'))
+        if DEBUG_OUTLIERS_ONLY:
+            # Filter to outliers only for this category
+            # Need existing resampled file to classify; skip if not in outlier set
+            outlier_names = set()
+            if 'outlier_map' in locals():
+                outlier_names = outlier_map.get(category_dir.name, set())
+            category_files = [f for f in category_files if f.name in outlier_names]
+            if not category_files:
+                continue
         for i, obj_file in enumerate(category_files, 1):
             out_file = out_category_dir / obj_file.name
             print(f"  [{i:3d}/{len(category_files):3d}] {obj_file.name:<40} ", end="")
             
-            success, original_verts, final_verts = resample_mesh(obj_file, out_file)
+            debug_ctx = _new_debug_context() if SAVE_DEBUG_STEPS else None
+            success, original_verts, final_verts = resample_mesh(obj_file, out_file, debug_ctx=debug_ctx, category=category_dir.name)
             total_processed += 1
             original_vertices_total += original_verts
             
             if success:
                 final_vertices_total += final_verts
-                min_vertices = int(TARGET_VERTEX_COUNT * (1 - TOLERANCE))
-                max_vertices = int(TARGET_VERTEX_COUNT * (1 + TOLERANCE))
+                min_vertices = MIN_ACCEPTABLE_VERTICES
+                max_vertices = MAX_ACCEPTABLE_VERTICES
                 
                 if original_verts < min_vertices:
                     subdivided_count += 1

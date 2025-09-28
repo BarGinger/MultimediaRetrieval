@@ -17,7 +17,7 @@ def create_dash_app():
     )
 
     # --- Dataset options ---
-    DATASET_OPTIONS = ['Data', 'Data_sampled', 'Data_sampled_resampled', 'Data_sampled_resampled_normalized']
+    DATASET_OPTIONS = ['Data', 'Data_sampled', 'Data_resampled', 'Data_sampled_resampled', 'Data_sampled_resampled_normalized', 'Data_sampled_resampled_simple']
     DEFAULT_DATASET = DATASET_OPTIONS[1]
     file_df = get_file_tree(DEFAULT_DATASET)
 
