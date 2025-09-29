@@ -5,30 +5,537 @@ import numpy as np
 import os
 import pandas as pd
 import json
+import uuid
+import time
 from core.obj_parser import OBJParser
 from core.plotting import create_3d_plot
 import plotly.graph_objects as go
 from core.file_index import get_file_tree
-from core.analysis_cache import merge_analysis_data
+from core.analysis_cache import merge_analysis_data, get_analysis_data
 from core.shapeMesh import ShapeMesh
 
+def fast_merge_analysis_data(file_df, dataset):
+    """
+    Fast version of merge_analysis_data that only uses cached data.
+    Does not compute analysis on-the-fly to avoid slowdowns during dataset switching.
+    """
+    analysis_df = get_analysis_data(dataset)
+    if analysis_df is not None:
+        # Fast merge with cached data only
+        file_df_copy = file_df.copy()
+        file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
+        analysis_df_copy = analysis_df.copy()
+        analysis_df_copy['base_filename'] = analysis_df_copy['filename']
+        
+        merged = pd.merge(
+            file_df_copy, 
+            analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
+            on=['category', 'base_filename'], 
+            how='left'
+        ).drop('base_filename', axis=1)
+        return merged
+    else:
+        # No cached data - add empty columns
+        file_df = file_df.copy()
+        file_df['num_vertices'] = None
+        file_df['num_faces'] = None
+        return file_df
 
+
+def create_toast_data(message, toast_type="info", icon="ℹ️"):
+    """Create toast data for store"""
+    import random
+    return {
+        "message": message,
+        "type": toast_type,
+        "icon": icon,
+        "timestamp": time.time(),
+        "id": uuid.uuid4().hex[:8],
+        "random": random.randint(1, 1000000)  # Extra randomness to force updates
+    }
 
 
 def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
 
+    # Sort order button toggle - SAME PATTERN AS LOADING MESSAGE
+    @app.callback(
+        [Output('sort-order', 'children'),
+         Output('sort-order', 'title'),
+         Output('sort-order', 'data-order')],
+        [Input('sort-order', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def toggle_sort_order(n_clicks):
+        """Toggle between ascending and descending sort order"""
+        print(f"🔄 Sort button clicked! n_clicks: {n_clicks}")  # Debug
+        
+        if n_clicks is None:
+            n_clicks = 0
+        
+        # Even clicks = ascending, odd clicks = descending
+        if n_clicks % 2 == 0:
+            print(f"✅ Creating ascending sort")  # Debug
+            return "↑", "Sort Order: Ascending (click to change to Descending)", "asc"
+        else:
+            print(f"✅ Creating descending sort")  # Debug
+            return "↓", "Sort Order: Descending (click to change to Ascending)", "desc"
+
+    # Show toast message immediately when sort button is clicked (SAME AS LOADING)
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (!n_clicks) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Always hide first, then show to ensure animation works
+            const toastBar = document.getElementById('toast-message-bar');
+            if (toastBar) {
+                toastBar.style.display = 'none';
+            }
+            
+            // Force reflow then show
+            setTimeout(function() {
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar && n_clicks % 2 === 0) {
+                    document.getElementById('toast-icon').innerHTML = '↑';
+                    document.getElementById('toast-message').innerHTML = 'Sort order changed to Ascending';
+                    toastBar.style.display = 'block';
+                } else if (toastBar) {
+                    document.getElementById('toast-icon').innerHTML = '↓';
+                    document.getElementById('toast-message').innerHTML = 'Sort order changed to Descending';
+                    toastBar.style.display = 'block';
+                }
+            }, 10);
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        Input('sort-order', 'n_clicks'),
+        prevent_initial_call=True
+    )
+
+    # Auto-hide toast after 3 seconds - triggered by any button click
+    app.clientside_callback(
+        """
+        function(sort_clicks, vertices_clicks, faces_clicks) {
+            const ctx = window.dash_clientside.callback_context;
+            if (!ctx.triggered.length) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Clear any existing timeout
+            if (window.toastTimeout) {
+                clearTimeout(window.toastTimeout);
+            }
+            
+            // Set new timeout to hide after 3 seconds
+            window.toastTimeout = setTimeout(function() {
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    toastBar.style.display = 'none';
+                }
+            }, 3000);
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        [Input('sort-order', 'n_clicks'),
+         Input('avg-vertices-btn', 'n_clicks'),
+         Input('avg-faces-btn', 'n_clicks')],
+        prevent_initial_call=True
+    )
+
+    # Show toast for average vertices button
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (!n_clicks) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Always hide first, then show to ensure animation works
+            const toastBar = document.getElementById('toast-message-bar');
+            if (toastBar) {
+                toastBar.style.display = 'none';
+            }
+            
+            // Force reflow then show
+            setTimeout(function() {
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    document.getElementById('toast-icon').innerHTML = '📊';
+                    document.getElementById('toast-message').innerHTML = 'Scrolling to Average Vertices shape';
+                    toastBar.style.display = 'block';
+                }
+            }, 10);
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        Input('avg-vertices-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+
+    # Show toast for average faces button  
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (!n_clicks) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Always hide first, then show to ensure animation works
+            const toastBar = document.getElementById('toast-message-bar');
+            if (toastBar) {
+                toastBar.style.display = 'none';
+            }
+            
+            // Force reflow then show
+            setTimeout(function() {
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    document.getElementById('toast-icon').innerHTML = '🔷';
+                    document.getElementById('toast-message').innerHTML = 'Scrolling to Average Faces shape';
+                    toastBar.style.display = 'block';
+                }
+            }, 10);
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        Input('avg-faces-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+
+    # Average navigation buttons
+    @app.callback(
+        [Output('selected-file-store', 'data', allow_duplicate=True),
+         Output('shape-info', 'children', allow_duplicate=True),
+         Output('toast-store', 'data', allow_duplicate=True)],
+        [Input('avg-vertices-btn', 'n_clicks'),
+         Input('avg-faces-btn', 'n_clicks')],
+        [State('category-filter', 'value'),
+         State('sort-field', 'value'),
+         State('sort-order', 'data-order'),
+         State('selected-dataset-store', 'data')],
+        prevent_initial_call=True
+    )
+    def navigate_to_average(avg_vertices_clicks, avg_faces_clicks, selected_category, sort_field, sort_order, selected_dataset):
+        """Navigate to the item closest to average vertices or faces"""
+        ctx = callback_context
+        if not ctx.triggered:
+            return no_update, no_update, no_update
+        
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        # Get the current file list using the same logic as the main callback
+        try:
+            file_df = get_file_tree(selected_dataset)
+        except Exception as e:
+            print(f"Error loading dataset {selected_dataset}: {e}")
+            return no_update, no_update, no_update
+        
+        # Always try to merge cached analysis data
+        analysis_df = get_analysis_data(selected_dataset)
+        if analysis_df is not None:
+            file_df_copy = file_df.copy()
+            file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
+            analysis_df_copy = analysis_df.copy()
+            analysis_df_copy['base_filename'] = analysis_df_copy['filename']
+            
+            file_df = pd.merge(
+                file_df_copy, 
+                analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
+                on=['category', 'base_filename'], 
+                how='left'
+            ).drop('base_filename', axis=1)
+        else:
+            # No analysis data available, can't find average
+            print(f"⚠️ No cached analysis for {selected_dataset} - cannot find average")
+            toast_data = create_toast_data("No analysis data available for average calculation", "warning", "⚠️")
+            return no_update, no_update, toast_data
+        
+        # Apply category filter
+        df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
+        
+        # Apply sorting
+        ascending = True if sort_order == 'asc' else False
+        df = df.copy()
+        if sort_field == 'category':
+            df = df.sort_values(by=['category', 'filename'], ascending=ascending)
+        elif sort_field in ['num_vertices', 'num_faces']:
+            df[sort_field] = df[sort_field].fillna(0)
+            df = df.sort_values(by=sort_field, ascending=ascending)
+        
+        df = df.reset_index(drop=True)
+        
+        # Find the item closest to average
+        selected_idx = None
+        if button_id == 'avg-vertices-btn' and 'num_vertices' in df.columns:
+            valid = df['num_vertices'].dropna()
+            if not valid.empty:
+                avg_v = valid.mean()
+                idx = (df['num_vertices'] - avg_v).abs().idxmin()
+                selected_idx = int(idx)
+        elif button_id == 'avg-faces-btn' and 'num_faces' in df.columns:
+            valid = df['num_faces'].dropna()
+            if not valid.empty:
+                avg_f = valid.mean()
+                idx = (df['num_faces'] - avg_f).abs().idxmin()
+                selected_idx = int(idx)
+        
+        if selected_idx is not None:
+            # Get the selected row and create shape info
+            row = df.iloc[selected_idx]
+            # No toast here - handled by client-side callbacks
+            
+            try:
+                mesh = ShapeMesh.from_file_row(row)
+                info = mesh.get_card_header_html()
+                return selected_idx, info, dash.no_update
+            except Exception as e:
+                err_info = html.Div([
+                    html.H4("❌ Error Loading Average Shape", style={'color': '#e74c3c', 'marginBottom': '15px'}),
+                    html.Div([html.Strong("📄 File: "), row['filepath']], style={'marginBottom': '8px'}),
+                    html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
+                ])
+                error_toast_data = dash.no_update  # No old toast system
+                return selected_idx, err_info, error_toast_data
+        
+        return no_update, no_update, no_update
+
+    # Show loading indicator immediately when average buttons are clicked
+    app.clientside_callback(
+        """
+        function(vertices_clicks, faces_clicks) {
+            const ctx = window.dash_clientside.callback_context;
+            if (!ctx.triggered.length) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Show loading indicator
+            return {'display': 'block'};
+        }
+        """,
+        Output('navigation-loading', 'style'),
+        [Input('avg-vertices-btn', 'n_clicks'),
+         Input('avg-faces-btn', 'n_clicks')],
+        prevent_initial_call=True
+    )
+
+    # Hide loading indicator when shape info is updated (navigation complete)
+    app.clientside_callback(
+        """
+        function(shape_info) {
+            if (!shape_info || shape_info.length === 0) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Hide loading indicator when navigation completes
+            return {'display': 'none'};
+        }
+        """,
+        Output('navigation-loading', 'style', allow_duplicate=True),
+        Input('shape-info', 'children'),
+        prevent_initial_call=True
+    )
+
+    # Client-side callback to scroll to selected file in the list
+    app.clientside_callback(
+        """
+        function(selected_idx) {
+            console.log('Client-side scroll callback triggered with selected_idx:', selected_idx);
+            
+            if (selected_idx === null || selected_idx === undefined) {
+                console.log('No selection, returning no_update');
+                return window.dash_clientside.no_update;
+            }
+            
+            // Wait a bit for the DOM to be ready
+            setTimeout(function() {
+                // Find the file list container - try multiple selectors
+                let fileListContainer = document.querySelector('#file-list .file-list-panel');
+                if (!fileListContainer) {
+                    fileListContainer = document.querySelector('#file-list > div');
+                }
+                if (!fileListContainer) {
+                    fileListContainer = document.querySelector('.file-list-panel');
+                }
+                
+                if (!fileListContainer) {
+                    console.log('File list container not found');
+                    return;
+                }
+                console.log('Found file list container:', fileListContainer);
+                
+                // Find all file buttons - try multiple selectors
+                let fileButtons = fileListContainer.querySelectorAll('button.file-button');
+                if (fileButtons.length === 0) {
+                    fileButtons = fileListContainer.querySelectorAll('button[id*="file-btn"]');
+                }
+                if (fileButtons.length === 0) {
+                    fileButtons = fileListContainer.querySelectorAll('button');
+                }
+                
+                console.log('Found', fileButtons.length, 'file buttons, targeting index', selected_idx);
+                
+                if (fileButtons.length > selected_idx) {
+                    const targetButton = fileButtons[selected_idx];
+                    console.log('Target button found:', targetButton);
+                    
+                    // Remove any existing selection highlights
+                    fileButtons.forEach(btn => {
+                        btn.classList.remove('selected-file');
+                        btn.style.backgroundColor = '';
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
+                    });
+                    
+                    // Add selection styling to target button
+                    targetButton.classList.add('selected-file');
+                    targetButton.style.backgroundColor = '#3498db';
+                    targetButton.style.borderColor = '#2980b9';
+                    targetButton.style.color = '#ffffff';
+                    targetButton.style.transition = 'all 0.3s ease';
+                    
+                    // Scroll to the target button within the container
+                    const containerRect = fileListContainer.getBoundingClientRect();
+                    const buttonRect = targetButton.getBoundingClientRect();
+                    
+                    // Calculate if button is visible in container
+                    const isVisible = (
+                        buttonRect.top >= containerRect.top &&
+                        buttonRect.bottom <= containerRect.bottom
+                    );
+                    
+                    if (!isVisible) {
+                        // Scroll the button into view within the container
+                        const scrollTop = targetButton.offsetTop - fileListContainer.offsetTop - 
+                                        (fileListContainer.clientHeight / 2) + (targetButton.clientHeight / 2);
+                        
+                        fileListContainer.scrollTo({
+                            top: scrollTop,
+                            behavior: 'smooth'
+                        });
+                    }
+                    
+                    console.log('Selection and scroll applied to target button');
+                } else {
+                    console.log('Target index', selected_idx, 'is out of range for', fileButtons.length, 'buttons');
+                }
+            }, 100); // Small delay to ensure DOM is ready
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('file-list', 'id'),  # Dummy output
+        Input('selected-file-store', 'data'),
+        prevent_initial_call=True
+    )
+
+    # Client-side callback to show and auto-hide toast notifications
+    app.clientside_callback(
+        """
+        function(toasts) {
+            if (!toasts || toasts.length === 0) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Show toasts with animation and auto-hide
+            setTimeout(function() {
+                const toastElements = document.querySelectorAll('.toast:not(.show)');
+                toastElements.forEach(function(toast, index) {
+                    setTimeout(function() {
+                        toast.classList.add('show');
+                    }, index * 100); // Stagger animations
+                });
+                
+                // Auto-hide after 3 seconds
+                setTimeout(function() {
+                    toastElements.forEach(function(toast) {
+                        toast.classList.remove('show');
+                        setTimeout(function() {
+                            if (toast.parentNode) {
+                                toast.parentNode.removeChild(toast);
+                            }
+                        }, 300); // Wait for fade out animation
+                    });
+                }, 3000);
+            }, 100);
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('toast-container', 'id'),  # Dummy output
+        Input('toast-container', 'children'),
+        prevent_initial_call=True
+    )
+
+    # Toast system using stores (no DOM conflicts)
+    @app.callback(
+        [Output('toast-container', 'children'),
+         Output('toast-interval', 'disabled'),
+         Output('toast-interval', 'n_intervals')],
+        Input('toast-store', 'data'),
+        prevent_initial_call=True
+    )
+    def show_toast(toast_data):
+        """Show toast notification from store data"""
+        print(f"🔔 Toast callback triggered with data: {toast_data}")  # Debug
+        
+        if not toast_data or not toast_data.get('message'):
+            print("❌ No toast data or message")  # Debug
+            return [], True, 0
+        
+        print(f"✅ Creating toast: {toast_data['message']}")  # Debug
+        toast_element = html.Div([
+            html.Span(toast_data['icon'], className="toast-icon"),
+            html.Span(toast_data['message'], className="toast-message")
+        ], className=f"toast {toast_data['type']}")
+        
+        return [toast_element], False, 0  # Enable interval and reset counter
+
+    @app.callback(
+        [Output('toast-container', 'children', allow_duplicate=True),
+         Output('toast-interval', 'disabled', allow_duplicate=True)],
+        Input('toast-interval', 'n_intervals'),
+        State('toast-interval', 'disabled'),
+        prevent_initial_call=True
+    )
+    def clear_toast_after_delay(n_intervals, interval_disabled):
+        """Clear toast after 40 intervals (4 seconds at 100ms)"""
+        if interval_disabled:
+            return no_update, no_update
+        
+        if n_intervals >= 40:  # 4 seconds
+            return [], True  # Clear toast and disable interval
+        
+        return no_update, no_update
+
     # 1) File list render
     @app.callback(
         Output('file-list', 'children'),
-        [Input('average-filter', 'value'),
-         Input('category-filter', 'value'),
+        [Input('category-filter', 'value'),
          Input('sort-field', 'value'),
-         Input('sort-order', 'value'),
+         Input('sort-order', 'data-order'),
          Input('selected-dataset-store', 'data')]
     )
-    def update_file_list(avg_filter, selected_category, sort_field, sort_order, selected_dataset):        
+    def update_file_list(selected_category, sort_field, sort_order, selected_dataset):        
         """
         Render the list of files based on current filters and sorting.
+        Optimized to avoid slow analysis computation during dataset switching.
+        """
+        return update_file_list_internal('all', selected_category, sort_field, sort_order, selected_dataset)
+
+    def update_file_list_internal(avg_filter, selected_category, sort_field, sort_order, selected_dataset):        
+        """
+        Render the list of files based on current filters and sorting.
+        Optimized to avoid slow analysis computation during dataset switching.
 
         Parameters:
         - avg_filter: str, average filter option ('none', 'avg_faces', 'avg_vertices')
@@ -45,11 +552,41 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         file_df = get_file_tree(selected_dataset)
 
-        # Merge analysis CSV columns using cache
-        file_df = merge_analysis_data(file_df, selected_dataset)
         if file_df.empty:
             return [html.P("❌ No files found in Data directory",
                            style={'color': 'red', 'textAlign': 'center'})]
+
+        # **OPTIMIZATION**: Always try to show cached analysis data (fast), only skip slow computation
+        # Try to get cached analysis first (fast)
+        analysis_df = get_analysis_data(selected_dataset)
+        if analysis_df is not None:
+            # Merge with cached data (fast)
+            file_df_copy = file_df.copy()
+            file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
+            analysis_df_copy = analysis_df.copy()
+            analysis_df_copy['base_filename'] = analysis_df_copy['filename']
+            
+            file_df = pd.merge(
+                file_df_copy, 
+                analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
+                on=['category', 'base_filename'], 
+                how='left'
+            ).drop('base_filename', axis=1)
+            print(f"✅ Merged cached analysis for {selected_dataset}")
+        else:
+            # No cached analysis - add empty columns and defer computation to file clicks
+            print(f"⚠️ No cached analysis for {selected_dataset} - analysis will be computed when files are clicked")
+            file_df['num_vertices'] = None
+            file_df['num_faces'] = None
+        
+        # Check if we need analysis for sorting/filtering operations
+        needs_analysis_ops = (sort_field in ['num_vertices', 'num_faces'] or 
+                             avg_filter in ['avg_faces', 'avg_vertices'])
+        
+        # If we need analysis for operations but don't have cached data, show a warning
+        if needs_analysis_ops and analysis_df is None:
+            print(f"⚠️ Cannot perform {sort_field or avg_filter} operation - no cached analysis data available")
+
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
 
         ascending = True if sort_order == 'asc' else False
@@ -166,14 +703,13 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         [Output('shape-info', 'children'),
          Output('selected-file-store', 'data')],
         [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
-         Input('average-filter', 'value'),
          Input('category-filter', 'value'),
          Input('sort-field', 'value'),
-         Input('sort-order', 'value'),
+         Input('sort-order', 'data-order'),
          Input('selected-dataset-store', 'data')],
         prevent_initial_call=True
     )
-    def select_or_reset_file(n_clicks_list, avg_filter, selected_category, sort_field, sort_order, selected_dataset):
+    def select_or_reset_file(n_clicks_list, selected_category, sort_field, sort_order, selected_dataset):
         """
         Handle file button clicks to load and display shape info.
 
@@ -235,31 +771,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     return error_info, None
                 df[sort_field] = df[sort_field].fillna(0)
                 df = df.sort_values(by=sort_field, ascending=ascending)
-            # Apply average filtering after sorting
-            if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
-                valid = df['num_faces'].dropna()
-                if not valid.empty:
-                    avg_f = valid.mean()
-                    idx = (df['num_faces'] - avg_f).abs().idxmin()
-                    if idx in df.index:
-                        df = df.loc[[idx]].reset_index(drop=True)
-                    else:
-                        return no_update, no_update
-                else:
-                    return no_update, no_update
-            elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
-                valid = df['num_vertices'].dropna()
-                if not valid.empty:
-                    avg_v = valid.mean()
-                    idx = (df['num_vertices'] - avg_v).abs().idxmin()
-                    if idx in df.index:
-                        df = df.loc[[idx]].reset_index(drop=True)
-                    else:
-                        return no_update, no_update
-                else:
-                    return no_update, no_update
+            
             df = df.reset_index(drop=True)
             if file_idx >= len(df):
+                return no_update, no_update
                 return no_update, no_update
             row = df.iloc[file_idx]
             try:
@@ -286,10 +801,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          Input('color-selector', 'value'),
          Input('normalization-toggle', 'value'),
          Input('selected-dataset-store', 'data')],
-        [State('average-filter', 'value'),
-         State('category-filter', 'value'),
+        [State('category-filter', 'value'),
          State('sort-field', 'value'),
-         State('sort-order', 'value'),
+         State('sort-order', 'data-order'),
          Input('3d-plot', 'figure')],
         prevent_initial_call=True
     )
@@ -298,7 +812,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     mesh_color,                      
                     show_normalized,
                     selected_dataset,
-                    avg_filter, 
                     selected_category, 
                     sort_field, 
                     sort_order,
@@ -334,8 +847,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             selected_dataset = 'Data'
         
         file_df = get_file_tree(selected_dataset)
-        # Merge analysis CSV columns using cache
-        file_df = merge_analysis_data(file_df, selected_dataset)
+        # Use fast merge to avoid slowdowns during dataset switching
+        file_df = fast_merge_analysis_data(file_df, selected_dataset)
 
         if file_df is None or file_df.empty:
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
@@ -356,33 +869,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             df = df.sort_values(by=sort_field, ascending=ascending)
         # Reset index after sorting/filtering for consistent button indexing
         df = df.reset_index(drop=True)
-        # Apply average filtering after sorting
-        if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
-            valid = df['num_faces'].dropna()
-            if not valid.empty:
-                avg_f = valid.mean()
-                idx = (df['num_faces'] - avg_f).abs().idxmin()
-                if idx in df.index:
-                    df = df.loc[[idx]].reset_index(drop=True)
-                else:
-                    return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
-                                         mesh_color=mesh_color or 'lightblue')
-            else:
-                return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
-                                     mesh_color=mesh_color or 'lightblue')
-        elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
-            valid = df['num_vertices'].dropna()
-            if not valid.empty:
-                avg_v = valid.mean()
-                idx = (df['num_vertices'] - avg_v).abs().idxmin()
-                if idx in df.index:
-                    df = df.loc[[idx]].reset_index(drop=True)
-                else:
-                    return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
-                                         mesh_color=mesh_color or 'lightblue')
-            else:
-                return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
-                                     mesh_color=mesh_color or 'lightblue')
+        
         # Now use the filtered/sorted DataFrame for index lookup
         if selected_file_idx >= len(df):
             return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
@@ -609,13 +1096,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          Output('normalization-toggle', 'value')],
         [Input('selected-file-store', 'data'),
          Input('selected-dataset-store', 'data')],
-        [State('average-filter', 'value'),
-         State('category-filter', 'value'),
+        [State('category-filter', 'value'),
          State('sort-field', 'value'),
-         State('sort-order', 'value')],
+         State('sort-order', 'data-order')],
         prevent_initial_call=True
     )
-    def update_normalization_toggle(selected_file_idx, selected_dataset, avg_filter, selected_category, sort_field, sort_order):
+    def update_normalization_toggle(selected_file_idx, selected_dataset, selected_category, sort_field, sort_order):
         """
         Update the normalization toggle options and value based on the selected file's filename.
         Automatically check normalization if filename contains '_normalized' suffix.
@@ -645,7 +1131,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         
         try:
             file_df = get_file_tree(selected_dataset)
-            file_df = merge_analysis_data(file_df, selected_dataset)
+            file_df = fast_merge_analysis_data(file_df, selected_dataset)
             
             if file_df.empty:
                 return options, []
@@ -661,22 +1147,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 df[sort_field] = df[sort_field].fillna(0)
                 df = df.sort_values(by=sort_field, ascending=ascending)
             
-            # Apply average filtering
-            if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
-                valid = df['num_faces'].dropna()
-                if not valid.empty:
-                    avg_f = valid.mean()
-                    idx = (df['num_faces'] - avg_f).abs().idxmin()
-                    if idx in df.index:
-                        df = df.loc[[idx]].reset_index(drop=True)
-            elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
-                valid = df['num_vertices'].dropna()
-                if not valid.empty:
-                    avg_v = valid.mean()
-                    idx = (df['num_vertices'] - avg_v).abs().idxmin()
-                    if idx in df.index:
-                        df = df.loc[[idx]].reset_index(drop=True)
-            
             df = df.reset_index(drop=True)
             
             # Check if the selected file index is valid
@@ -688,7 +1158,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             filename = row['filename']
             
             # Check if filename contains '_normalized' (case-insensitive)
-            if '_normalized' in filename.lower():
+            if '_normalized' in filename.lower() or '_unified' in filename.lower():
                 # For normalized files, disable the checkbox and check it
                 options = [{'label': '', 'value': 'normalized', 'disabled': True}]
                 return options, ['normalized']  # Check the normalization toggle

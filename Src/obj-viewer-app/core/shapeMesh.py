@@ -409,6 +409,14 @@ class ShapeMesh:
         dims = self.dimensions
         
         return html.Div([
+            # Filename section with prominent display
+            html.Div([
+                html.Span("📄 ", className="shape-info-icon"), 
+                html.Strong("File: ", style={'color': '#27ae60'}),
+                html.Span(self.filename or "Unknown", style={'color': '#27ae60', 'fontWeight': 'bold'})
+            ], style={'width': '100%', 'marginBottom': '6px', 'borderBottom': '1px solid #27ae60', 'paddingBottom': '3px'}),
+            
+            # Other metadata in flexible layout
             html.Div([
                 html.Span("📁 ", className="shape-info-icon"), html.Strong("Category: "),
                 html.Span(self.category or "Unknown")

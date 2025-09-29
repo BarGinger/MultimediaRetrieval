@@ -41,7 +41,7 @@ def create_3d_plot(vertices: np.ndarray,
     fig = go.Figure()
     if vertices.size == 0:
         fig.add_annotation(text="No data to display", showarrow=False)
-        fig.update_layout(height=600, margin=dict(l=0, r=0, t=30, b=0), title=title)
+        fig.update_layout(height=600, margin=dict(l=0, r=0, t=0, b=0))
         return fig
 
     if faces.size > 0:
@@ -96,13 +96,13 @@ def create_3d_plot(vertices: np.ndarray,
         camera_dict = {"eye": {"x": 1.5, "y": 1.5, "z": 1.5}}
 
     fig.update_layout(
-        title=title,
         scene=dict(
             xaxis_title="X", yaxis_title="Y", zaxis_title="Z",
             aspectmode="data",
             camera=camera_dict
         ),
         height=350,
-        margin=dict(l=0, r=0, t=30, b=0)
+        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=True
     )
     return fig

@@ -12,60 +12,88 @@ def build_layout(file_df, dataset_options, selected_dataset):
     return html.Div([
     html.H1("3D Shape Viewer", className="main-title"),
 
+    # Toast notification system
+    html.Div(id="toast-container", className="toast-container", children=[]),
+    dcc.Store(id="toast-store", data={"message": "", "type": "", "icon": "", "timestamp": 0}),
+    dcc.Interval(id="toast-interval", interval=100, n_intervals=0, disabled=True),
+
     html.Div([            
             # Left panel: file browser
             html.Div([
-                html.H3("Select 3D Shape", className="panel-title"),
+                html.Div([
+                    html.H3("Select 3D Shape", className="panel-title"),
 
-                html.Label("Select Dataset:"),
-                dcc.Dropdown(
-                    id='dataset-selector',
-                    options=[{'label': name, 'value': name} for name in dataset_options],
-                    value=selected_dataset,
-                    style={'marginBottom': 20}
-                ),
-                html.Label("Show:"),
-                dcc.Dropdown(
-                    id='average-filter',
-                    options=[
-                        {'label': 'All Shapes', 'value': 'all'},
-                        {'label': 'Average by Faces', 'value': 'avg_faces'},
-                        {'label': 'Average by Vertices', 'value': 'avg_vertices'}
-                    ],
-                    value='all',
-                    style={'marginBottom': 10}
-                ),
+                    html.Label("Select Dataset:"),
+                    dcc.Dropdown(
+                        id='dataset-selector',
+                        options=[{'label': name, 'value': name} for name in dataset_options],
+                        value=selected_dataset,
+                        style={'marginBottom': 20}
+                    ),
 
-                html.Label("Filter by Category:"),
-                dcc.Dropdown(
-                    id='category-filter',
-                    options=_category_options(file_df),
-                    value='all',
-                    className="category-dropdown"
-                ),
+                    html.Label("Filter by Category:"),
+                    dcc.Dropdown(
+                        id='category-filter',
+                        options=_category_options(file_df),
+                        value='all',
+                        className="category-dropdown"
+                    ),
 
-                html.Label("Sort by:"),
-                dcc.Dropdown(
-                    id='sort-field',
-                    options=[
-                        {'label': 'Category', 'value': 'category'},
-                        {'label': 'Vertex Count', 'value': 'num_vertices'},
-                        {'label': 'Face Count', 'value': 'num_faces'}
-                    ],
-                    value='category',
-                    style={'marginBottom': 10}
-                ),
+                    html.Label("Sort by:"),
+                    dcc.Dropdown(
+                        id='sort-field',
+                        options=[
+                            {'label': 'Category', 'value': 'category'},
+                            {'label': 'Vertex Count', 'value': 'num_vertices'},
+                            {'label': 'Face Count', 'value': 'num_faces'}
+                        ],
+                        value='category',
+                        style={'marginBottom': 10}
+                    ),
+                ], className="side-panel-controls"),
 
-                html.Label("Order:"),
-                dcc.Dropdown(
-                    id='sort-order',
-                    options=[
-                        {'label': 'Ascending', 'value': 'asc'},
-                        {'label': 'Descending', 'value': 'desc'}
-                    ],
-                    value='asc',
-                    style={'marginBottom': 20}
-                ),
+                html.Div([
+                    html.Div([
+                        html.Button(
+                            "📊",
+                            id='avg-vertices-btn',
+                            title="Scroll to Average Vertices",
+                            className="action-btn",
+                            n_clicks=0
+                        ),
+                        html.Button(
+                            "🔷",
+                            id='avg-faces-btn',
+                            title="Scroll to Average Faces",
+                            className="action-btn",
+                            n_clicks=0
+                        ),
+                        html.Button(
+                            "↑",
+                            id='sort-order',
+                            title="Sort Order: Ascending (click to change to Descending)",
+                            className="sort-order-btn",
+                            n_clicks=0,
+                            **{'data-order': 'asc'}
+                        )
+                    ], className="file-list-buttons"),
+                    
+                    # Loading indicator for navigation
+                    html.Div([
+                        html.Div([
+                            html.Span("🔍", className="loading-icon"),
+                            html.Span("Finding average shape...", className="loading-text")
+                        ], className="loading-content")
+                    ], id="navigation-loading", className="navigation-loading", style={'display': 'none'}),
+                    
+                    # Toast message (similar to loading indicator)
+                    html.Div([
+                        html.Div([
+                            html.Span("📊", id="toast-icon", className="toast-icon"),
+                            html.Span("Sort order changed", id="toast-message", className="toast-message")
+                        ], className="loading-content")
+                    ], id="toast-message-bar", className="toast-message-bar", style={'display': 'none'})
+                ], className="file-list-header"),
 
                 dcc.Loading(
                     id="loading-files",
@@ -83,7 +111,21 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     html.H3("🎮 3D Visualization", className="panel-title viz-title"),
 
                     html.Div([
-                        html.H4("📄 Shape Info", className="shape-info-title"),
+                        html.Div([
+                            html.H4("📄 Shape Info", className="shape-info-title"),
+                            html.Div([
+                                html.Label("Normalized:", className="normalization-label", style={'fontSize': '0.85em', 'fontWeight': 'bold', 'marginRight': '8px'}),
+                                dcc.Checklist(
+                                    id='normalization-toggle',
+                                    options=[
+                                        {'label': ' Yes', 'value': 'normalized'}
+                                    ],
+                                    value=[],
+                                    className="normalization-checklist",
+                                    style={'display': 'inline-block'}
+                                )
+                            ], style={'marginBottom': '8px', 'paddingBottom': '6px', 'borderBottom': '1px solid #ddd'}),
+                        ], style={'marginBottom': '8px'}),
                         html.Div(id='shape-info', children=[
                             html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint"),
                         ], className="shape-info-properties")
@@ -103,18 +145,6 @@ def build_layout(file_df, dataset_options, selected_dataset):
                                     className="display-wireframe-checklist"
                                 )
                             ], className="display-wireframe-panel"),
-
-                            html.Div([
-                                html.Label("Normalized:", className="normalization-label"),
-                                dcc.Checklist(
-                                    id='normalization-toggle',
-                                    options=[
-                                        {'label': '', 'value': 'normalized'}
-                                    ],
-                                    value=[],
-                                    className="normalization-checklist"
-                                )
-                            ], className="normalization-panel"),
 
                             html.Div([
                                 html.Label("Shape Color:", className="display-color-label"),
@@ -139,16 +169,18 @@ def build_layout(file_df, dataset_options, selected_dataset):
                         ], className="display-toolbar"),
                     ], className="display-options-panel"),
 
-                    dcc.Loading(
-                        id="loading-3d",
-                        children=[dcc.Graph(
-                            id='3d-plot',
-                            figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
-                            className='main-three-d-plot'
-                        )],
-                        type="cube",
-                        color="#e74c3c"
-                    )
+                    html.Div([
+                        dcc.Loading(
+                            id="loading-3d",
+                            children=[dcc.Graph(
+                                id='3d-plot',
+                                figure=create_3d_plot(np.array([]), np.array([]), "Select a shape to view"),
+                                className='main-three-d-plot'
+                            )],
+                            type="cube",
+                            color="#e74c3c"
+                        )
+                    ], className="center-plot-container")
                 ])
             ], className="center-panel"),
 
