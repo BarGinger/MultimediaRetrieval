@@ -564,6 +564,30 @@
 
 /* Ensure all panel and element classes are present */
 
+/* Filter row alignment */
+.filter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.filter-dropdown-wrapper {
+  flex: 0 0 40%;
+  min-width: 120px;
+}
+
+.filter-input-wrapper {
+  flex: 1;
+}
+
+/* Ensure dropdown and input have same height */
+.Select-control,
+.Select__control {
+  min-height: 38px !important;
+  height: 38px !important;
+}
+
 /* Example for any missed classes: */
 /*
 .left-panel {}

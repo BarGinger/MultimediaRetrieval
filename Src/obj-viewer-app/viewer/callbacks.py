@@ -148,6 +148,145 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # Show toast for filename filter changes
+    app.clientside_callback(
+        """
+        function(filename_filter) {
+            try {
+                if (!filename_filter || filename_filter.trim() === '') {
+                    return window.dash_clientside.no_update;
+                }
+                
+                // Always hide first, then show to ensure animation works
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    toastBar.style.display = 'none';
+                }
+                
+                // Force reflow then show
+                setTimeout(function() {
+                    const toastBar = document.getElementById('toast-message-bar');
+                    const toastIcon = document.getElementById('toast-icon');
+                    const toastMessage = document.getElementById('toast-message');
+                    
+                    if (toastBar && toastIcon && toastMessage) {
+                        toastIcon.innerHTML = '🔍';
+                        toastMessage.innerHTML = 'Filename filter applied: ' + filename_filter;
+                        toastBar.style.display = 'block';
+                        
+                        // Auto-hide after 2 seconds for filter
+                        setTimeout(function() {
+                            if (toastBar) {
+                                toastBar.style.display = 'none';
+                            }
+                        }, 2000);
+                    }
+                }, 10);
+                
+                return window.dash_clientside.no_update;
+            } catch (error) {
+                console.error('Error in filename filter toast:', error);
+                return window.dash_clientside.no_update;
+            }
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        Input('filename-filter', 'value'),
+        prevent_initial_call=True
+    )
+
+    # Show toast for vertices filter changes
+    app.clientside_callback(
+        """
+        function(vertices_op, vertices_val) {
+            try {
+                if (!vertices_val || vertices_val === '') {
+                    return window.dash_clientside.no_update;
+                }
+                
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    toastBar.style.display = 'none';
+                }
+                
+                setTimeout(function() {
+                    const toastBar = document.getElementById('toast-message-bar');
+                    const toastIcon = document.getElementById('toast-icon');
+                    const toastMessage = document.getElementById('toast-message');
+                    
+                    if (toastBar && toastIcon && toastMessage) {
+                        toastIcon.innerHTML = '📊';
+                        const opText = vertices_op === 'eq' ? 'Equal to' : vertices_op === 'gt' ? 'Greater than' : 'Less than';
+                        toastMessage.innerHTML = 'Vertices filter: ' + opText + ' ' + vertices_val;
+                        toastBar.style.display = 'block';
+                        
+                        setTimeout(function() {
+                            if (toastBar) {
+                                toastBar.style.display = 'none';
+                            }
+                        }, 2000);
+                    }
+                }, 10);
+                
+                return window.dash_clientside.no_update;
+            } catch (error) {
+                console.error('Error in vertices filter toast:', error);
+                return window.dash_clientside.no_update;
+            }
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        [Input('vertices-operator', 'value'),
+         Input('vertices-value', 'value')],
+        prevent_initial_call=True
+    )
+
+    # Show toast for faces filter changes
+    app.clientside_callback(
+        """
+        function(faces_op, faces_val) {
+            try {
+                if (!faces_val || faces_val === '') {
+                    return window.dash_clientside.no_update;
+                }
+                
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    toastBar.style.display = 'none';
+                }
+                
+                setTimeout(function() {
+                    const toastBar = document.getElementById('toast-message-bar');
+                    const toastIcon = document.getElementById('toast-icon');
+                    const toastMessage = document.getElementById('toast-message');
+                    
+                    if (toastBar && toastIcon && toastMessage) {
+                        toastIcon.innerHTML = '🔷';
+                        const opText = faces_op === 'eq' ? 'Equal to' : faces_op === 'gt' ? 'Greater than' : 'Less than';
+                        toastMessage.innerHTML = 'Faces filter: ' + opText + ' ' + faces_val;
+                        toastBar.style.display = 'block';
+                        
+                        setTimeout(function() {
+                            if (toastBar) {
+                                toastBar.style.display = 'none';
+                            }
+                        }, 2000);
+                    }
+                }, 10);
+                
+                return window.dash_clientside.no_update;
+            } catch (error) {
+                console.error('Error in faces filter toast:', error);
+                return window.dash_clientside.no_update;
+            }
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        [Input('faces-operator', 'value'),
+         Input('faces-value', 'value')],
+        prevent_initial_call=True
+    )
+
     # Show toast for average vertices button
     app.clientside_callback(
         """
@@ -521,18 +660,23 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     @app.callback(
         Output('file-list', 'children'),
         [Input('category-filter', 'value'),
+         Input('filename-filter', 'value'),
+         Input('vertices-operator', 'value'),
+         Input('vertices-value', 'value'),
+         Input('faces-operator', 'value'),
+         Input('faces-value', 'value'),
          Input('sort-field', 'value'),
          Input('sort-order', 'data-order'),
          Input('selected-dataset-store', 'data')]
     )
-    def update_file_list(selected_category, sort_field, sort_order, selected_dataset):        
+    def update_file_list(selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
         """
         Render the list of files based on current filters and sorting.
         Optimized to avoid slow analysis computation during dataset switching.
         """
-        return update_file_list_internal('all', selected_category, sort_field, sort_order, selected_dataset)
+        return update_file_list_internal('all', selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset)
 
-    def update_file_list_internal(avg_filter, selected_category, sort_field, sort_order, selected_dataset):        
+    def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
         """
         Render the list of files based on current filters and sorting.
         Optimized to avoid slow analysis computation during dataset switching.
@@ -540,6 +684,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         Parameters:
         - avg_filter: str, average filter option ('none', 'avg_faces', 'avg_vertices')
         - selected_category: str, selected category filter ('all' or specific category)
+        - filename_filter: str, filename pattern filter (supports wildcards like m*, *153*)
+        - vertices_op: str, vertices comparison operator ('eq', 'gt', 'lt')
+        - vertices_val: int/None, vertices value for comparison
+        - faces_op: str, faces comparison operator ('eq', 'gt', 'lt')
+        - faces_val: int/None, faces value for comparison
         - sort_field: str, field to sort by ('category', 'num_vertices', 'num_faces')
         - sort_order: str, sort order ('asc' or 'desc')
         - selected_dataset: str, currently selected dataset from dropdown
@@ -581,13 +730,54 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         
         # Check if we need analysis for sorting/filtering operations
         needs_analysis_ops = (sort_field in ['num_vertices', 'num_faces'] or 
-                             avg_filter in ['avg_faces', 'avg_vertices'])
+                             avg_filter in ['avg_faces', 'avg_vertices'] or
+                             (vertices_val is not None and vertices_val != '') or
+                             (faces_val is not None and faces_val != ''))
         
         # If we need analysis for operations but don't have cached data, show a warning
         if needs_analysis_ops and analysis_df is None:
             print(f"⚠️ Cannot perform {sort_field or avg_filter} operation - no cached analysis data available")
 
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
+        
+        # Apply filename filtering if provided
+        if filename_filter and filename_filter.strip() and not df.empty and 'filename' in df.columns:
+            try:
+                import fnmatch
+                pattern = filename_filter.strip()
+                # Use fnmatch to filter filenames with wildcard support
+                df = df[df['filename'].apply(lambda x: fnmatch.fnmatch(x.lower(), pattern.lower()))]
+            except Exception as e:
+                print(f"❌ Error applying filename filter '{filename_filter}': {e}")
+                # Continue without filename filtering if there's an error
+
+        # Apply vertices filtering if provided
+        if vertices_val is not None and vertices_val != '' and not df.empty and 'num_vertices' in df.columns:
+            try:
+                vertices_val = int(vertices_val)
+                if vertices_op == 'eq':
+                    df = df[df['num_vertices'] == vertices_val]
+                elif vertices_op == 'gt':
+                    df = df[df['num_vertices'] > vertices_val]
+                elif vertices_op == 'lt':
+                    df = df[df['num_vertices'] < vertices_val]
+            except (ValueError, TypeError) as e:
+                print(f"❌ Error applying vertices filter '{vertices_val}': {e}")
+                # Continue without vertices filtering if there's an error
+
+        # Apply faces filtering if provided
+        if faces_val is not None and faces_val != '' and not df.empty and 'num_faces' in df.columns:
+            try:
+                faces_val = int(faces_val)
+                if faces_op == 'eq':
+                    df = df[df['num_faces'] == faces_val]
+                elif faces_op == 'gt':
+                    df = df[df['num_faces'] > faces_val]
+                elif faces_op == 'lt':
+                    df = df[df['num_faces'] < faces_val]
+            except (ValueError, TypeError) as e:
+                print(f"❌ Error applying faces filter '{faces_val}': {e}")
+                # Continue without faces filtering if there's an error
 
         ascending = True if sort_order == 'asc' else False
         df = df.copy()
@@ -704,12 +894,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          Output('selected-file-store', 'data')],
         [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
          Input('category-filter', 'value'),
+         Input('filename-filter', 'value'),
+         Input('vertices-operator', 'value'),
+         Input('vertices-value', 'value'),
+         Input('faces-operator', 'value'),
+         Input('faces-value', 'value'),
          Input('sort-field', 'value'),
          Input('sort-order', 'data-order'),
          Input('selected-dataset-store', 'data')],
         prevent_initial_call=True
     )
-    def select_or_reset_file(n_clicks_list, selected_category, sort_field, sort_order, selected_dataset):
+    def select_or_reset_file(n_clicks_list, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):
         """
         Handle file button clicks to load and display shape info.
 
@@ -750,6 +945,45 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             # Merge analysis CSV columns using cache
             file_df_local = merge_analysis_data(file_df_local, selected_dataset)
             df = file_df_local if selected_category == 'all' else file_df_local[file_df_local['category'] == selected_category]
+            
+            # Apply filename filtering if provided
+            if filename_filter and filename_filter.strip() and not df.empty and 'filename' in df.columns:
+                try:
+                    import fnmatch
+                    pattern = filename_filter.strip()
+                    df = df[df['filename'].apply(lambda x: fnmatch.fnmatch(x.lower(), pattern.lower()))]
+                except Exception as e:
+                    print(f"❌ Error applying filename filter '{filename_filter}': {e}")
+                    # Continue without filename filtering if there's an error
+
+            # Apply vertices filtering if provided
+            if vertices_val is not None and vertices_val != '' and not df.empty and 'num_vertices' in df.columns:
+                try:
+                    vertices_val = int(vertices_val)
+                    if vertices_op == 'eq':
+                        df = df[df['num_vertices'] == vertices_val]
+                    elif vertices_op == 'gt':
+                        df = df[df['num_vertices'] > vertices_val]
+                    elif vertices_op == 'lt':
+                        df = df[df['num_vertices'] < vertices_val]
+                except (ValueError, TypeError) as e:
+                    print(f"❌ Error applying vertices filter '{vertices_val}': {e}")
+                    # Continue without vertices filtering if there's an error
+
+            # Apply faces filtering if provided
+            if faces_val is not None and faces_val != '' and not df.empty and 'num_faces' in df.columns:
+                try:
+                    faces_val = int(faces_val)
+                    if faces_op == 'eq':
+                        df = df[df['num_faces'] == faces_val]
+                    elif faces_op == 'gt':
+                        df = df[df['num_faces'] > faces_val]
+                    elif faces_op == 'lt':
+                        df = df[df['num_faces'] < faces_val]
+                except (ValueError, TypeError) as e:
+                    print(f"❌ Error applying faces filter '{faces_val}': {e}")
+                    # Continue without faces filtering if there's an error
+            
             ascending = True if sort_order == 'asc' else False
             df = df.copy()
             if sort_field == 'category':

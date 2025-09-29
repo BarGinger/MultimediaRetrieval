@@ -28,7 +28,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                         id='dataset-selector',
                         options=[{'label': name, 'value': name} for name in dataset_options],
                         value=selected_dataset,
-                        style={'marginBottom': 20}
+                        style={'marginBottom': 20, 'width': '100%'}
                     ),
 
                     html.Label("Filter by Category:"),
@@ -36,8 +36,89 @@ def build_layout(file_df, dataset_options, selected_dataset):
                         id='category-filter',
                         options=_category_options(file_df),
                         value='all',
-                        className="category-dropdown"
+                        className="category-dropdown",
+                        style={'width': '100%'}
                     ),
+
+                    html.Label("Filter by Filename:", style={'marginTop': 15}),
+                    dcc.Input(
+                        id='filename-filter',
+                        type='text',
+                        placeholder='Enter filename pattern (e.g., m*, *153*, bike.obj)',
+                        value='',
+                        style={
+                            'width': '100%',
+                            'padding': '8px',
+                            'border': '1px solid #ddd',
+                            'borderRadius': '4px',
+                            'marginBottom': 10,
+                            'boxSizing': 'border-box'
+                        }
+                    ),
+
+                    html.Label("Filter by Vertices:", style={'marginTop': 15, 'marginBottom': 5}),
+                    html.Div([
+                        html.Div([
+                            dcc.Dropdown(
+                                id='vertices-operator',
+                                options=[
+                                    {'label': 'Equal', 'value': 'eq'},
+                                    {'label': 'Greater than', 'value': 'gt'},
+                                    {'label': 'Less than', 'value': 'lt'}
+                                ],
+                                value='gt',
+                                style={'width': '100%'}
+                            )
+                        ], className='filter-dropdown-wrapper'),
+                        html.Div([
+                            dcc.Input(
+                                id='vertices-value',
+                                type='number',
+                                placeholder='Number of vertices',
+                                value='',
+                                style={
+                                    'width': '100%',
+                                    'padding': '8px',
+                                    'border': '1px solid #ddd',
+                                    'borderRadius': '4px',
+                                    'boxSizing': 'border-box',
+                                    'height': '38px'
+                                }
+                            )
+                        ], className='filter-input-wrapper')
+                    ], className='filter-row'),
+
+                    html.Label("Filter by Faces:", style={'marginTop': 15, 'marginBottom': 5}),
+                    html.Div([
+                        html.Div([
+                            dcc.Dropdown(
+                                id='faces-operator',
+                                options=[
+                                    {'label': 'Equal', 'value': 'eq'},
+                                    {'label': 'Greater than', 'value': 'gt'},
+                                    {'label': 'Less than', 'value': 'lt'}
+                                ],
+                                value='gt',
+                                style={'width': '100%'}
+                            )
+                        ], className='filter-dropdown-wrapper'),
+                        html.Div([
+                            dcc.Input(
+                                id='faces-value',
+                                type='number',
+                                placeholder='Number of faces',
+                                value='',
+                                style={
+                                    'width': '100%',
+                                    'padding': '8px',
+                                    'border': '1px solid #ddd',
+                                    'borderRadius': '4px',
+                                    'boxSizing': 'border-box',
+                                    'height': '38px'
+                                }
+                            )
+                        ], className='filter-input-wrapper')
+                    ], className='filter-row'),
 
                     html.Label("Sort by:"),
                     dcc.Dropdown(
@@ -48,7 +129,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             {'label': 'Face Count', 'value': 'num_faces'}
                         ],
                         value='category',
-                        style={'marginBottom': 10}
+                        style={'marginBottom': 10, 'width': '100%'}
                     ),
                 ], className="side-panel-controls"),
 
