@@ -284,6 +284,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         [Input('display-options', 'value'),
          Input('selected-file-store', 'data'),
          Input('color-selector', 'value'),
+         Input('normalization-toggle', 'value'),
          Input('selected-dataset-store', 'data')],
         [State('average-filter', 'value'),
          State('category-filter', 'value'),
@@ -295,6 +296,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     def update_plot(display_options, 
                     selected_file_idx, 
                     mesh_color,                      
+                    show_normalized,
                     selected_dataset,
                     avg_filter, 
                     selected_category, 
@@ -387,29 +389,53 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                                   mesh_color=mesh_color or 'lightblue')
         row = df.iloc[selected_file_idx]
         
-        # Create ShapeMesh instance for intelligent orientation and camera positioning
+        # Create ShapeMesh instance and handle special cases for different datasets
         try:
-            mesh = ShapeMesh.from_file_row(row)
+            # Special handling for NormalizedShapes dataset
+            if selected_dataset == 'NormalizedShapes':
+                # NormalizedShapes dataset contains pre-normalized files
+                mesh = ShapeMesh.from_file_row(row)
+                vertices = mesh.vertices  # Already normalized
+                title_suffix = " (Pre-normalized Dataset)"
+                camera_config = None  # Use default camera for normalized shapes
+                print(f"[DEBUG] Using pre-normalized vertices from NormalizedShapes dataset for {row['filename']}")
             
-            # Get optimal orientation (may rotate the object)
-            rotated_vertices, rotation_matrix, orientation_info = mesh.get_optimal_orientation()
-            vertices, faces = rotated_vertices, mesh.faces
+            # Handle normalization toggle for other datasets
+            elif show_normalized and 'normalized' in show_normalized:
+                from core.normalized_cache import normalized_cache
+                # Try to load from cache first
+                if normalized_cache.is_normalized_available(row['filename'], selected_dataset):
+                    mesh = normalized_cache.load_normalized_shape(row['filename'], selected_dataset)
+                    vertices = mesh.vertices
+                    title_suffix = " (Cached Normalized)"
+                    print(f"[DEBUG] Using cached normalized vertices for {row['filename']}")
+                else:
+                    # Fall back to computing normalization
+                    mesh = ShapeMesh.from_file_row(row)
+                    vertices = mesh.apply_full_normalization()
+                    title_suffix = " (Computed Normalized)"
+                    print(f"[DEBUG] Computing normalized vertices for {row['filename']} (cache not available)")
+                
+                camera_config = None  # Use default camera for normalized shapes
+            else:
+                # Original shape
+                mesh = ShapeMesh.from_file_row(row)
+                vertices = mesh.vertices
+                title_suffix = ""
+                camera_config = mesh.get_optimal_camera_position()
+                print(f"[DEBUG] Using original vertices for {row['filename']}")
             
-            # Get optimal camera position (only for new selections, not camera movements)
-            camera_config = None
-            if not camera:  # Only apply intelligent positioning when no camera state exists
-                camera_config = mesh.get_optimal_camera_position(rotated_vertices=rotated_vertices)
-                print(f"[DEBUG] Orientation for {row['category']}-{row['filename']}: {orientation_info}")
-                print(f"[DEBUG] Camera config: {camera_config}")
+            faces = mesh.faces
                 
         except Exception as e:
             print(f"[DEBUG] ShapeMesh failed: {e}")
             # Fallback to original method if ShapeMesh fails
             vertices, faces = OBJParser.parse_obj_file(row['filepath'])
             camera_config = None
+            title_suffix = ""
         
         show_wire = 'wireframe' in (display_options or [])
-        title = f"{row['category']} - {row['filename']}"
+        title = f"{row['category']} - {row['filename']}{title_suffix}"
 
         fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
                               mesh_color=mesh_color or 'lightblue',

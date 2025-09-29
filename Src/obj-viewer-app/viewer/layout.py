@@ -105,6 +105,18 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             ], className="display-wireframe-panel"),
 
                             html.Div([
+                                html.Label("Normalization:", className="normalization-label"),
+                                dcc.Checklist(
+                                    id='normalization-toggle',
+                                    options=[
+                                        {'label': ' Show Normalized Shape', 'value': 'normalized'}
+                                    ],
+                                    value=[],
+                                    className="normalization-checklist"
+                                )
+                            ], className="normalization-panel"),
+
+                            html.Div([
                                 html.Label("Shape Color:", className="display-color-label"),
                                 dcc.Dropdown(
                                     id='color-selector',
