@@ -43,42 +43,44 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             },
                             n_clicks=0
                         )
-                    ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '20px'}),
+                    ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '8px'}),
 
-                    html.Label("Select Dataset:"),
+                    html.Label("Select Dataset:", style={'fontSize': '12px', 'marginBottom': '2px'}),
                     dcc.Dropdown(
                         id='dataset-selector',
                         options=[{'label': name, 'value': name} for name in dataset_options],
                         value=selected_dataset,
-                        style={'marginBottom': 20, 'width': '100%'}
+                        style={'marginBottom': 4, 'width': '100%'}
                     ),
 
-                    html.Label("Filter by Category:"),
+                    html.Label("Filter by Category:", style={'fontSize': '12px', 'marginBottom': '2px'}),
                     dcc.Dropdown(
                         id='category-filter',
                         options=_category_options(file_df),
                         value='all',
                         className="category-dropdown",
-                        style={'width': '100%'}
+                        style={'width': '100%', 'marginBottom': 4}
                     ),
 
-                    html.Label("Filter by Filename:", style={'marginTop': 15}),
+                    html.Label("Filter by Filename:", style={'fontSize': '12px', 'marginTop': 4, 'marginBottom': '2px'}),
                     dcc.Input(
                         id='filename-filter',
                         type='text',
-                        placeholder='Enter filename pattern (e.g., m*, *153*, bike.obj)',
+                        placeholder='Enter pattern (e.g., m*, *153*)',
                         value='',
                         style={
                             'width': '100%',
-                            'padding': '8px',
+                            'padding': '4px 6px',
                             'border': '1px solid #ddd',
                             'borderRadius': '4px',
-                            'marginBottom': 10,
-                            'boxSizing': 'border-box'
+                            'marginBottom': 4,
+                            'boxSizing': 'border-box',
+                            'fontSize': '12px',
+                            'height': '30px'
                         }
                     ),
 
-                    html.Label("Filter by Vertices:", style={'marginTop': 15, 'marginBottom': 5}),
+                    html.Label("Filter by Vertices:", style={'fontSize': '12px', 'marginTop': 4, 'marginBottom': '2px'}),
                     html.Div([
                         html.Div([
                             dcc.Dropdown(
@@ -96,21 +98,22 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             dcc.Input(
                                 id='vertices-value',
                                 type='number',
-                                placeholder='Number of vertices',
+                                placeholder='Vertices',
                                 value='',
                                 style={
                                     'width': '100%',
-                                    'padding': '8px',
+                                    'padding': '4px 6px',
                                     'border': '1px solid #ddd',
                                     'borderRadius': '4px',
                                     'boxSizing': 'border-box',
-                                    'height': '38px'
+                                    'height': '30px',
+                                    'fontSize': '12px'
                                 }
                             )
                         ], className='filter-input-wrapper')
                     ], className='filter-row'),
 
-                    html.Label("Filter by Faces:", style={'marginTop': 15, 'marginBottom': 5}),
+                    html.Label("Filter by Faces:", style={'fontSize': '12px', 'marginTop': 4, 'marginBottom': '2px'}),
                     html.Div([
                         html.Div([
                             dcc.Dropdown(
@@ -128,21 +131,22 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             dcc.Input(
                                 id='faces-value',
                                 type='number',
-                                placeholder='Number of faces',
+                                placeholder='Faces',
                                 value='',
                                 style={
                                     'width': '100%',
-                                    'padding': '8px',
+                                    'padding': '4px 6px',
                                     'border': '1px solid #ddd',
                                     'borderRadius': '4px',
                                     'boxSizing': 'border-box',
-                                    'height': '38px'
+                                    'height': '30px',
+                                    'fontSize': '12px'
                                 }
                             )
                         ], className='filter-input-wrapper')
                     ], className='filter-row'),
 
-                    html.Label("Sort by:"),
+                    html.Label("Sort by:", style={'fontSize': '12px', 'marginTop': 4, 'marginBottom': '2px'}),
                     dcc.Dropdown(
                         id='sort-field',
                         options=[

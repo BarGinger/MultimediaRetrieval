@@ -549,13 +549,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     # Client-side callback to scroll to selected file in the list
     app.clientside_callback(
         """
-        function(selected_idx) {
-            console.log('Client-side scroll callback triggered with selected_idx:', selected_idx);
-            
-            if (selected_idx === null || selected_idx === undefined) {
-                console.log('No selection, returning no_update');
-                return window.dash_clientside.no_update;
-            }
+        function(selectedFileData) {
+            console.log('Client-side scroll callback triggered with selectedFileData:', selectedFileData);
             
             // Wait a bit for the DOM to be ready
             setTimeout(function() {
@@ -583,25 +578,47 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     fileButtons = fileListContainer.querySelectorAll('button');
                 }
                 
-                console.log('Found', fileButtons.length, 'file buttons, targeting index', selected_idx);
+                console.log('Found', fileButtons.length, 'file buttons');
                 
-                if (fileButtons.length > selected_idx) {
+                // Always clear existing selections first
+                fileButtons.forEach(btn => {
+                    btn.classList.remove('selected-file');
+                    btn.classList.remove('file-button-selected'); // Clear both selection classes
+                    btn.style.backgroundColor = '';
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                    btn.style.boxShadow = '';
+                    btn.style.border = '';
+                });
+                
+                // If no file is selected (selectedFileData is null), just clear all selections
+                if (!selectedFileData || selectedFileData === null || selectedFileData === 'null') {
+                    console.log('No file selected, cleared all selections');
+                    return;
+                }
+                
+                // Extract index from selectedFileData if it's an object with an index property
+                let selected_idx = null;
+                if (typeof selectedFileData === 'number') {
+                    selected_idx = selectedFileData;
+                } else if (selectedFileData && typeof selectedFileData === 'object' && selectedFileData.index !== undefined) {
+                    selected_idx = selectedFileData.index;
+                } else if (selectedFileData && typeof selectedFileData === 'object' && selectedFileData.file_idx !== undefined) {
+                    selected_idx = selectedFileData.file_idx;
+                }
+                
+                console.log('Extracted selected_idx:', selected_idx);
+                
+                if (selected_idx !== null && fileButtons.length > selected_idx) {
                     const targetButton = fileButtons[selected_idx];
                     console.log('Target button found:', targetButton);
                     
-                    // Remove any existing selection highlights
-                    fileButtons.forEach(btn => {
-                        btn.classList.remove('selected-file');
-                        btn.style.backgroundColor = '';
-                        btn.style.borderColor = '';
-                        btn.style.color = '';
-                    });
-                    
                     // Add selection styling to target button
                     targetButton.classList.add('selected-file');
-                    targetButton.style.backgroundColor = '#3498db';
-                    targetButton.style.borderColor = '#2980b9';
-                    targetButton.style.color = '#ffffff';
+                    // Remove inline styles to let CSS handle the appearance
+                    targetButton.style.backgroundColor = '';
+                    targetButton.style.borderColor = '';
+                    targetButton.style.color = '';
                     targetButton.style.transition = 'all 0.3s ease';
                     
                     // Scroll to the target button within the container
@@ -636,6 +653,85 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         """,
         Output('file-list', 'id'),  # Dummy output
         Input('selected-file-store', 'data'),
+        prevent_initial_call=True
+    )
+
+    # Client-side callback to clear selection when dataset changes
+    app.clientside_callback(
+        """
+        function(dataset) {
+            console.log('Dataset change callback triggered with dataset:', dataset);
+            
+            // Wait a bit for the DOM to be ready
+            setTimeout(function() {
+                // Find all file buttons and clear selection styling
+                let fileListContainer = document.querySelector('#file-list .file-list-panel');
+                if (!fileListContainer) {
+                    fileListContainer = document.querySelector('#file-list > div');
+                }
+                if (!fileListContainer) {
+                    fileListContainer = document.querySelector('.file-list-panel');
+                }
+                
+                if (fileListContainer) {
+                    let fileButtons = fileListContainer.querySelectorAll('button.file-button');
+                    if (fileButtons.length === 0) {
+                        fileButtons = fileListContainer.querySelectorAll('button[id*="file-btn"]');
+                    }
+                    if (fileButtons.length === 0) {
+                        fileButtons = fileListContainer.querySelectorAll('button');
+                    }
+                    
+                    console.log('Dataset changed - clearing', fileButtons.length, 'file button selections');
+                    
+                    // Force clear all selections
+                    fileButtons.forEach(btn => {
+                        btn.classList.remove('selected-file');
+                        btn.classList.remove('file-button-selected'); // Clear both selection classes
+                        btn.style.backgroundColor = '';
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
+                        btn.style.boxShadow = '';
+                        btn.style.border = '';
+                    });
+                }
+            }, 200); // Slightly longer delay to ensure file list is updated
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('shape-info', 'id'),  # Dummy output
+        Input('selected-dataset-store', 'data'),
+        prevent_initial_call=True
+    )
+
+    # Immediate client-side callback to clear selection when dataset selector changes
+    app.clientside_callback(
+        """
+        function(dataset_value) {
+            console.log('Immediate dataset selector change:', dataset_value);
+            
+            // Immediately clear all selections when dataset dropdown changes
+            setTimeout(function() {
+                let fileButtons = document.querySelectorAll('button.file-button, button[id*="file-btn"]');
+                console.log('Immediate clear - found', fileButtons.length, 'buttons');
+                
+                fileButtons.forEach(btn => {
+                    btn.classList.remove('selected-file');
+                    btn.classList.remove('file-button-selected'); // Clear both selection classes
+                    btn.style.backgroundColor = '';
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                    btn.style.boxShadow = '';
+                    btn.style.border = '';
+                });
+            }, 50); // Very short delay
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('dataset-selector', 'id'),  # Dummy output
+        Input('dataset-selector', 'value'),
         prevent_initial_call=True
     )
 
@@ -922,17 +1018,20 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         function(selectedFileIdx) {
             console.log('Selection callback triggered with index:', selectedFileIdx);
             
-            if (selectedFileIdx == null || selectedFileIdx === undefined) {
-                return window.dash_clientside.no_update;
-            }
-            
-            // Remove selected class from all file buttons
+            // Always clear all selections first
             const allButtons = document.querySelectorAll('[data-file-index]');
             console.log('Found file buttons:', allButtons.length);
             
             allButtons.forEach(button => {
                 button.classList.remove('file-button-selected');
+                button.classList.remove('selected-file'); // Clear both selection classes
             });
+            
+            // If no file is selected (null/undefined), just return after clearing
+            if (selectedFileIdx == null || selectedFileIdx === undefined || selectedFileIdx === 'null') {
+                console.log('No file selected, cleared all selections');
+                return window.dash_clientside.no_update;
+            }
             
             // Add selected class to the target button
             const targetButton = document.querySelector(`[data-file-index="${selectedFileIdx}"]`);
@@ -1325,26 +1424,34 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         return cards
     
-     # Store current dataset in dcc.Store
+     # Store current dataset in dcc.Store and clear selection when dataset changes
     @app.callback(
-        Output('selected-dataset-store', 'data'),
+        [Output('selected-dataset-store', 'data'),
+         Output('selected-file-store', 'data', allow_duplicate=True),
+         Output('shape-info', 'children', allow_duplicate=True)],
         Input('dataset-selector', 'value'),
-        State('selected-dataset-store', 'data')
+        State('selected-dataset-store', 'data'),
+        prevent_initial_call=True
     )
     def update_selected_dataset(selected_dataset, current_dataset):
         """
-        Update the selected dataset store when the dropdown changes.
+        Update the selected dataset store when the dropdown changes and clear file selection.
 
         Parameters:
         - selected_dataset: str, newly selected dataset from dropdown
         - current_dataset: str, currently stored dataset
 
         Returns:
-        - str, updated dataset value
+        - tuple: (str, None, str) - updated dataset value, cleared file selection, and cleared shape info
         """
         if selected_dataset and selected_dataset != current_dataset:
-            return selected_dataset
-        return current_dataset
+            # Clear both file selection and shape info when dataset changes
+            empty_info = html.Div([
+                html.P("ℹ️ Select a 3D shape from the list to view details", 
+                       style={'color': '#666', 'fontStyle': 'italic', 'textAlign': 'center', 'padding': '20px'})
+            ])
+            return selected_dataset, None, empty_info  # Clear selected file and shape info when dataset changes
+        return current_dataset, no_update, no_update
 
     # Update category filter options when dataset changes
     @app.callback(
