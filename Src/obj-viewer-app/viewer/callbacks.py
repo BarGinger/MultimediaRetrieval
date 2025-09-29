@@ -287,6 +287,68 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # Clear filters button callback
+    @app.callback(
+        [Output('category-filter', 'value', allow_duplicate=True),
+         Output('filename-filter', 'value', allow_duplicate=True), 
+         Output('vertices-operator', 'value', allow_duplicate=True),
+         Output('vertices-value', 'value', allow_duplicate=True),
+         Output('faces-operator', 'value', allow_duplicate=True),
+         Output('faces-value', 'value', allow_duplicate=True),
+         Output('sort-field', 'value', allow_duplicate=True)],
+        Input('clear-filters-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def clear_filters(n_clicks):
+        """Reset all filters to their default values"""
+        if n_clicks and n_clicks > 0:
+            return 'all', '', 'gt', '', 'gt', '', 'category'
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+    # Show toast for clear filters button
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            try {
+                if (!n_clicks || n_clicks === 0) {
+                    return window.dash_clientside.no_update;
+                }
+                
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    toastBar.style.display = 'none';
+                }
+                
+                setTimeout(function() {
+                    const toastBar = document.getElementById('toast-message-bar');
+                    const toastIcon = document.getElementById('toast-icon');
+                    const toastMessage = document.getElementById('toast-message');
+                    
+                    if (toastBar && toastIcon && toastMessage) {
+                        toastIcon.innerHTML = '🧹';
+                        toastMessage.innerHTML = 'All filters have been cleared';
+                        toastBar.style.display = 'block';
+                        
+                        setTimeout(function() {
+                            if (toastBar) {
+                                toastBar.style.display = 'none';
+                            }
+                        }, 2000);
+                    }
+                }, 10);
+                
+                return window.dash_clientside.no_update;
+            } catch (error) {
+                console.error('Error in clear filters toast:', error);
+                return window.dash_clientside.no_update;
+            }
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        Input('clear-filters-btn', 'n_clicks'),
+        prevent_initial_call=True
+    )
+
     # Show toast for average vertices button
     app.clientside_callback(
         """

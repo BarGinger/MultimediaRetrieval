@@ -21,7 +21,29 @@ def build_layout(file_df, dataset_options, selected_dataset):
             # Left panel: file browser
             html.Div([
                 html.Div([
-                    html.H3("Select 3D Shape", className="panel-title"),
+                    html.Div([
+                        html.H3("Select 3D Shape", className="panel-title", style={'margin': 0, 'flex': 1}),
+                        html.Button(
+                            "🧹",
+                            id='clear-filters-btn',
+                            title="Clear all filters",
+                            style={
+                                'backgroundColor': 'rgb(144 198 255)',
+                                'color': 'white',
+                                'border': 'none',
+                                'borderRadius': '50%',
+                                'width': '30px',
+                                'height': '30px',
+                                'cursor': 'pointer',
+                                'fontSize': '14px',
+                                'display': 'flex',
+                                'alignItems': 'center',
+                                'justifyContent': 'center',
+                                'marginLeft': '10px'
+                            },
+                            n_clicks=0
+                        )
+                    ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '20px'}),
 
                     html.Label("Select Dataset:"),
                     dcc.Dropdown(
