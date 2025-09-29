@@ -94,7 +94,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             html.Div([
                                 html.Label("Wireframe:", className="display-wireframe-label"),
                                 dcc.Checklist(
-                                    id='display-options',
+                                    id='display-options',                                    
                                     options=[
                                         {'label': ' Show edges', 'value': 'wireframe'},
                                         {'label': ' Smooth shading', 'value': 'smooth_shading'}
@@ -105,11 +105,11 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             ], className="display-wireframe-panel"),
 
                             html.Div([
-                                html.Label("Normalization:", className="normalization-label"),
+                                html.Label("Normalized:", className="normalization-label"),
                                 dcc.Checklist(
                                     id='normalization-toggle',
                                     options=[
-                                        {'label': ' Show Normalized Shape', 'value': 'normalized'}
+                                        {'label': '', 'value': 'normalized'}
                                     ],
                                     value=[],
                                     className="normalization-checklist"

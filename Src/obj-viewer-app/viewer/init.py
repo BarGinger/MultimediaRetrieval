@@ -31,20 +31,4 @@ def create_dash_app():
     # Register server callbacks
     register_callbacks(app, file_df, DATASET_OPTIONS, DEFAULT_DATASET)
     
-    # Add callback to handle normalization toggle based on dataset
-    @app.callback(
-        [Output('normalization-toggle', 'options'),
-         Output('normalization-toggle', 'value')],
-        [Input('selected-dataset-store', 'data')],
-        prevent_initial_call=True
-    )
-    def update_normalization_toggle(selected_dataset):
-        """Update normalization toggle based on selected dataset"""
-        if selected_dataset == 'NormalizedShapes':
-            # For NormalizedShapes, disable the toggle with explanation
-            return [{'label': ' Already Normalized Dataset', 'value': 'normalized', 'disabled': True}], []
-        else:
-            # For other datasets, show normal toggle
-            return [{'label': ' Show Normalized Shape', 'value': 'normalized'}], []
-    
     return app

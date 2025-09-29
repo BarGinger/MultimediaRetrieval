@@ -603,3 +603,101 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             print(f"[DEBUG] Error updating category options: {e}")
             return [{'label': 'All Categories', 'value': 'all'}], 'all'
 
+    # Update normalization toggle options and value when file is selected
+    @app.callback(
+        [Output('normalization-toggle', 'options'),
+         Output('normalization-toggle', 'value')],
+        [Input('selected-file-store', 'data'),
+         Input('selected-dataset-store', 'data')],
+        [State('average-filter', 'value'),
+         State('category-filter', 'value'),
+         State('sort-field', 'value'),
+         State('sort-order', 'value')],
+        prevent_initial_call=True
+    )
+    def update_normalization_toggle(selected_file_idx, selected_dataset, avg_filter, selected_category, sort_field, sort_order):
+        """
+        Update the normalization toggle options and value based on the selected file's filename.
+        Automatically check normalization if filename contains '_normalized' suffix.
+
+        Parameters:
+        - selected_file_idx: int or None, index of the selected file from the file list
+        - selected_dataset: str, currently selected dataset from dropdown
+        - avg_filter: str, average filter option ('none', 'avg_faces', 'avg_vertices')
+        - selected_category: str, selected category filter ('all' or specific category)
+        - sort_field: str, field to sort by ('category', 'num_vertices', 'num_faces')
+        - sort_order: str, sort order ('asc' or 'desc')
+
+        Returns:
+        - options: list of dict, options for the normalization toggle
+        - value: list, updated value for the normalization toggle checklist
+        """
+        # Define the standard options for normalization toggle (always disabled)
+        options = [{'label': '', 'value': 'normalized', 'disabled': True}]
+        
+        # If no file is selected, uncheck the toggle
+        if selected_file_idx is None:
+            return options, []
+        
+        # Get the current file data to check filename
+        if selected_dataset is None or selected_dataset == "":
+            selected_dataset = 'Data'
+        
+        try:
+            file_df = get_file_tree(selected_dataset)
+            file_df = merge_analysis_data(file_df, selected_dataset)
+            
+            if file_df.empty:
+                return options, []
+            
+            # Apply same filtering and sorting logic as other callbacks
+            df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
+            ascending = True if sort_order == 'asc' else False
+            df = df.copy()
+            
+            if sort_field == 'category':
+                df = df.sort_values(by=['category', 'filename'], ascending=ascending)
+            elif sort_field in ['num_vertices', 'num_faces'] and sort_field in df.columns:
+                df[sort_field] = df[sort_field].fillna(0)
+                df = df.sort_values(by=sort_field, ascending=ascending)
+            
+            # Apply average filtering
+            if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
+                valid = df['num_faces'].dropna()
+                if not valid.empty:
+                    avg_f = valid.mean()
+                    idx = (df['num_faces'] - avg_f).abs().idxmin()
+                    if idx in df.index:
+                        df = df.loc[[idx]].reset_index(drop=True)
+            elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
+                valid = df['num_vertices'].dropna()
+                if not valid.empty:
+                    avg_v = valid.mean()
+                    idx = (df['num_vertices'] - avg_v).abs().idxmin()
+                    if idx in df.index:
+                        df = df.loc[[idx]].reset_index(drop=True)
+            
+            df = df.reset_index(drop=True)
+            
+            # Check if the selected file index is valid
+            if selected_file_idx >= len(df):
+                return options, []
+            
+            # Get the filename and check for _normalized suffix
+            row = df.iloc[selected_file_idx]
+            filename = row['filename']
+            
+            # Check if filename contains '_normalized' (case-insensitive)
+            if '_normalized' in filename.lower():
+                # For normalized files, disable the checkbox and check it
+                options = [{'label': '', 'value': 'normalized', 'disabled': True}]
+                return options, ['normalized']  # Check the normalization toggle
+            else:
+                # For non-normalized files, disable the checkbox and uncheck it
+                options = [{'label': '', 'value': 'normalized', 'disabled': True}]
+                return options, []  # Uncheck the normalization toggle
+                
+        except Exception as e:
+            print(f"[DEBUG] Error updating normalization toggle: {e}")
+            return options, []
+
