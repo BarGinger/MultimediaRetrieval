@@ -90,7 +90,11 @@ class AnalysisCache:
             'Data_sampled_resampled_simple': [
                 'Preprocessing/analysis_results_sampled_resampled_simple.csv',
                 'analysis_results_sampled_resampled_simple.csv'
-            ]
+            ],
+            'UnifiedPreprocessed/Data': [
+                'UnifiedPreprocessed/Data/analysis_results_unified.csv',
+                'analysis_results_unified.csv'
+            ],
         }
         
         potential_paths = path_mapping.get(dataset, [])
