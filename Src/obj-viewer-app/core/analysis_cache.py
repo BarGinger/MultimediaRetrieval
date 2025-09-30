@@ -6,6 +6,7 @@ and reuse the data across the application.
 
 import pandas as pd
 import os
+from pathlib import Path
 from typing import Dict, Optional
 
 
@@ -54,13 +55,72 @@ class AnalysisCache:
     
     def _get_analysis_path(self, dataset: str) -> Optional[str]:
         """Get the analysis CSV path for a dataset."""
+        # Handle nested datasets (e.g., "UnifiedPreprocessed/Data")
+        if "/" in dataset:
+            # For nested datasets, try to find analysis for the base dataset
+            base_dataset = dataset.split("/")[-1]  # Get "Data" from "UnifiedPreprocessed/Data"
+            return self._get_analysis_path(base_dataset)
+        
+        # Try multiple potential paths for each dataset
+        potential_paths = []
+        
+        # Direct dataset mappings
         path_mapping = {
-            'Data': 'Preprocessing/analysis_results.csv',
-            'Data_sampled': 'Preprocessing/analysis_results_sampled.csv',
-            'Data_sampled_resampled': 'Preprocessing/analysis_results_sampled_resampled.csv',
-            'Data_sampled_resampled_normalized': 'Preprocessing/analysis_results_sampled_resampled_normalized.csv'
+            'Data': [
+                'Preprocessing/analysis_results.csv',
+                'Datasets/analysis_results_data.csv',
+                'analysis_results.csv'
+            ],
+            'Data_sampled': [
+                'Preprocessing/analysis_results_sampled.csv',
+                'analysis_results_sampled.csv'
+            ],
+            'Data_resampled': [
+                'Preprocessing/analysis_results_resampled.csv',
+                'analysis_results_resampled.csv'
+            ],
+            'Data_sampled_resampled': [
+                'Preprocessing/analysis_results_sampled_resampled.csv',
+                'analysis_results_sampled_resampled.csv'
+            ],
+            'Data_sampled_resampled_normalized': [
+                'Preprocessing/analysis_results_sampled_resampled_normalized.csv',
+                'analysis_results_sampled_resampled_normalized.csv'
+            ],
+            'Data_sampled_resampled_simple': [
+                'Preprocessing/analysis_results_sampled_resampled_simple.csv',
+                'analysis_results_sampled_resampled_simple.csv'
+            ],
+            'UnifiedPreprocessed/Data': [
+                'UnifiedPreprocessed/Data/analysis_results_unified.csv',
+                'analysis_results_unified.csv'
+            ],
         }
-        return path_mapping.get(dataset)
+        
+        potential_paths = path_mapping.get(dataset, [])
+        
+        # Also try generic patterns
+        generic_patterns = [
+            f'Preprocessing/analysis_results_{dataset.lower()}.csv',
+            f'analysis_results_{dataset.lower()}.csv',
+            f'Datasets/{dataset}/analysis_results.csv'
+        ]
+        potential_paths.extend(generic_patterns)
+        
+        # Find project root and check all potential paths
+        project_root = Path(__file__).resolve().parent.parent
+        root_candidates = [project_root, project_root.parent, project_root.parent.parent]
+        
+        for candidate_root in root_candidates:
+            for path in potential_paths:
+                full_path = candidate_root / path
+                if full_path.exists():
+                    print(f"[DEBUG] Found analysis CSV for {dataset}: {full_path}")
+                    return str(full_path)
+        
+        print(f"[DEBUG] No analysis CSV found for dataset: {dataset}")
+        print(f"[DEBUG] Tried paths: {potential_paths}")
+        return None
     
     def clear_cache(self):
         """Clear all cached data."""
@@ -83,6 +143,7 @@ def get_analysis_data(dataset: str) -> Optional[pd.DataFrame]:
 def merge_analysis_data(file_df: pd.DataFrame, dataset: str) -> pd.DataFrame:
     """
     Merge file DataFrame with analysis data for a dataset.
+    If analysis data is not available, compute basic stats on-the-fly.
     
     Args:
         file_df: DataFrame with file information
@@ -92,13 +153,76 @@ def merge_analysis_data(file_df: pd.DataFrame, dataset: str) -> pd.DataFrame:
         DataFrame with merged analysis data
     """
     analysis_df = get_analysis_data(dataset)
+    
     if analysis_df is not None:
-        # Merge on category and filename
+        # Handle filename matching for processed files
+        # Processed files have "_unified.obj" suffix, original analysis has ".obj"
+        file_df_copy = file_df.copy()
+        
+        # Create a mapping column for matching
+        file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
+        analysis_df_copy = analysis_df.copy()
+        analysis_df_copy['base_filename'] = analysis_df_copy['filename']
+        
+        # Merge on category and base filename
         merged = pd.merge(
-            file_df, 
-            analysis_df[['category', 'filename', 'num_vertices', 'num_faces']],
-            on=['category', 'filename'], 
+            file_df_copy, 
+            analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
+            on=['category', 'base_filename'], 
             how='left'
         )
+        
+        # Drop the temporary matching column
+        merged = merged.drop('base_filename', axis=1)
+        
+        # For rows without analysis data, compute on-the-fly
+        missing_analysis = merged['num_vertices'].isna()
+        if missing_analysis.any():
+            print(f"Computing analysis for {missing_analysis.sum()} files without cached data...")
+            for idx in merged[missing_analysis].index:
+                try:
+                    filepath = merged.loc[idx, 'filepath']
+                    vertices, faces = compute_basic_analysis(filepath)
+                    merged.loc[idx, 'num_vertices'] = len(vertices) if vertices is not None else 0
+                    merged.loc[idx, 'num_faces'] = len(faces) if faces is not None else 0
+                except Exception as e:
+                    print(f"Warning: Could not analyze {filepath}: {e}")
+                    merged.loc[idx, 'num_vertices'] = 0
+                    merged.loc[idx, 'num_faces'] = 0
+        
         return merged
-    return file_df
+    else:
+        # No cached analysis available, compute everything on-the-fly
+        print(f"No cached analysis for {dataset}, computing on-the-fly...")
+        file_df_copy = file_df.copy()
+        file_df_copy['num_vertices'] = 0
+        file_df_copy['num_faces'] = 0
+        
+        for idx, row in file_df_copy.iterrows():
+            try:
+                vertices, faces = compute_basic_analysis(row['filepath'])
+                file_df_copy.loc[idx, 'num_vertices'] = len(vertices) if vertices is not None else 0
+                file_df_copy.loc[idx, 'num_faces'] = len(faces) if faces is not None else 0
+            except Exception as e:
+                print(f"Warning: Could not analyze {row['filepath']}: {e}")
+        
+        return file_df_copy
+
+
+def compute_basic_analysis(filepath: str):
+    """
+    Compute basic analysis (vertices, faces) for an OBJ file.
+    
+    Args:
+        filepath: Path to OBJ file
+        
+    Returns:
+        tuple: (vertices, faces) or (None, None) if failed
+    """
+    try:
+        from .obj_parser import OBJParser
+        vertices, faces = OBJParser.parse_obj_file(filepath)
+        return vertices, faces
+    except Exception as e:
+        print(f"Error parsing {filepath}: {e}")
+        return None, None

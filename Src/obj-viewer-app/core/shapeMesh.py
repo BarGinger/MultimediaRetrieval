@@ -4,6 +4,7 @@ from core.obj_parser import OBJParser
 import numpy as np
 from dash import html
 import os
+from sklearn.decomposition import PCA
 # import trimesh  # Uncomment if you use trimesh
 
 
@@ -84,19 +85,37 @@ class ShapeMesh:
         )
     
     @classmethod
-    def from_file_row(cls, row):
-        """
-        Create ShapeMesh from a file DataFrame row (from file_index).
-        This is the main method that should be used in callbacks.
-        """
-        vertices, faces = OBJParser.parse_obj_file(row['filepath'])
+    def from_file_row(cls, row, obj_dir=None, use_normalized=False, dataset=None):
+        """Create ShapeMesh from DataFrame row, optionally using pre-normalized version"""
+        
+        # If requesting normalized version and it's available, use that
+        if use_normalized and dataset:
+            from core.normalized_cache import normalized_cache
+            if normalized_cache.is_normalized_available(row['filename'], dataset):
+                normalized_mesh = normalized_cache.load_normalized_shape(row['filename'], dataset)
+                if normalized_mesh:
+                    # Update metadata from original row
+                    normalized_mesh.category = row.get('category', normalized_mesh.category)
+                    return normalized_mesh
+        
+        # Fall back to original implementation
+        if obj_dir is None:
+            filepath = row['filepath']
+        else:
+            filepath = os.path.join(obj_dir, row['filename'])
+        
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"OBJ file not found: {filepath}")
+        
+        vertices, faces = OBJParser.parse_obj_file(filepath)
+        
         return cls(
             vertices=vertices,
             faces=faces,
             category=row.get('category'),
             filename=row.get('filename'),
-            size=row.get('size'),
-            filepath=row['filepath']
+            filepath=filepath,
+            size=row.get('size')
         )
 
     @property
@@ -390,6 +409,14 @@ class ShapeMesh:
         dims = self.dimensions
         
         return html.Div([
+            # Filename section with prominent display
+            html.Div([
+                html.Span("📄 ", className="shape-info-icon"), 
+                html.Strong("File: ", style={'color': '#27ae60'}),
+                html.Span(self.filename or "Unknown", style={'color': '#27ae60', 'fontWeight': 'bold'})
+            ], style={'width': '100%', 'marginBottom': '6px', 'borderBottom': '1px solid #27ae60', 'paddingBottom': '3px'}),
+            
+            # Other metadata in flexible layout
             html.Div([
                 html.Span("📁 ", className="shape-info-icon"), html.Strong("Category: "),
                 html.Span(self.category or "Unknown")
@@ -476,4 +503,252 @@ class ShapeMesh:
             "eccentricity": self.eccentricity,
         }
     
+    def apply_full_normalization(self, debug=False):
+        """Apply the complete 4-step normalization pipeline:
+        Following the exact order from technical tips:
+        1. Translation (centering) - center barycenter at origin
+        2. Alignment (pose) - align principal axes with coordinate frame using PCA
+        3. Flipping - orient shape consistently using moment test
+        4. Scaling - fit in unit bounding box
+        
+        Args:
+            debug: If True, print intermediate results for verification
+        
+        Returns:
+        - normalized_vertices: np.array, the fully normalized vertices
+        """
+        vertices = self.vertices.copy()
+        
+        if debug:
+            print(f"Original: center={np.mean(vertices, axis=0):.3f}, max_dim={np.max(np.ptp(vertices, axis=0)):.3f}")
+        
+        # Step 1: Translation (centering) - Following technical tips order
+        vertices = self._apply_centering(vertices)
+        if debug:
+            print(f"After centering: center={np.mean(vertices, axis=0):.6f}")
+        
+        # Step 2: Alignment (pose) using PCA - Following technical tips order
+        vertices = self._apply_pca_alignment(vertices)
+        if debug:
+            center = np.mean(vertices, axis=0)
+            dims = np.ptp(vertices, axis=0)
+            print(f"After alignment: center={center:.6f}, dims={dims:.3f}")
+        
+        # Step 3: Flipping using moment test - Following technical tips order
+        vertices = self._apply_flipping(vertices)
+        if debug:
+            center = np.mean(vertices, axis=0)
+            dims = np.ptp(vertices, axis=0)
+            print(f"After flipping: center={center:.6f}, dims={dims:.3f}")
+        
+        # Step 4: Scaling to unit bounding box - Following technical tips order
+        vertices = self._apply_scaling(vertices)
+        if debug:
+            center = np.mean(vertices, axis=0)
+            max_dim = np.max(np.ptp(vertices, axis=0))
+            print(f"After scaling: center={center:.6f}, max_dim={max_dim:.6f}")
+        
+        return vertices
+    
+    def _apply_centering(self, vertices):
+        """Center the shape at the origin by moving barycenter to (0,0,0)"""
+        barycenter = np.mean(vertices, axis=0)
+        return vertices - barycenter
+    
+    def _apply_pca_alignment(self, vertices):
+        """Align shape using PCA eigenvectors as described in technical tips.
+        
+        The update formula from the tips:
+        x_updated = (p_i - c) · e1
+        y_updated = (p_i - c) · e2  
+        z_updated = (p_i - c) · (e1 × e2)
+        
+        Where e1, e2 are the major and medium eigenvectors.
+        Note: vertices should already be centered when this method is called.
+        """
+        # Compute covariance matrix and eigenvectors from centered vertices
+        pca = PCA(n_components=3)
+        pca.fit(vertices)
+        
+        # Get eigenvectors (already sorted by eigenvalue magnitude)
+        e1 = pca.components_[0]  # Major eigenvector (largest eigenvalue)
+        e2 = pca.components_[1]  # Medium eigenvector 
+        e3 = np.cross(e1, e2)   # Minor eigenvector (computed as cross product)
+        
+        # Normalize eigenvectors to unit length
+        e1 = e1 / np.linalg.norm(e1)
+        e2 = e2 / np.linalg.norm(e2) 
+        e3 = e3 / np.linalg.norm(e3)
+        
+        # Apply alignment transformation using dot products
+        # Note: since vertices are already centered, we use them directly
+        aligned_vertices = np.zeros_like(vertices)
+        aligned_vertices[:, 0] = np.dot(vertices, e1)  # x = (p_i - c) · e1
+        aligned_vertices[:, 1] = np.dot(vertices, e2)  # y = (p_i - c) · e2  
+        aligned_vertices[:, 2] = np.dot(vertices, e3)  # z = (p_i - c) · (e1 × e2)
+        
+        return aligned_vertices
+    
+    def _apply_flipping(self, vertices):
+        """Apply flipping test using moment test as described in technical tips.
+        
+        For each axis, compute f_i = Σ sign(C_t,i) * (C_t,i)^2
+        where C_t,i is the i-th coordinate of triangle center t.
+        
+        Then flip along axis i if f_i < 0.
+        """
+        if len(self.faces) == 0:
+            return vertices
+            
+        # Compute triangle centers
+        triangle_centers = []
+        for face in self.faces:
+            if len(face) >= 3:  # Valid triangle/polygon
+                face_vertices = vertices[face[:3]]  # Use first 3 vertices for triangulation
+                center = np.mean(face_vertices, axis=0)
+                triangle_centers.append(center)
+        
+        if len(triangle_centers) == 0:
+            return vertices
+            
+        triangle_centers = np.array(triangle_centers)
+        
+        # Compute flipping test values for each axis
+        f = np.zeros(3)
+        for i in range(3):  # For x, y, z axes
+            coords = triangle_centers[:, i]
+            f[i] = np.sum(np.sign(coords) * (coords ** 2))
+        
+        # Apply flipping using the exact formula from technical tips:
+        # xiupdated = xi * sign(f0), yiupdated = yi * sign(f1), ziupdated = zi * sign(f2)
+        flip_factors = np.sign(f)
+        flip_factors[flip_factors == 0] = 1  # Avoid flipping if f[i] = 0
+        
+        # Apply scaling factors (mirroring = scaling by -1 when sign is negative)
+        flipped_vertices = vertices * flip_factors
+        
+        return flipped_vertices
+    
+    def _apply_scaling(self, vertices):
+        """Scale shape to fit in unit bounding box"""
+        # Compute bounding box dimensions
+        min_coords = np.min(vertices, axis=0)
+        max_coords = np.max(vertices, axis=0)
+        dimensions = max_coords - min_coords
+        
+        # Find maximum dimension
+        max_dimension = np.max(dimensions)
+        
+        if max_dimension > 0:
+            # Scale to unit size
+            scale_factor = 1.0 / max_dimension
+            scaled_vertices = vertices * scale_factor
+        else:
+            scaled_vertices = vertices
+            
+        return scaled_vertices
+    
+    def get_normalization_info(self):
+        """Get detailed information about the normalization process"""
+        vertices = self.vertices.copy()
+        info = {}
+        
+        # Original shape info
+        original_center = np.mean(vertices, axis=0)
+        original_bbox = {
+            'min': np.min(vertices, axis=0),
+            'max': np.max(vertices, axis=0),
+            'dimensions': np.max(vertices, axis=0) - np.min(vertices, axis=0)
+        }
+        info['original'] = {
+            'center': original_center,
+            'bounding_box': original_bbox
+        }
+        
+        # Step 1: Centering
+        centered_vertices = self._apply_centering(vertices)
+        info['after_centering'] = {
+            'center': np.mean(centered_vertices, axis=0)
+        }
+        
+        # Step 2: PCA Alignment
+        aligned_vertices = self._apply_pca_alignment(centered_vertices)
+        
+        # Compute PCA info
+        pca = PCA(n_components=3)
+        pca.fit(centered_vertices)
+        info['pca'] = {
+            'eigenvalues': pca.explained_variance_,
+            'eigenvectors': pca.components_,
+            'explained_variance_ratio': pca.explained_variance_ratio_
+        }
+        
+        # Step 3: Flipping
+        flipped_vertices = self._apply_flipping(aligned_vertices)
+        
+        # Compute flipping test values
+        if len(self.faces) > 0:
+            triangle_centers = []
+            for face in self.faces:
+                if len(face) >= 3:
+                    face_vertices = aligned_vertices[face[:3]]
+                    center = np.mean(face_vertices, axis=0)
+                    triangle_centers.append(center)
+            
+            if len(triangle_centers) > 0:
+                triangle_centers = np.array(triangle_centers)
+                f = np.zeros(3)
+                for i in range(3):
+                    coords = triangle_centers[:, i]
+                    f[i] = np.sum(np.sign(coords) * (coords ** 2))
+                
+                info['flipping'] = {
+                    'moment_test_values': f,
+                    'flip_factors': np.sign(f)
+                }
+        
+        # Step 4: Final scaling
+        final_vertices = self._apply_scaling(flipped_vertices)
+        final_bbox = {
+            'min': np.min(final_vertices, axis=0),
+            'max': np.max(final_vertices, axis=0), 
+            'dimensions': np.max(final_vertices, axis=0) - np.min(final_vertices, axis=0)
+        }
+        info['final'] = {
+            'center': np.mean(final_vertices, axis=0),
+            'bounding_box': final_bbox,
+            'max_dimension': np.max(final_bbox['dimensions'])
+        }
+        
+        return info
+
+    def get_normalized_mesh(self):
+        """Create a new ShapeMesh with fully normalized vertices"""
+        normalized_vertices = self.apply_full_normalization()
+        
+        return ShapeMesh(
+            vertices=normalized_vertices,
+            faces=self.faces,
+            category=self.category,
+            filename=self.filename,
+            face_types=self.face_types,
+            bounding_box=None,  # Will be recomputed
+            size=self.size,
+            filepath=self.filepath
+        )
+
+    def get_normalized_vertices_cached(self, dataset=None):
+        """Get normalized vertices efficiently - use cache if available, compute otherwise"""
+        
+        # Try to load from cache first
+        if dataset:
+            from core.normalized_cache import normalized_cache
+            if normalized_cache.is_normalized_available(self.filename, dataset):
+                normalized_mesh = normalized_cache.load_normalized_shape(self.filename, dataset)
+                if normalized_mesh:
+                    return normalized_mesh.vertices
+        
+        # Fall back to computing normalization
+        return self.apply_full_normalization()
+
     

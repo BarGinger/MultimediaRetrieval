@@ -1,0 +1,11 @@
+📝 Analysis Paragraph for Report
+========================================
+Dataset Description
+
+For this multimedia retrieval assignment, we utilized a comprehensive 3D shape database containing diverse geometric objects organized into semantic categories. The database comprises shapes sourced from the Princeton Shape Benchmark \cite{shilane2004princeton}, offering a diverse range of 3D mesh objects suitable for content-based shape retrieval research.
+
+The dataset comprises 2,483 3D mesh objects distributed across 69 distinct semantic categories, ranging from everyday objects like chairs, tables, and cups to more specialized items such as aircraft, musical instruments, and architectural elements. This diversity ensures comprehensive coverage of different shape characteristics, geometric complexities, and semantic domains essential for robust retrieval system evaluation. The category distribution ranges from 15 to 143 shapes per category, with an average of 36.0 shapes per category and a median of 27 shapes per category.
+
+Each shape in the database is associated with a class label corresponding to its semantic category, derived from the original benchmark collections' folder organization structure. These class labels serve as ground truth for evaluation purposes in our content-based shape retrieval system. The shapes are stored in OBJ format \cite{bourke1999obj}, a widely-used standard for 3D mesh representation, containing vertex coordinates, face connectivity information, and associated geometric metadata.
+
+The collection exhibits significant variety in geometric complexity, with shapes averaging 5,908 vertices and 12,110 faces per object. This natural variation in mesh resolution and complexity provides an excellent testbed for evaluating the robustness and effectiveness of different shape descriptors and retrieval algorithms across objects of varying geometric detail and structural characteristics. Given the inherent variability in mesh resolution and geometric representation across the collection, a systematic preprocessing and normalization pipeline was essential to ensure consistent feature extraction and reliable retrieval performance. The comprehensive details of this multi-step process are presented in Sections \ref{step2} and \ref{step3}.

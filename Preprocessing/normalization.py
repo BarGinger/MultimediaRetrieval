@@ -19,6 +19,12 @@ import open3d as o3d
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
+import csv
+from tqdm import tqdm
+import sys
+import os
+from contextlib import redirect_stderr
+import datetime
 
 # --- Configuration ---
 USE_SAMPLED_DATASET = False
@@ -34,6 +40,34 @@ AREA_EPS = 1e-12          # Minimum total surface area before falling back to me
 RECENTER_EPS = 1e-9       # Threshold to apply second recentering pass (pre-scaling)
 
 # --- Functions ---
+
+class LogToFile:
+    """Context manager to redirect stdout and stderr output to a log file."""
+    def __init__(self, log_file_path, redirect_stderr=True, redirect_stdout=False):
+        self.log_file_path = log_file_path
+        self.redirect_stderr = redirect_stderr
+        self.redirect_stdout = redirect_stdout
+        self.log_file = None
+        self.old_stderr = None
+        self.old_stdout = None
+    
+    def __enter__(self):
+        self.log_file = open(self.log_file_path, 'a', encoding='utf-8')
+        if self.redirect_stderr:
+            self.old_stderr = sys.stderr
+            sys.stderr = self.log_file
+        if self.redirect_stdout:
+            self.old_stdout = sys.stdout
+            sys.stdout = self.log_file
+        return self
+    
+    def __exit__(self, *args):
+        if self.old_stderr:
+            sys.stderr = self.old_stderr
+        if self.old_stdout:
+            sys.stdout = self.old_stdout
+        if self.log_file:
+            self.log_file.close()
 
 def calculate_mass_barycenter(vertices, triangles):
     """Area‑weighted (mass) barycenter with degeneracy fallback.
@@ -59,9 +93,14 @@ def calculate_mass_barycenter(vertices, triangles):
         return np.mean(vertices, axis=0)
     return total_weighted_centroid / total_area
 
-def normalize_mesh(input_path, output_path, only_before=False):
+def normalize_mesh(input_path, output_path, only_before=False, log_file=None):
     try:
-        mesh = o3d.io.read_triangle_mesh(str(input_path))
+        if log_file:
+            with LogToFile(log_file, redirect_stderr=True):
+                mesh = o3d.io.read_triangle_mesh(str(input_path))
+        else:
+            mesh = o3d.io.read_triangle_mesh(str(input_path))
+            
         if mesh.is_empty() or len(mesh.vertices) == 0:
             return False, None
 
@@ -82,7 +121,11 @@ def normalize_mesh(input_path, output_path, only_before=False):
 
         # Optional second pass for numerical drift or degeneracy effects
         if residual_norm > RECENTER_EPS:
-            print(f"    [!] Applying second recentering pass (residual {residual_norm:.2e})")
+            if log_file:
+                with LogToFile(log_file, redirect_stderr=True):
+                    pass  # Message will be logged automatically
+            else:
+                tqdm.write(f"    [!] Applying second recentering pass (residual {residual_norm:.2e})")
             vertices_translated -= residual_bary
             residual_bary = calculate_mass_barycenter(vertices_translated, triangles)
             residual_norm = float(np.linalg.norm(residual_bary))
@@ -105,8 +148,14 @@ def normalize_mesh(input_path, output_path, only_before=False):
 
         mesh.vertices = o3d.utility.Vector3dVector(vertices_scaled)
         mesh.compute_vertex_normals()
-        if not o3d.io.write_triangle_mesh(str(output_path), mesh):
-            return False, None
+        
+        if log_file:
+            with LogToFile(log_file, redirect_stderr=True):
+                if not o3d.io.write_triangle_mesh(str(output_path), mesh):
+                    return False, None
+        else:
+            if not o3d.io.write_triangle_mesh(str(output_path), mesh):
+                return False, None
 
         bbox_after_scaling = np.max(np.max(vertices_scaled, axis=0) - np.min(vertices_scaled, axis=0))
 
@@ -118,7 +167,11 @@ def normalize_mesh(input_path, output_path, only_before=False):
         }
 
     except Exception as e:
-        print(f"[X] Error {input_path}: {e}")
+        if log_file:
+            with LogToFile(log_file, redirect_stderr=True):
+                pass  # Error will be logged automatically
+        else:
+            tqdm.write(f"[X] Error {input_path}: {e}")
         return False, None
 
 def plot_histogram_auto_outliers(
@@ -197,9 +250,59 @@ def plot_histogram_auto_outliers(
     plt.savefig(out_path)
     plt.close()
 
+def export_stats_to_csv(stats, output_path):
+    """Export normalization statistics to CSV file.
+    
+    Parameters
+    ----------
+    stats : dict
+        Dictionary containing lists of statistics for each metric
+    output_path : Path
+        Path where the CSV file will be saved
+    """
+    # Find the maximum length to handle cases where some lists might be shorter
+    max_length = max(len(stats[key]) for key in stats.keys() if len(stats[key]) > 0)
+    
+    # Prepare data for CSV export
+    csv_data = []
+    for i in range(max_length):
+        row = {
+            'mesh_index': i + 1,
+            'bary_before_translation': stats["bary_before_translation"][i] if i < len(stats["bary_before_translation"]) else None,
+            'bary_after_translation': stats["bary_after_translation"][i] if i < len(stats["bary_after_translation"]) else None,
+            'bbox_before_scaling': stats["bbox_before_scaling"][i] if i < len(stats["bbox_before_scaling"]) else None,
+            'bbox_after_scaling': stats["bbox_after_scaling"][i] if i < len(stats["bbox_after_scaling"]) else None
+        }
+        csv_data.append(row)
+    
+    # Write to CSV file
+    with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['mesh_index', 'bary_before_translation', 'bary_after_translation', 'bbox_before_scaling', 'bbox_after_scaling']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        writer.writeheader()
+        writer.writerows(csv_data)
+    
+    print(f"Statistics exported to CSV: {output_path}")
+
 def main():
     print(f"Processing meshes from {SOURCE_ROOT} to {TARGET_ROOT}")
     TARGET_ROOT.mkdir(exist_ok=True, parents=True)
+
+    # Create log file
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = BASE / "Preprocessing/figures"
+    log_dir.mkdir(exist_ok=True, parents=True)
+    log_file_path = log_dir / f"normalization_log_{timestamp}.txt"
+    
+    # Initialize log file with header
+    with open(log_file_path, 'w', encoding='utf-8') as f:
+        f.write(f"Normalization Log - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Source: {SOURCE_ROOT}\n")
+        f.write(f"Target: {TARGET_ROOT}\n")
+        f.write("="*80 + "\n\n")
+    
+    print(f"Logging all output to: {log_file_path}")
 
     stats = {
         "bary_before_translation": [],
@@ -210,30 +313,44 @@ def main():
 
     total_processed, successful_count, failed_count = 0, 0, 0
 
+    # Count total files for progress bar
+    total_files = 0
     for category_dir in SOURCE_ROOT.iterdir():
-        if not category_dir.is_dir():
-            continue
-        print(f"\nProcessing category: {category_dir.name}")
-        out_category_dir = TARGET_ROOT / category_dir.name
-        out_category_dir.mkdir(parents=True, exist_ok=True)
+        if category_dir.is_dir():
+            total_files += len(list(category_dir.glob('*.obj')))
 
-        category_files = list(category_dir.glob('*.obj'))
-        for i, obj_file in enumerate(category_files, 1):
-            out_file = out_category_dir / obj_file.name
-            print(f"  [{i:3d}/{len(category_files):3d}] {obj_file.name:<40}", end="")
-            success, mesh_stats = normalize_mesh(obj_file, out_file, only_before=CREATE_ONLY_BEFORE_PLOTS)
-            total_processed += 1
-            if success:
-                successful_count += 1
-                stats["bary_before_translation"].append(mesh_stats["bary_before_translation"])
-                stats["bary_after_translation"].append(mesh_stats["bary_after_translation"])
-                stats["bbox_before_scaling"].append(mesh_stats["bbox_before_scaling"])
-                if mesh_stats["bbox_after_scaling"] is not None:
-                    stats["bbox_after_scaling"].append(mesh_stats["bbox_after_scaling"])
-                print("[OK]")
-            else:
-                failed_count += 1
-                print("[X]")
+    # Initialize progress bar
+    with tqdm(total=total_files, desc="Processing meshes", unit="mesh", leave=True) as pbar:
+        for category_dir in SOURCE_ROOT.iterdir():
+            if not category_dir.is_dir():
+                continue
+            out_category_dir = TARGET_ROOT / category_dir.name
+            out_category_dir.mkdir(parents=True, exist_ok=True)
+
+            category_files = list(category_dir.glob('*.obj'))
+            for i, obj_file in enumerate(category_files, 1):
+                out_file = out_category_dir / obj_file.name
+                pbar.set_description(f"Processing {category_dir.name}: {obj_file.name[:30]}")
+                
+                # Log the current file being processed
+                with LogToFile(log_file_path, redirect_stderr=True):
+                    print(f"Processing {category_dir.name}: {obj_file.name}")
+                
+                success, mesh_stats = normalize_mesh(obj_file, out_file, only_before=CREATE_ONLY_BEFORE_PLOTS, log_file=log_file_path)
+                total_processed += 1
+                if success:
+                    successful_count += 1
+                    stats["bary_before_translation"].append(mesh_stats["bary_before_translation"])
+                    stats["bary_after_translation"].append(mesh_stats["bary_after_translation"])
+                    stats["bbox_before_scaling"].append(mesh_stats["bbox_before_scaling"])
+                    if mesh_stats["bbox_after_scaling"] is not None:
+                        stats["bbox_after_scaling"].append(mesh_stats["bbox_after_scaling"])
+                    pbar.set_postfix({"✓": successful_count, "✗": failed_count})
+                else:
+                    failed_count += 1
+                    pbar.set_postfix({"✓": successful_count, "✗": failed_count})
+                
+                pbar.update(1)
 
     # Summary
     print("\n" + "="*60)
@@ -262,6 +379,12 @@ def main():
         )
 
     print(f"\nHistograms saved to {fig_dir}")
+    
+    # Export statistics to CSV
+    csv_output_path = fig_dir / "normalization_statistics.csv"
+    export_stats_to_csv(stats, csv_output_path)
+    
+    print(f"All processing logs saved to: {log_file_path}")
 
 if __name__ == '__main__':
     main()
