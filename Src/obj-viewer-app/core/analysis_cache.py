@@ -6,6 +6,7 @@ and reuse the data across the application.
 
 import pandas as pd
 import os
+from pathlib import Path
 from typing import Dict, Optional
 
 
@@ -60,16 +61,62 @@ class AnalysisCache:
             base_dataset = dataset.split("/")[-1]  # Get "Data" from "UnifiedPreprocessed/Data"
             return self._get_analysis_path(base_dataset)
         
+        # Try multiple potential paths for each dataset
+        potential_paths = []
+        
         # Direct dataset mappings
         path_mapping = {
-            'Data': 'Preprocessing/analysis_results.csv',
-            'Data_sampled': 'Preprocessing/analysis_results_sampled.csv',
-            'Data_resampled': 'Preprocessing/analysis_results_resampled.csv',
-            'Data_sampled_resampled': 'Preprocessing/analysis_results_sampled_resampled.csv',
-            'Data_sampled_resampled_normalized': 'Preprocessing/analysis_results_sampled_resampled_normalized.csv',
-            'UnifiedPreprocessed/Data': 'Datasets/UnifiedPreprocessed/analysis_results_data.csv',
+            'Data': [
+                'Preprocessing/analysis_results.csv',
+                'Datasets/analysis_results_data.csv',
+                'analysis_results.csv'
+            ],
+            'Data_sampled': [
+                'Preprocessing/analysis_results_sampled.csv',
+                'analysis_results_sampled.csv'
+            ],
+            'Data_resampled': [
+                'Preprocessing/analysis_results_resampled.csv',
+                'analysis_results_resampled.csv'
+            ],
+            'Data_sampled_resampled': [
+                'Preprocessing/analysis_results_sampled_resampled.csv',
+                'analysis_results_sampled_resampled.csv'
+            ],
+            'Data_sampled_resampled_normalized': [
+                'Preprocessing/analysis_results_sampled_resampled_normalized.csv',
+                'analysis_results_sampled_resampled_normalized.csv'
+            ],
+            'Data_sampled_resampled_simple': [
+                'Preprocessing/analysis_results_sampled_resampled_simple.csv',
+                'analysis_results_sampled_resampled_simple.csv'
+            ]
         }
-        return path_mapping.get(dataset)
+        
+        potential_paths = path_mapping.get(dataset, [])
+        
+        # Also try generic patterns
+        generic_patterns = [
+            f'Preprocessing/analysis_results_{dataset.lower()}.csv',
+            f'analysis_results_{dataset.lower()}.csv',
+            f'Datasets/{dataset}/analysis_results.csv'
+        ]
+        potential_paths.extend(generic_patterns)
+        
+        # Find project root and check all potential paths
+        project_root = Path(__file__).resolve().parent.parent
+        root_candidates = [project_root, project_root.parent, project_root.parent.parent]
+        
+        for candidate_root in root_candidates:
+            for path in potential_paths:
+                full_path = candidate_root / path
+                if full_path.exists():
+                    print(f"[DEBUG] Found analysis CSV for {dataset}: {full_path}")
+                    return str(full_path)
+        
+        print(f"[DEBUG] No analysis CSV found for dataset: {dataset}")
+        print(f"[DEBUG] Tried paths: {potential_paths}")
+        return None
     
     def clear_cache(self):
         """Clear all cached data."""

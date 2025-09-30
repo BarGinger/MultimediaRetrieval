@@ -12,34 +12,8 @@ from core.plotting import create_3d_plot
 import plotly.graph_objects as go
 from core.file_index import get_file_tree
 from core.analysis_cache import merge_analysis_data, get_analysis_data
+from core.dataset_cache import get_cached_dataset_data, get_available_datasets, preload_datasets
 from core.shapeMesh import ShapeMesh
-
-def fast_merge_analysis_data(file_df, dataset):
-    """
-    Fast version of merge_analysis_data that only uses cached data.
-    Does not compute analysis on-the-fly to avoid slowdowns during dataset switching.
-    """
-    analysis_df = get_analysis_data(dataset)
-    if analysis_df is not None:
-        # Fast merge with cached data only
-        file_df_copy = file_df.copy()
-        file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
-        analysis_df_copy = analysis_df.copy()
-        analysis_df_copy['base_filename'] = analysis_df_copy['filename']
-        
-        merged = pd.merge(
-            file_df_copy, 
-            analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
-            on=['category', 'base_filename'], 
-            how='left'
-        ).drop('base_filename', axis=1)
-        return merged
-    else:
-        # No cached data - add empty columns
-        file_df = file_df.copy()
-        file_df['num_vertices'] = None
-        file_df['num_faces'] = None
-        return file_df
 
 
 def create_toast_data(message, toast_type="info", icon="ℹ️"):
@@ -421,50 +395,81 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         [Input('avg-vertices-btn', 'n_clicks'),
          Input('avg-faces-btn', 'n_clicks')],
         [State('category-filter', 'value'),
+         State('filename-filter', 'value'),
+         State('vertices-operator', 'value'),
+         State('vertices-value', 'value'),
+         State('faces-operator', 'value'),
+         State('faces-value', 'value'),
          State('sort-field', 'value'),
          State('sort-order', 'data-order'),
          State('selected-dataset-store', 'data')],
         prevent_initial_call=True
     )
-    def navigate_to_average(avg_vertices_clicks, avg_faces_clicks, selected_category, sort_field, sort_order, selected_dataset):
-        """Navigate to the item closest to average vertices or faces"""
+    def navigate_to_average(avg_vertices_clicks, avg_faces_clicks, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):
+        """Navigate to the item closest to average vertices or faces in the currently displayed list"""
         ctx = callback_context
         if not ctx.triggered:
             return no_update, no_update, no_update
         
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
         
-        # Get the current file list using the same logic as the main callback
+        # CRITICAL: Get the current dataset and apply THE SAME FILTERS as the file list
+        # This ensures the index we calculate matches what's displayed in the UI
         try:
-            file_df = get_file_tree(selected_dataset)
+            file_df = get_cached_dataset_data(selected_dataset)
         except Exception as e:
             print(f"Error loading dataset {selected_dataset}: {e}")
             return no_update, no_update, no_update
         
-        # Always try to merge cached analysis data
-        analysis_df = get_analysis_data(selected_dataset)
-        if analysis_df is not None:
-            file_df_copy = file_df.copy()
-            file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
-            analysis_df_copy = analysis_df.copy()
-            analysis_df_copy['base_filename'] = analysis_df_copy['filename']
-            
-            file_df = pd.merge(
-                file_df_copy, 
-                analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
-                on=['category', 'base_filename'], 
-                how='left'
-            ).drop('base_filename', axis=1)
-        else:
-            # No analysis data available, can't find average
-            print(f"⚠️ No cached analysis for {selected_dataset} - cannot find average")
+        # Cached data already includes analysis columns (num_vertices, num_faces)
+        print(f"✅ Using cached data for average navigation with {len(file_df)} shapes")
+        
+        # Verify analysis data is present
+        if 'num_vertices' not in file_df.columns or 'num_faces' not in file_df.columns:
+            print(f"⚠️ No analysis data in cached dataset {selected_dataset} - cannot find average")
             toast_data = create_toast_data("No analysis data available for average calculation", "warning", "⚠️")
             return no_update, no_update, toast_data
         
-        # Apply category filter
+        # Apply category filter (same as file list)
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
         
-        # Apply sorting
+        # Apply filename filtering (same as file list)
+        if filename_filter and filename_filter.strip() and not df.empty and 'filename' in df.columns:
+            try:
+                import fnmatch
+                pattern = filename_filter.strip()
+                mask = df['filename'].apply(lambda x: fnmatch.fnmatch(x.lower(), pattern.lower()))
+                df = df[mask]
+            except Exception as e:
+                print(f"Error applying filename filter '{filename_filter}': {e}")
+        
+        # Apply vertices filtering (same as file list)
+        if vertices_val is not None and vertices_val != '' and 'num_vertices' in df.columns:
+            try:
+                val = int(vertices_val)
+                if vertices_op == 'eq':
+                    df = df[df['num_vertices'] == val]
+                elif vertices_op == 'gt':
+                    df = df[df['num_vertices'] > val]
+                elif vertices_op == 'lt':
+                    df = df[df['num_vertices'] < val]
+            except ValueError:
+                pass
+        
+        # Apply faces filtering (same as file list)
+        if faces_val is not None and faces_val != '' and 'num_faces' in df.columns:
+            try:
+                val = int(faces_val)
+                if faces_op == 'eq':
+                    df = df[df['num_faces'] == val]
+                elif faces_op == 'gt':
+                    df = df[df['num_faces'] > val]
+                elif faces_op == 'lt':
+                    df = df[df['num_faces'] < val]
+            except ValueError:
+                pass
+        
+        # Apply sorting (same as file list)
         ascending = True if sort_order == 'asc' else False
         df = df.copy()
         if sort_field == 'category':
@@ -832,7 +837,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         Render the list of files based on current filters and sorting.
         Optimized to avoid slow analysis computation during dataset switching.
         """
-        return update_file_list_internal('all', selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset)
+        return update_file_list_internal('none', selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset)
 
     def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
         """
@@ -857,34 +862,22 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if selected_dataset is None or selected_dataset == "":
             selected_dataset = 'Data'
 
-        file_df = get_file_tree(selected_dataset)
+        # Use high-performance cached dataset (already includes merged analysis data)
+        file_df = get_cached_dataset_data(selected_dataset)
 
         if file_df.empty:
             return [html.P("❌ No files found in Data directory",
                            style={'color': 'red', 'textAlign': 'center'})]
 
-        # **OPTIMIZATION**: Always try to show cached analysis data (fast), only skip slow computation
-        # Try to get cached analysis first (fast)
-        analysis_df = get_analysis_data(selected_dataset)
-        if analysis_df is not None:
-            # Merge with cached data (fast)
-            file_df_copy = file_df.copy()
-            file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
-            analysis_df_copy = analysis_df.copy()
-            analysis_df_copy['base_filename'] = analysis_df_copy['filename']
-            
-            file_df = pd.merge(
-                file_df_copy, 
-                analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
-                on=['category', 'base_filename'], 
-                how='left'
-            ).drop('base_filename', axis=1)
-            print(f"✅ Merged cached analysis for {selected_dataset}")
-        else:
-            # No cached analysis - add empty columns and defer computation to file clicks
-            print(f"⚠️ No cached analysis for {selected_dataset} - analysis will be computed when files are clicked")
-            file_df['num_vertices'] = None
-            file_df['num_faces'] = None
+        # Cached data already includes analysis columns (num_vertices, num_faces)
+        # No need to merge again - this was causing data loss
+        print(f"✅ Using cached data for {selected_dataset} with {len(file_df)} shapes")
+        print(f"📊 Available columns: {list(file_df.columns)}")
+        
+        # Verify analysis data is present
+        has_vertices = 'num_vertices' in file_df.columns and not file_df['num_vertices'].isnull().all()
+        has_faces = 'num_faces' in file_df.columns and not file_df['num_faces'].isnull().all()
+        print(f"📈 Analysis data: vertices={has_vertices}, faces={has_faces}")
         
         # Check if we need analysis for sorting/filtering operations
         needs_analysis_ops = (sort_field in ['num_vertices', 'num_faces'] or 
@@ -893,8 +886,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                              (faces_val is not None and faces_val != ''))
         
         # If we need analysis for operations but don't have cached data, show a warning
-        if needs_analysis_ops and analysis_df is None:
-            print(f"⚠️ Cannot perform {sort_field or avg_filter} operation - no cached analysis data available")
+        if needs_analysis_ops and not (has_vertices and has_faces):
+            print(f"⚠️ Cannot perform {sort_field or avg_filter} operation - no analysis data available")
 
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
         
@@ -1102,9 +1095,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             # Rebuild file_df for current filters
             if selected_dataset is None or selected_dataset == "":
                 selected_dataset = 'Data'
-            file_df_local = get_file_tree(selected_dataset)
-            # Merge analysis CSV columns using cache
-            file_df_local = merge_analysis_data(file_df_local, selected_dataset)
+            # Use high-performance cached dataset (already merged)
+            file_df_local = get_cached_dataset_data(selected_dataset)
             df = file_df_local if selected_category == 'all' else file_df_local[file_df_local['category'] == selected_category]
             
             # Apply filename filtering if provided
@@ -1241,9 +1233,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if selected_dataset is None or selected_dataset == "":
             selected_dataset = 'Data'
         
-        file_df = get_file_tree(selected_dataset)
-        # Use fast merge to avoid slowdowns during dataset switching
-        file_df = fast_merge_analysis_data(file_df, selected_dataset)
+        # Use high-performance cached dataset
+        file_df = get_cached_dataset_data(selected_dataset)
 
         if file_df is None or file_df.empty:
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
@@ -1475,7 +1466,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             selected_dataset = 'Data'
         
         try:
-            file_df = get_file_tree(selected_dataset)
+            # Use high-performance cached dataset
+            file_df = get_cached_dataset_data(selected_dataset)
             if file_df.empty:
                 options = [{'label': 'All Categories', 'value': 'all'}]
                 return options, 'all'
@@ -1533,8 +1525,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             selected_dataset = 'Data'
         
         try:
-            file_df = get_file_tree(selected_dataset)
-            file_df = fast_merge_analysis_data(file_df, selected_dataset)
+            # Use high-performance cached dataset (already merged)
+            file_df = get_cached_dataset_data(selected_dataset)
             
             if file_df.empty:
                 return options, []
