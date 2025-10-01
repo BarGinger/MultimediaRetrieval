@@ -387,6 +387,127 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # Show toast for shape loading when file button is clicked
+    app.clientside_callback(
+        """
+        function(n_clicks_list) {
+            const ctx = window.dash_clientside.callback_context;
+            if (!ctx.triggered.length) {
+                return window.dash_clientside.no_update;
+            }
+            
+            const trigger = ctx.triggered[0];
+            const propId = trigger.prop_id;
+            
+            // Check if it's a file button click
+            if (propId.includes('file-btn') && trigger.value > 0) {
+                // Always hide first, then show to ensure animation works
+                const toastBar = document.getElementById('toast-message-bar');
+                if (toastBar) {
+                    toastBar.style.display = 'none';
+                }
+                
+                // Force reflow then show
+                setTimeout(function() {
+                    const toastBar = document.getElementById('toast-message-bar');
+                    const toastIcon = document.getElementById('toast-icon');
+                    const toastMessage = document.getElementById('toast-message');
+                    
+                    if (toastBar && toastIcon && toastMessage) {
+                        toastIcon.innerHTML = '🔄';
+                        toastMessage.innerHTML = 'Loading selected shape...';
+                        toastBar.style.display = 'block';
+                        
+                        // Auto-hide after 4 seconds for loading toast
+                        setTimeout(function() {
+                            if (toastBar) {
+                                toastBar.style.display = 'none';
+                            }
+                        }, 4000);
+                    }
+                }, 10);
+            }
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('toast-message-bar', 'id', allow_duplicate=True),
+        Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
+        prevent_initial_call=True
+    )
+
+    # Show global loading indicator when file button is clicked
+    app.clientside_callback(
+        """
+        function(n_clicks_list) {
+            const ctx = window.dash_clientside.callback_context;
+            if (!ctx.triggered.length) {
+                return window.dash_clientside.no_update;
+            }
+            
+            const trigger = ctx.triggered[0];
+            const propId = trigger.prop_id;
+            
+            // Check if it's a file button click
+            if (propId.includes('file-btn') && trigger.value > 0) {
+                const loadingIndicator = document.getElementById('global-loading-indicator');
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'block';
+                }
+            }
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('global-loading-indicator', 'id', allow_duplicate=True),
+        Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
+        prevent_initial_call=True
+    )
+
+    # Hide global loading indicator when shape info is updated
+    app.clientside_callback(
+        """
+        function(shape_info) {
+            // Don't hide on shape info update - let the 3D plot callback handle it
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('global-loading-indicator', 'id', allow_duplicate=True),
+        Input('shape-info', 'children'),
+        prevent_initial_call=True
+    )
+
+    # Hide global loading indicator when 3D plot is updated with actual shape data
+    app.clientside_callback(
+        """
+        function(figure) {
+            const loadingIndicator = document.getElementById('global-loading-indicator');
+            if (loadingIndicator && figure && figure.data && figure.data.length > 0) {
+                // Check if the plot has any data traces (more reliable detection)
+                const hasData = figure.data.length > 0 && (
+                    // Check for mesh3d data
+                    figure.data.some(trace => trace.type === 'mesh3d') ||
+                    // Check for scatter3d data 
+                    figure.data.some(trace => trace.type === 'scatter3d') ||
+                    // Check for any trace with x data
+                    figure.data.some(trace => trace.x && trace.x.length > 0)
+                );
+                
+                if (hasData) {
+                    // Hide immediately when data is detected
+                    setTimeout(function() {
+                        loadingIndicator.style.display = 'none';
+                    }, 100);
+                }
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('global-loading-indicator', 'id', allow_duplicate=True),
+        Input('3d-plot', 'figure'),
+        prevent_initial_call=True
+    )
+
     # Average navigation buttons
     @app.callback(
         [Output('selected-file-store', 'data', allow_duplicate=True),
