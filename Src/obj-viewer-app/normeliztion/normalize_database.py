@@ -12,6 +12,7 @@ from tqdm import tqdm
 import time
 import open3d as o3d
 import csv
+from sklearn.decomposition import PCA
 
 # Add parent directory to path for imports
 import sys
@@ -20,6 +21,15 @@ sys.path.append(str(Path(__file__).parent.parent))
 from core.file_index import get_file_tree
 from core.analysis_cache import merge_analysis_data
 from core.shapeMesh import ShapeMesh
+
+# Numerical tolerances - following normalization.py improvements
+AREA_EPS = 1e-12          # Minimum total surface area before falling back to mean
+RECENTER_EPS = 1e-9       # Threshold to apply second recentering pass (pre-scaling)
+
+
+# Import the enhanced functions from ShapeMesh
+from core.shapeMesh import calculate_mass_barycenter
+
 
 class UnifiedPreprocessingProcessor:
     def __init__(self, target_faces=5000, output_base_dir=None):
@@ -125,6 +135,50 @@ class UnifiedPreprocessingProcessor:
             print(f"❌ Remeshing failed for {mesh_path}: {e}")
             return None, None, False
     
+    def apply_enhanced_normalization(self, mesh, debug=False):
+        """Apply enhanced 4-step normalization using ShapeMesh enhanced methods
+        
+        This method now uses the enhanced implementations in ShapeMesh that include:
+        - Area-weighted barycenter with two-pass recentering
+        - Post-scaling recenter safety pass
+        - Numerical robustness with epsilon tolerances
+        
+        Args:
+            mesh: ShapeMesh object
+            debug: If True, print intermediate results
+            
+        Returns:
+            normalized_vertices: np.array of normalized vertices
+            normalization_stats: dict with detailed statistics
+        """
+        # Use the enhanced apply_full_normalization from ShapeMesh
+        normalized_vertices = mesh.apply_full_normalization(debug=debug)
+        
+        # Calculate statistics for tracking
+        vertices = mesh.vertices.copy()
+        
+        # Convert faces to triangles for barycenter calculations
+        triangles = []
+        for face in mesh.faces:
+            if len(face) >= 3:
+                triangles.append(face[:3])
+        triangles = np.array(triangles) if triangles else np.array([])
+        
+        # Calculate before/after statistics
+        bary_before_norm = np.linalg.norm(calculate_mass_barycenter(vertices, triangles))
+        bary_after_norm = np.linalg.norm(calculate_mass_barycenter(normalized_vertices, triangles))
+        bbox_before_scaling = np.max(np.ptp(vertices, axis=0))
+        bbox_after_scaling = np.max(np.ptp(normalized_vertices, axis=0))
+        
+        normalization_stats = {
+            'bary_before_translation': bary_before_norm,
+            'bary_after_translation': bary_after_norm,
+            'bbox_before_scaling': bbox_before_scaling,
+            'bbox_after_scaling': bbox_after_scaling
+        }
+        
+        return normalized_vertices, normalization_stats
+    
     def process_shape(self, row, dataset_name):
         """
         Process a single shape through the complete unified pipeline:
@@ -175,9 +229,9 @@ class UnifiedPreprocessingProcessor:
                 size=row.get('size')
             )
             
-            # Step 4: Apply your existing complete 4-step normalization
-            print(f"  🔧 Applying 4-step normalization...")
-            normalized_vertices = mesh.apply_full_normalization(debug=False)
+            # Step 4: Apply enhanced 4-step normalization with improvements from normalization.py
+            print(f"  🔧 Applying enhanced 4-step normalization...")
+            normalized_vertices, normalization_stats = self.apply_enhanced_normalization(mesh, debug=False)
             
             # Step 5: Save results
             category_dir.mkdir(parents=True, exist_ok=True)
@@ -185,16 +239,29 @@ class UnifiedPreprocessingProcessor:
             # Save normalized OBJ (reuse your existing save logic)
             self.save_normalized_obj(mesh, normalized_vertices, normalized_obj_path, was_remeshed)
             
-            # Save metadata (enhanced with remeshing info)
-            self.save_enhanced_metadata(mesh, metadata_path, was_remeshed, len(vertices), len(faces))
+            # Save metadata (enhanced with remeshing info and normalization stats)
+            self.save_enhanced_metadata(mesh, metadata_path, was_remeshed, len(vertices), len(faces), normalization_stats)
             
-            # Update statistics (reuse your existing logic)
-            norm_info = mesh.get_normalization_info()
-            center_error = np.linalg.norm(norm_info['final']['center'])
-            scale_error = abs(norm_info['final']['max_dimension'] - 1.0)
+            # Update statistics using enhanced normalization stats
+            center_error = normalization_stats['bary_after_translation']
+            scale_error = abs(normalization_stats['bbox_after_scaling'] - 1.0)
             
             self.stats['normalization_stats']['centering_errors'].append(center_error)
             self.stats['normalization_stats']['scaling_errors'].append(scale_error)
+            
+            # Also store the enhanced stats for analysis
+            if 'enhanced_stats' not in self.stats:
+                self.stats['enhanced_stats'] = {
+                    'bary_before_translation': [],
+                    'bary_after_translation': [],
+                    'bbox_before_scaling': [],
+                    'bbox_after_scaling': []
+                }
+            
+            self.stats['enhanced_stats']['bary_before_translation'].append(normalization_stats['bary_before_translation'])
+            self.stats['enhanced_stats']['bary_after_translation'].append(normalization_stats['bary_after_translation'])
+            self.stats['enhanced_stats']['bbox_before_scaling'].append(normalization_stats['bbox_before_scaling'])
+            self.stats['enhanced_stats']['bbox_after_scaling'].append(normalization_stats['bbox_after_scaling'])
             
             # Track by category (your existing logic)
             if category not in self.stats['normalization_stats']['by_category']:
@@ -242,8 +309,8 @@ class UnifiedPreprocessingProcessor:
                     face_indices = [str(idx + 1) for idx in face]
                     f.write(f"f {' '.join(face_indices)}\n")
     
-    def save_enhanced_metadata(self, mesh, output_path, was_remeshed, final_vertices, final_faces):
-        """Save enhanced metadata including remeshing info"""
+    def save_enhanced_metadata(self, mesh, output_path, was_remeshed, final_vertices, final_faces, normalization_stats=None):
+        """Save enhanced metadata including remeshing info and enhanced normalization stats"""
         norm_info = mesh.get_normalization_info()
         
         # Convert numpy arrays to lists (your existing logic)
@@ -271,8 +338,9 @@ class UnifiedPreprocessingProcessor:
                 'final_faces_count': final_faces
             },
             'normalization_info': convert_numpy(norm_info),
+            'enhanced_normalization_stats': convert_numpy(normalization_stats) if normalization_stats else None,
             'processing_timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'pipeline_version': 'unified_v1.0'
+            'pipeline_version': 'unified_enhanced_v1.1'
         }
         
         with open(output_path, 'w') as f:
@@ -282,7 +350,8 @@ class UnifiedPreprocessingProcessor:
         """Process all shapes in a dataset (enhanced version of your method)"""
         print(f"\nProcessing dataset: {dataset_name}")
         print("=" * 60)
-        print("Pipeline: Remeshing → Translation → PCA → Flipping → Scaling")
+        print("Enhanced Pipeline: Remeshing → Enhanced Translation → PCA → Flipping → Enhanced Scaling")
+        print("Improvements: Two-pass recentering, area-weighted barycenter, post-scaling recenter")
         print("=" * 60)
         
         # Get file list for dataset (your existing logic)
@@ -536,10 +605,15 @@ class UnifiedPreprocessingProcessor:
         return generated_csvs
 
 def main():
-    """Main unified preprocessing function"""
-    print("🚀 Starting Unified Preprocessing & Normalization")
-    print("Pipeline: Remeshing → Your Complete 4-Step Normalization")
-    print("Leveraging your existing robust ShapeMesh implementation")
+    """Main enhanced unified preprocessing function"""
+    print("🚀 Starting Enhanced Unified Preprocessing & Normalization")
+    print("Pipeline: Remeshing → Enhanced 4-Step Normalization")
+    print("Enhanced features from normalization.py:")
+    print("  • Two-pass recentering with numerical tolerance")
+    print("  • Area-weighted barycenter calculation")
+    print("  • Robust handling of degenerate meshes")
+    print("  • Post-scaling recenter safety pass")
+    print("Leveraging robust ShapeMesh implementation with normalization.py improvements")
     
     # Use your preferred dataset
     datasets = ["Data"]  # Adjust as needed
