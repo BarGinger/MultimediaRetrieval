@@ -7,6 +7,39 @@ import os
 from sklearn.decomposition import PCA
 # import trimesh  # Uncomment if you use trimesh
 
+# Numerical tolerances for enhanced normalization (matching normalize_database.py)
+AREA_EPS = 1e-12          # Minimum total surface area before falling back to mean
+RECENTER_EPS = 1e-9       # Threshold to apply second recentering pass (pre-scaling)
+
+
+def calculate_mass_barycenter(vertices, triangles):
+    """Area‑weighted (mass) barycenter with degeneracy fallback.
+    
+    Enhanced version that falls back to simple vertex mean if:
+      * Mesh has no triangles, or
+      * Total accumulated triangle area < AREA_EPS
+    """
+    if len(triangles) == 0:
+        return np.mean(vertices, axis=0)
+    
+    total_weighted_centroid = np.zeros(3, dtype=np.float64)
+    total_area = 0.0
+    
+    for tri in triangles:
+        v0, v1, v2 = vertices[tri]
+        face_centroid = (v0 + v1 + v2) / 3.0
+        edge1, edge2 = v1 - v0, v2 - v0
+        face_area = 0.5 * np.linalg.norm(np.cross(edge1, edge2))
+        if face_area <= 0.0:
+            continue  # Skip degenerate faces
+        total_weighted_centroid += face_centroid * face_area
+        total_area += face_area
+    
+    if total_area < AREA_EPS:
+        return np.mean(vertices, axis=0)
+    
+    return total_weighted_centroid / total_area
+
 
 def _num(n):
     """Format number with commas for thousands separator."""
@@ -504,12 +537,19 @@ class ShapeMesh:
         }
     
     def apply_full_normalization(self, debug=False):
-        """Apply the complete 4-step normalization pipeline:
-        Following the exact order from technical tips:
-        1. Translation (centering) - center barycenter at origin
+        """Apply the complete enhanced 4-step normalization pipeline:
+        
+        Following the exact order from technical tips with enhanced implementations:
+        1. Translation (enhanced centering) - area-weighted barycenter with two-pass recentering
         2. Alignment (pose) - align principal axes with coordinate frame using PCA
         3. Flipping - orient shape consistently using moment test
-        4. Scaling - fit in unit bounding box
+        4. Scaling (enhanced) - fit in unit bounding box with post-scaling recenter
+        
+        Enhanced features:
+        - Area-weighted barycenter calculation with degeneracy fallback
+        - Two-pass recentering for numerical robustness
+        - Post-scaling recenter safety pass
+        - Numerical tolerances (AREA_EPS, RECENTER_EPS)
         
         Args:
             debug: If True, print intermediate results for verification
@@ -551,9 +591,31 @@ class ShapeMesh:
         return vertices
     
     def _apply_centering(self, vertices):
-        """Center the shape at the origin by moving barycenter to (0,0,0)"""
-        barycenter = np.mean(vertices, axis=0)
-        return vertices - barycenter
+        """Enhanced centering with two-pass recentering from normalization.py
+        
+        Center the shape at the origin using area-weighted barycenter with fallback to vertex mean.
+        Includes two-pass recentering for numerical robustness.
+        """
+        # Convert faces to triangles for area calculations
+        triangles = []
+        for face in self.faces:
+            if len(face) >= 3:
+                triangles.append(face[:3])  # Use first 3 vertices for triangulation
+        triangles = np.array(triangles) if triangles else np.array([])
+        
+        # First translation pass using area-weighted barycenter
+        bary_before = calculate_mass_barycenter(vertices, triangles)
+        vertices_translated = vertices - bary_before
+        
+        # Recompute barycenter after translation (should be near zero)
+        residual_bary = calculate_mass_barycenter(vertices_translated, triangles)
+        residual_norm = float(np.linalg.norm(residual_bary))
+        
+        # Optional second pass for numerical drift or degeneracy effects
+        if residual_norm > RECENTER_EPS:
+            vertices_translated -= residual_bary
+        
+        return vertices_translated
     
     def _apply_pca_alignment(self, vertices):
         """Align shape using PCA eigenvectors as described in technical tips.
@@ -630,8 +692,12 @@ class ShapeMesh:
         return flipped_vertices
     
     def _apply_scaling(self, vertices):
-        """Scale shape to fit in unit bounding box"""
-        # Compute bounding box dimensions
+        """Enhanced scaling with post-scaling recenter safety pass from normalization.py
+        
+        Scale shape to fit in unit bounding box with post-scaling recenter to ensure
+        the final mesh barycenter is at the origin.
+        """
+        # Standard scaling
         min_coords = np.min(vertices, axis=0)
         max_coords = np.max(vertices, axis=0)
         dimensions = max_coords - min_coords
@@ -642,11 +708,25 @@ class ShapeMesh:
         if max_dimension > 0:
             # Scale to unit size
             scale_factor = 1.0 / max_dimension
-            scaled_vertices = vertices * scale_factor
+            vertices_scaled = vertices * scale_factor
         else:
-            scaled_vertices = vertices
+            vertices_scaled = vertices
+        
+        # Post-scaling recenter safety pass
+        # Convert faces to triangles for area calculations
+        triangles = []
+        for face in self.faces:
+            if len(face) >= 3:
+                triangles.append(face[:3])  # Use first 3 vertices for triangulation
+        triangles = np.array(triangles) if triangles else np.array([])
+        
+        final_bary = calculate_mass_barycenter(vertices_scaled, triangles)
+        final_bary_norm = np.linalg.norm(final_bary)
+        
+        if final_bary_norm > RECENTER_EPS:
+            vertices_scaled -= final_bary
             
-        return scaled_vertices
+        return vertices_scaled
     
     def get_normalization_info(self):
         """Get detailed information about the normalization process"""
