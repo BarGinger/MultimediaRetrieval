@@ -17,6 +17,16 @@ def build_layout(file_df, dataset_options, selected_dataset):
     dcc.Store(id="toast-store", data={"message": "", "type": "", "icon": "", "timestamp": 0}),
     dcc.Interval(id="toast-interval", interval=100, n_intervals=0, disabled=True),
 
+    # Global loading indicator for shape loading
+    html.Div([
+        html.Div([
+            html.Div([
+                html.Span("🔄", className="loading-spinner"),
+                html.Span("Loading shape...", className="loading-text")
+            ], className="loading-content")
+        ], className="global-loading-backdrop")
+    ], id="global-loading-indicator", className="global-loading-container", style={'display': 'none'}),
+
     html.Div([            
             # Left panel: file browser
             html.Div([
