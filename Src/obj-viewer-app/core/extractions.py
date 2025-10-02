@@ -3,6 +3,7 @@ import numpy as np
 from core.shapeMesh import ShapeMesh
 import math
 from scipy.spatial.distance import pdist
+from core.transformations import MeshTransformations
 
 class MeshExtractions:
     def test():
@@ -11,9 +12,9 @@ class MeshExtractions:
         shape2 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1338_unified.obj")
         shape3 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
 
-        area1 = MeshExtractions.diameter(shape1)
-        area2 = MeshExtractions.diameter(shape2)
-        area3 = MeshExtractions.diameter(shape3)
+        area1 = MeshExtractions.eccentricity(shape1)
+        area2 = MeshExtractions.eccentricity(shape2)
+        area3 = MeshExtractions.eccentricity(shape3)
 
         pass
 
@@ -88,19 +89,19 @@ class MeshExtractions:
         return float(pdist(mesh.vertices, metric="euclidean").max())
 
     @staticmethod
-    def convexity(mesh):
+    def convexity(mesh, V_mesh: float = None, V_hull: float = None) -> float:
         """Returns the convexity (shape volume divided by convex hull volume)."""
-        hull = mesh.convex_hull
-        hull_volume = hull.volume
-        if hull_volume == 0:
+        if V_mesh is None:
+            V_mesh = MeshExtractions.volume(mesh)
+        if V_hull is None:
+            V_hull = MeshExtractions.volume(MeshTransformations.create_convex_hull(mesh))
+        
+        if V_hull == 0:
             return 0
-        return mesh.volume / hull_volume
+        return V_mesh / V_hull
 
     @staticmethod
-    def eccentricity(mesh):
+    def eccentricity(mesh: ShapeMesh) -> float:
         """Returns the eccentricity (ratio of largest to smallest eigenvalues of covariance matrix)."""
-        cov = np.cov(mesh.vertices.T)
-        eigvals = np.linalg.eigvalsh(cov)
-        if np.min(eigvals) == 0:
-            return 0
-        return np.max(eigvals) / np.min(eigvals)
+        w, h, d = mesh.dimensions
+        return max(w,h,d) / min(w,h,d)

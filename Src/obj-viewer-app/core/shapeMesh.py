@@ -832,4 +832,20 @@ class ShapeMesh:
         # Fall back to computing normalization
         return self.apply_full_normalization()
 
+    def save_as_obj(self, filepath: str):
+        """
+        Save this ShapeMesh to a Wavefront OBJ file.
+
+        Args:
+            filepath (str): Destination file path (should end with .obj)
+        """
+        with open(filepath, "w") as f:
+            # Write vertices
+            for v in self.vertices:
+                f.write(f"v {v[0]} {v[1]} {v[2]}\n")
+
+            # Write faces (OBJ is 1-based indexing)
+            for face in self.faces:
+                f.write("f " + " ".join(str(idx + 1) for idx in face) + "\n")
+
     
