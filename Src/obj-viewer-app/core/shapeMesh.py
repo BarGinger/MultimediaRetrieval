@@ -213,6 +213,7 @@ class ShapeMesh:
             return 0
         return np.max(eigvals) / np.min(eigvals)
 
+    # Exactly the properties of the OBB_aligned bounding box: width, height, depth
     @property
     def dimensions(self):
         """Get the dimensions (width, height, depth) of the mesh."""
