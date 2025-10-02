@@ -4,8 +4,12 @@ from core.shapeMesh import ShapeMesh
 import math
 from scipy.spatial.distance import pdist
 from core.transformations import MeshTransformations
+from typing import Tuple, List
 
 class MeshExtractions:
+    """
+    Note that all extractions assume that the mesh is normalized, and centered around the barecenter.
+    """
     def test():
         # create shapeMesh object and compute properties
         shape1 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Door\\D01005_unified.obj")
@@ -99,9 +103,29 @@ class MeshExtractions:
         if V_hull == 0:
             return 0
         return V_mesh / V_hull
+    
+    @staticmethod
+    def get_eigen_values_vectors(mesh: ShapeMesh) -> Tuple[List[float], List[List[float]]]:
+        """Compute eigenvalues (λ) and eigenvectors of the mesh vertices."""
+        vertices = mesh.vertices
+
+        cov = np.cov(vertices, rowvar=False)
+
+        eigenvalues, eigenvectors = np.linalg.eigh(cov)
+
+        # Sort descending
+        order = np.argsort(eigenvalues)[::-1]
+        eigenvalues = eigenvalues[order]
+        eigenvectors = eigenvectors[:, order]
+
+        return eigenvalues, eigenvectors.T
+    
 
     @staticmethod
     def eccentricity(mesh: ShapeMesh) -> float:
         """Returns the eccentricity (ratio of largest to smallest eigenvalues of covariance matrix)."""
-        w, h, d = mesh.dimensions
-        return max(w,h,d) / min(w,h,d)
+        eigenvalues, _ = MeshExtractions.get_eigen_values_vectors(mesh)
+        
+        if min(eigenvalues) == 0.0:
+            return 0.0
+        return max(eigenvalues) / min(eigenvalues)
