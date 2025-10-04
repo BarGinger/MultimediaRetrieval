@@ -3,16 +3,16 @@
   "category": "BuildingNonResidential",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 830,
-    "final_faces_count": 1521
+    "target_vertices": 7500,
+    "final_vertices_count": 9631,
+    "final_faces_count": 19018
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.4116425070575023,
-        0.5649804445499756,
-        0.3892064114359308
+        0.40479344894043723,
+        0.5934190893622363,
+        0.3899377683676317
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        1.2372967443111684e-17,
-        4.034256195505388e-16,
-        -2.402362111116604e-16
+        -0.001837234620671789,
+        0.16242847340968963,
+        0.0010287190155323699
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.06679605797469787,
-        0.04260688691197858,
-        0.014573021605750587
+        0.06588886309408462,
+        0.03813537436342063,
+        0.011033418615193248
       ],
       "eigenvectors": [
         [
-          -0.00032181875168698455,
-          0.9999643856067414,
-          0.008433501693998242
+          0.03231896959861092,
+          0.9989722398308041,
+          0.0317796829988973
         ],
         [
-          -0.00022939532549795365,
-          -0.008433575729916747,
-          0.9999644104557882
+          -0.014008043784997752,
+          -0.031340437034122794,
+          0.999410602163009
         ],
         [
-          0.9999999219052349,
-          0.0003198726924381109,
-          0.00023210123853627918
+          0.9993794369074248,
+          -0.032745092058757586,
+          0.012980756243834178
         ]
       ],
       "explained_variance_ratio": [
-        0.5387823129314184,
-        0.3436705364549925,
-        0.11754715061358903
+        0.5726595286492986,
+        0.33144577827419863,
+        0.09589469307650286
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -25.302557926963214,
-        -0.11521647318432571,
-        0.04956091185884404
+        934.6555066435778,
+        -20.45320299763631,
+        -11.436041941414658
       ],
       "flip_factors": [
+        1.0,
         -1.0,
-        -1.0,
-        1.0
+        -1.0
       ]
     },
     "final": {
       "center": [
-        6.003188241021907e-17,
-        3.0564573629740756e-17,
-        -4.19834431610652e-18
+        0.1682619744555298,
+        0.0041866975949483,
+        0.007406786466781685
       ],
       "bounding_box": {
         "min": [
-          -0.43041791726794953,
-          -0.38490247563196633,
-          -0.4060634478218019
+          -0.43614375521776405,
+          -0.37778629462740027,
+          -0.42038465363754407
         ],
         "max": [
-          0.5695820827320505,
-          0.38257641251094243,
-          0.40686589565558795
+          0.563856244782236,
+          0.3841089405209177,
+          0.3826981152731648
         ],
         "dimensions": [
           1.0,
-          0.7674788881429088,
-          0.8129293434773899
+          0.7618952351483179,
+          0.8030827689107088
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:04:18",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.7087677140787861,
+    "bary_after_translation": 7.14524594090425e-14,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-03 18:37:44",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\BuildingNonResidential\\m407_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\BuildingNonResidential\\m407_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\BuildingNonResidential\\m407_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\BuildingNonResidential\\m407_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\BuildingNonResidential\\m407_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\BuildingNonResidential\\m407_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 7.14524594090425e-14,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

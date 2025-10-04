@@ -3,16 +3,16 @@
   "category": "Starship",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 4070,
-    "final_faces_count": 8032
+    "target_vertices": 7500,
+    "final_vertices_count": 8843,
+    "final_faces_count": 17541
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.4284374416625031,
-        0.12484779768035328,
-        0.5522173512937543
+        0.39436134085154795,
+        0.11200713466204516,
+        0.5877491982566745
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        -1.4193669444796257e-15,
-        2.613525012023004e-16,
-        2.8338783681144537e-15
+        -0.035796072929498025,
+        -0.0269394878938503,
+        0.13669058781054527
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.0715682735498526,
-        0.03025138896816778,
-        0.001346696719988509
+        0.06788062927807993,
+        0.02485308303964821,
+        0.0012363256510829642
       ],
       "eigenvectors": [
         [
-          -0.027101063393186332,
-          -0.1230438997358117,
-          0.9920311139781665
+          -0.05563140442362104,
+          -0.1051526202550783,
+          0.9928988232923568
         ],
         [
-          0.9996309004948927,
-          -0.0014534818357296161,
-          0.02712840147010649
+          0.997771305230904,
+          -0.04255200571563094,
+          0.051397950031058084
         ],
         [
-          -0.0018960851058347512,
-          0.9924001643129431,
-          0.12303787519668398
+          0.03684520728227423,
+          0.9935452950233663,
+          0.1072854949993614
         ]
       ],
       "explained_variance_ratio": [
-        0.6937171581749991,
-        0.29322919982449536,
-        0.013053642000505477
+        0.7223646041370089,
+        0.264478801720789,
+        0.013156594142202048
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -55.891028319035,
-        0.8743759482873124,
-        -1.1588282652245496
+        945.4960392339166,
+        -116.53732975299287,
+        -15.1339858432384
       ],
       "flip_factors": [
-        -1.0,
         1.0,
+        -1.0,
         -1.0
       ]
     },
     "final": {
       "center": [
-        -7.206902287615882e-17,
-        9.073434912228026e-17,
-        4.286088273813949e-18
+        0.14654339589820214,
+        0.02872011989297322,
+        0.013992432909297704
       ],
       "bounding_box": {
         "min": [
-          -0.4456552869846835,
-          -0.4314334922899773,
-          -0.06656995903667304
+          -0.44512308737743755,
+          -0.41838420384458586,
+          -0.06357887954098151
         ],
         "max": [
-          0.5543447130153164,
-          0.4256885919440541,
-          0.09722268497591427
+          0.5548769126225626,
+          0.43188906356725665,
+          0.1009035552400579
         ],
         "dimensions": [
-          0.9999999999999999,
-          0.8571220842340315,
-          0.1637926440125873
+          1.0,
+          0.8502732674118425,
+          0.1644824347810394
         ]
       },
-      "max_dimension": 0.9999999999999999
+      "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:19:07",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.6385886270582117,
+    "bary_after_translation": 9.704777439867783e-15,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-03 23:06:31",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Starship\\m1361_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Starship\\m1361_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Starship\\m1361_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Starship\\m1361_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Starship\\m1361_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Starship\\m1361_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 9.704777439867783e-15,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }
