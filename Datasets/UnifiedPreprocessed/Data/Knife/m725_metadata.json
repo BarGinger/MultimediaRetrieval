@@ -3,16 +3,16 @@
   "category": "Knife",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 1036,
-    "final_faces_count": 2064
+    "target_vertices": 7500,
+    "final_vertices_count": 9019,
+    "final_faces_count": 18030
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.7118443086631884,
-        0.20605392459039235,
-        0.056572998158317275
+        0.7254929752704292,
+        0.1996338133122738,
+        0.058167556435557016
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        -1.023419873085931e-16,
-        -1.2088142584721782e-16,
-        4.077604834651275e-17
+        0.2682509246404108,
+        0.028519689345282845,
+        0.0009267903578427528
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.05274854877254706,
-        0.003048788045562734,
-        0.0005097232917550514
+        0.04200093364596398,
+        0.00354601760126412,
+        0.00040487429502501256
       ],
       "eigenvectors": [
         [
-          0.9900302778075867,
-          0.14085437910431006,
-          -0.0003048136675333563
+          0.9813994531963655,
+          0.1919689369399084,
+          0.001743707554773399
         ],
         [
-          -0.14085149563051208,
-          0.990019991567747,
-          0.004612209323731099
+          -0.19197468797660538,
+          0.9813910541669408,
+          0.004161487400642769
         ],
         [
-          0.0009514215051543617,
-          -0.004523293417119546,
-          0.9999893172498306
+          -0.0009123826829477097,
+          -0.00441882917322445,
+          0.9999898207014798
         ]
       ],
       "explained_variance_ratio": [
-        0.9368016847199176,
-        0.05414575081018294,
-        0.009052564469899384
+        0.9140210024375147,
+        0.07716815511504597,
+        0.008810842447439375
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -38.33838335844075,
-        -1.664860567256471,
-        -0.022866374603334683
+        1761.7133204908343,
+        -50.692613579730924,
+        0.07222177517398776
       ],
       "flip_factors": [
+        1.0,
         -1.0,
-        -1.0,
-        -1.0
+        1.0
       ]
     },
     "final": {
       "center": [
-        7.271103496217845e-17,
-        -8.157888778917958e-18,
-        -1.7950034423234914e-18
+        0.28237586131716264,
+        0.024697383931512266,
+        0.0005842264503722395
       ],
       "bounding_box": {
         "min": [
-          -0.278383908940895,
-          -0.1597652220843812,
-          -0.03238499568687793
+          -0.4520035846768134,
+          -0.18086986201488398,
+          -0.034790392399365745
         ],
         "max": [
-          0.721616091059105,
-          0.17683642312172218,
-          0.03342430479075068
+          0.5479964153231865,
+          0.187524103243123,
+          0.031130422962376402
         ],
         "dimensions": [
           1.0,
-          0.33660164520610336,
-          0.06580930047762862
+          0.36839396525800694,
+          0.06592081536174214
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:14:15",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.4915555325560808,
+    "bary_after_translation": 3.283319338138834e-14,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-03 21:25:28",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Knife\\m725_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Knife\\m725_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Knife\\m725_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Knife\\m725_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Knife\\m725_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Knife\\m725_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 3.283319338138834e-14,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

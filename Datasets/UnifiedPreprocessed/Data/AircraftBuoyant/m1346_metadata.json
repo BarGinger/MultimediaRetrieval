@@ -3,16 +3,16 @@
   "category": "AircraftBuoyant",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 2850,
-    "final_faces_count": 5496
+    "target_vertices": 7500,
+    "final_vertices_count": 8763,
+    "final_faces_count": 17147
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.16890018247035252,
-        0.1819008852129704,
-        0.46952377699969106
+        0.1581954693478687,
+        0.164228571896103,
+        0.42768273877266794
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        4.0571834391126334e-17,
-        -2.981046209103162e-17,
-        -2.1239540340925408e-15
+        -0.010874423651674679,
+        -0.03524893463504763,
+        -0.052084833010857305
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.08809139172317115,
-        0.006112426400334875,
-        0.003766848482771791
+        0.0797292138608032,
+        0.005641813135269368,
+        0.0032910138792124934
       ],
       "eigenvectors": [
         [
-          -0.001277767113264039,
-          -0.007979910376923315,
-          0.9999673436375712
+          -0.01956320667160547,
+          -0.03627438774747301,
+          0.999150363928408
         ],
         [
-          0.01327626795709625,
-          0.9998798937181455,
-          0.00799617704419632
+          -0.2827181352178511,
+          0.9587562718482622,
+          0.029272294248359573
         ],
         [
-          0.9999110500541216,
-          -0.013286051654537057,
-          0.001171670216969343
+          0.9590035124876575,
+          0.2819052677499441,
+          0.029011774354000402
         ]
       ],
       "explained_variance_ratio": [
-        0.8991608894240839,
-        0.06239037267041725,
-        0.038448737905498916
+        0.8992485744034804,
+        0.0636327912099985,
+        0.03711863438652108
       ]
     },
     "flipping": {
       "moment_test_values": [
-        47.57563799331675,
-        -1.0866487342980076,
-        -0.03795060075242418
+        -277.559095065461,
+        -67.38427038187064,
+        28.483596716661435
       ],
       "flip_factors": [
-        1.0,
         -1.0,
-        -1.0
+        -1.0,
+        1.0
       ]
     },
     "final": {
       "center": [
-        1.1908602758874047e-16,
-        1.6837165190340506e-17,
-        -2.530139840329962e-17
+        0.05299859299477038,
+        0.033807847893265276,
+        0.022936582334174414
       ],
       "bounding_box": {
         "min": [
-          -0.4686581356574438,
-          -0.17862477211661051,
-          -0.15207691327227976
+          -0.5186657452432567,
+          -0.14404693348504843,
+          -0.14389688306845044
         ],
         "max": [
-          0.5313418643425561,
-          0.16606452848735737,
-          0.16029375645007907
+          0.4813342547567433,
+          0.19050902355023977,
+          0.15490715854715043
         ],
         "dimensions": [
           1.0,
-          0.34468930060396785,
-          0.31237066972235883
+          0.3345559570352882,
+          0.29880404161560087
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:02:19",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.5463998785375158,
+    "bary_after_translation": 1.2847399779049291e-14,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-03 17:56:25",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1346_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1346_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1346_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1346_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1346_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1346_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 1.2847399779049291e-14,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

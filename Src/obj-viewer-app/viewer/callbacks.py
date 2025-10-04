@@ -10,7 +10,7 @@ import time
 from core.obj_parser import OBJParser
 from core.plotting import create_3d_plot
 import plotly.graph_objects as go
-from core.file_index import get_file_tree
+from core.file_index import get_file_tree, get_step_file_path, get_step_display_info, get_available_steps
 from core.analysis_cache import merge_analysis_data, get_analysis_data
 from core.dataset_cache import get_cached_dataset_data, get_available_datasets, preload_datasets
 from core.shapeMesh import ShapeMesh
@@ -35,7 +35,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     @app.callback(
         [Output('sort-order', 'children'),
          Output('sort-order', 'title'),
-         Output('sort-order', 'data-order')],
+         Output('sort-order', 'data-order'),
+         Output('toast-store', 'data', allow_duplicate=True)],
         [Input('sort-order', 'n_clicks')],
         prevent_initial_call=True
     )
@@ -49,16 +50,18 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         # Even clicks = ascending, odd clicks = descending
         if n_clicks % 2 == 0:
             print(f"✅ Creating ascending sort")  # Debug
-            return "↑", "Sort Order: Ascending (click to change to Descending)", "asc"
+            toast_data = create_toast_data("Sort order changed to Ascending", "info", "↑")
+            return "↑", "Sort Order: Ascending (click to change to Descending)", "asc", toast_data
         else:
             print(f"✅ Creating descending sort")  # Debug
-            return "↓", "Sort Order: Descending (click to change to Ascending)", "desc"
+            toast_data = create_toast_data("Sort order changed to Descending", "info", "↓")
+            return "↓", "Sort Order: Descending (click to change to Ascending)", "desc", toast_data
 
-    # Show toast message immediately when sort button is clicked (SAME AS LOADING)
+    # Show toast for filename filter changes
     app.clientside_callback(
         """
-        function(n_clicks) {
-            if (!n_clicks) {
+        function(filename_filter) {
+            if (!filename_filter || filename_filter.trim() === '') {
                 return window.dash_clientside.no_update;
             }
             
@@ -71,100 +74,24 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             // Force reflow then show
             setTimeout(function() {
                 const toastBar = document.getElementById('toast-message-bar');
-                if (toastBar && n_clicks % 2 === 0) {
-                    document.getElementById('toast-icon').innerHTML = '↑';
-                    document.getElementById('toast-message').innerHTML = 'Sort order changed to Ascending';
+                if (toastBar) {
+                    document.getElementById('toast-icon').innerHTML = '🔍';
+                    document.getElementById('toast-message').innerHTML = 'Filename filter applied: ' + filename_filter;
                     toastBar.style.display = 'block';
-                } else if (toastBar) {
-                    document.getElementById('toast-icon').innerHTML = '↓';
-                    document.getElementById('toast-message').innerHTML = 'Sort order changed to Descending';
-                    toastBar.style.display = 'block';
+                    
+                    // Auto-hide after 3 seconds
+                    setTimeout(function() {
+                        if (toastBar) {
+                            toastBar.style.display = 'none';
+                        }
+                    }, 3000);
                 }
             }, 10);
             
             return window.dash_clientside.no_update;
         }
         """,
-        Output('toast-message-bar', 'id', allow_duplicate=True),
-        Input('sort-order', 'n_clicks'),
-        prevent_initial_call=True
-    )
-
-    # Auto-hide toast after 3 seconds - triggered by any button click
-    app.clientside_callback(
-        """
-        function(sort_clicks, vertices_clicks, faces_clicks) {
-            const ctx = window.dash_clientside.callback_context;
-            if (!ctx.triggered.length) {
-                return window.dash_clientside.no_update;
-            }
-            
-            // Clear any existing timeout
-            if (window.toastTimeout) {
-                clearTimeout(window.toastTimeout);
-            }
-            
-            // Set new timeout to hide after 3 seconds
-            window.toastTimeout = setTimeout(function() {
-                const toastBar = document.getElementById('toast-message-bar');
-                if (toastBar) {
-                    toastBar.style.display = 'none';
-                }
-            }, 3000);
-            
-            return window.dash_clientside.no_update;
-        }
-        """,
-        Output('toast-message-bar', 'id', allow_duplicate=True),
-        [Input('sort-order', 'n_clicks'),
-         Input('avg-vertices-btn', 'n_clicks'),
-         Input('avg-faces-btn', 'n_clicks')],
-        prevent_initial_call=True
-    )
-
-    # Show toast for filename filter changes
-    app.clientside_callback(
-        """
-        function(filename_filter) {
-            try {
-                if (!filename_filter || filename_filter.trim() === '') {
-                    return window.dash_clientside.no_update;
-                }
-                
-                // Always hide first, then show to ensure animation works
-                const toastBar = document.getElementById('toast-message-bar');
-                if (toastBar) {
-                    toastBar.style.display = 'none';
-                }
-                
-                // Force reflow then show
-                setTimeout(function() {
-                    const toastBar = document.getElementById('toast-message-bar');
-                    const toastIcon = document.getElementById('toast-icon');
-                    const toastMessage = document.getElementById('toast-message');
-                    
-                    if (toastBar && toastIcon && toastMessage) {
-                        toastIcon.innerHTML = '🔍';
-                        toastMessage.innerHTML = 'Filename filter applied: ' + filename_filter;
-                        toastBar.style.display = 'block';
-                        
-                        // Auto-hide after 2 seconds for filter
-                        setTimeout(function() {
-                            if (toastBar) {
-                                toastBar.style.display = 'none';
-                            }
-                        }, 2000);
-                    }
-                }, 10);
-                
-                return window.dash_clientside.no_update;
-            } catch (error) {
-                console.error('Error in filename filter toast:', error);
-                return window.dash_clientside.no_update;
-            }
-        }
-        """,
-        Output('toast-message-bar', 'id', allow_duplicate=True),
+        Output('dummy-div', 'children', allow_duplicate=True),  # Dummy output since we manipulate DOM directly
         Input('filename-filter', 'value'),
         prevent_initial_call=True
     )
@@ -344,6 +271,13 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     document.getElementById('toast-icon').innerHTML = '📊';
                     document.getElementById('toast-message').innerHTML = 'Scrolling to Average Vertices shape';
                     toastBar.style.display = 'block';
+                    
+                    // Auto-hide after 3 seconds
+                    setTimeout(function() {
+                        if (toastBar) {
+                            toastBar.style.display = 'none';
+                        }
+                    }, 3000);
                 }
             }, 10);
             
@@ -376,6 +310,13 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     document.getElementById('toast-icon').innerHTML = '🔷';
                     document.getElementById('toast-message').innerHTML = 'Scrolling to Average Faces shape';
                     toastBar.style.display = 'block';
+                    
+                    // Auto-hide after 3 seconds
+                    setTimeout(function() {
+                        if (toastBar) {
+                            toastBar.style.display = 'none';
+                        }
+                    }, 3000);
                 }
             }, 10);
             
@@ -624,7 +565,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             try:
                 mesh = ShapeMesh.from_file_row(row)
                 info = mesh.get_card_header_html()
-                return selected_idx, info, dash.no_update
+                # Return in correct order: selected-file-store, shape-info, toast-store
+                return {'filename': row['filename'], 'dataset': selected_dataset}, info, dash.no_update
             except Exception as e:
                 err_info = html.Div([
                     html.H4("❌ Error Loading Average Shape", style={'color': '#e74c3c', 'marginBottom': '15px'}),
@@ -632,7 +574,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
                 ])
                 error_toast_data = dash.no_update  # No old toast system
-                return selected_idx, err_info, error_toast_data
+                return {'filename': row['filename'], 'dataset': selected_dataset}, err_info, error_toast_data
         
         return no_update, no_update, no_update
 
@@ -672,15 +614,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
-    # Client-side callback to scroll to selected file in the list
+    # Client-side callback to scroll to selected file in the list (with lazy loading support)
     app.clientside_callback(
         """
         function(selectedFileData) {
             console.log('Client-side scroll callback triggered with selectedFileData:', selectedFileData);
             
-            // Wait a bit for the DOM to be ready
-            setTimeout(function() {
-                // Find the file list container - try multiple selectors
+            function findAndScrollToFile() {
+                // Find the file list container
                 let fileListContainer = document.querySelector('#file-list .file-list-panel');
                 if (!fileListContainer) {
                     fileListContainer = document.querySelector('#file-list > div');
@@ -691,25 +632,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 
                 if (!fileListContainer) {
                     console.log('File list container not found');
-                    return;
-                }
-                console.log('Found file list container:', fileListContainer);
-                
-                // Find all file buttons - try multiple selectors
-                let fileButtons = fileListContainer.querySelectorAll('button.file-button');
-                if (fileButtons.length === 0) {
-                    fileButtons = fileListContainer.querySelectorAll('button[id*="file-btn"]');
-                }
-                if (fileButtons.length === 0) {
-                    fileButtons = fileListContainer.querySelectorAll('button');
+                    return false;
                 }
                 
+                // Find all file buttons
+                let fileButtons = fileListContainer.querySelectorAll('button[data-filename]');
                 console.log('Found', fileButtons.length, 'file buttons');
                 
                 // Always clear existing selections first
                 fileButtons.forEach(btn => {
                     btn.classList.remove('selected-file');
-                    btn.classList.remove('file-button-selected'); // Clear both selection classes
+                    btn.classList.remove('file-button-selected');
                     btn.style.backgroundColor = '';
                     btn.style.borderColor = '';
                     btn.style.color = '';
@@ -717,67 +650,79 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     btn.style.border = '';
                 });
                 
-                // If no file is selected (selectedFileData is null), just clear all selections
+                // If no file is selected, just clear all selections
                 if (!selectedFileData || selectedFileData === null || selectedFileData === 'null') {
                     console.log('No file selected, cleared all selections');
-                    return;
+                    return true;
                 }
                 
-                // Extract index from selectedFileData if it's an object with an index property
-                let selected_idx = null;
-                if (typeof selectedFileData === 'number') {
-                    selected_idx = selectedFileData;
-                } else if (selectedFileData && typeof selectedFileData === 'object' && selectedFileData.index !== undefined) {
-                    selected_idx = selectedFileData.index;
-                } else if (selectedFileData && typeof selectedFileData === 'object' && selectedFileData.file_idx !== undefined) {
-                    selected_idx = selectedFileData.file_idx;
+                // Extract filename from selectedFileData
+                let targetFilename = null;
+                if (typeof selectedFileData === 'object' && selectedFileData.filename) {
+                    targetFilename = selectedFileData.filename;
                 }
                 
-                console.log('Extracted selected_idx:', selected_idx);
+                if (!targetFilename) {
+                    console.log('No target filename found');
+                    return true;
+                }
                 
-                if (selected_idx !== null && fileButtons.length > selected_idx) {
-                    const targetButton = fileButtons[selected_idx];
-                    console.log('Target button found:', targetButton);
-                    
-                    // Add selection styling to target button
-                    targetButton.classList.add('selected-file');
-                    // Remove inline styles to let CSS handle the appearance
-                    targetButton.style.backgroundColor = '';
-                    targetButton.style.borderColor = '';
-                    targetButton.style.color = '';
-                    targetButton.style.transition = 'all 0.3s ease';
-                    
-                    // Scroll to the target button within the container
-                    const containerRect = fileListContainer.getBoundingClientRect();
-                    const buttonRect = targetButton.getBoundingClientRect();
-                    
-                    // Calculate if button is visible in container
-                    const isVisible = (
-                        buttonRect.top >= containerRect.top &&
-                        buttonRect.bottom <= containerRect.bottom
-                    );
-                    
-                    if (!isVisible) {
-                        // Scroll the button into view within the container
-                        const scrollTop = targetButton.offsetTop - fileListContainer.offsetTop - 
-                                        (fileListContainer.clientHeight / 2) + (targetButton.clientHeight / 2);
-                        
-                        fileListContainer.scrollTo({
-                            top: scrollTop,
-                            behavior: 'smooth'
-                        });
+                // Find the button with matching filename
+                let targetButton = null;
+                fileButtons.forEach(btn => {
+                    if (btn.getAttribute('data-filename') === targetFilename) {
+                        targetButton = btn;
                     }
+                });
+                
+                if (targetButton) {
+                    console.log('Found target button for:', targetFilename);
+                    // Apply selected styling
+                    targetButton.classList.add('selected-file');
+                    targetButton.style.backgroundColor = '#e3f2fd';
+                    targetButton.style.borderColor = '#2196f3';
+                    targetButton.style.color = '#1976d2';
+                    targetButton.style.boxShadow = '0 2px 8px rgba(33, 150, 243, 0.3)';
+                    targetButton.style.border = '2px solid #2196f3';
                     
-                    console.log('Selection and scroll applied to target button');
+                    // Scroll to the button
+                    targetButton.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                    return true;
                 } else {
-                    console.log('Target index', selected_idx, 'is out of range for', fileButtons.length, 'buttons');
+                    console.log('Target button not found for:', targetFilename, '- may need to load more files');
+                    return false;
                 }
-            }, 100); // Small delay to ensure DOM is ready
+            }
+            
+            // First attempt to find and scroll
+            setTimeout(function() {
+                const found = findAndScrollToFile();
+                
+                if (!found && selectedFileData && selectedFileData.filename) {
+                    // If not found, try loading more files automatically
+                    console.log('Attempting to load more files to find target...');
+                    const loadMoreBtn = document.getElementById('load-more-btn');
+                    if (loadMoreBtn) {
+                        const hasMore = loadMoreBtn.style.getPropertyValue('data-has-more') === 'true';
+                        if (hasMore) {
+                            loadMoreBtn.click();
+                            
+                            // Try again after loading more files
+                            setTimeout(function() {
+                                findAndScrollToFile();
+                            }, 1000);
+                        }
+                    }
+                }
+            }, 100);
             
             return window.dash_clientside.no_update;
         }
         """,
-        Output('file-list', 'id'),  # Dummy output
+        Output('dummy-div', 'children'),
         Input('selected-file-store', 'data'),
         prevent_initial_call=True
     )
@@ -874,19 +819,20 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 const toastElements = document.querySelectorAll('.toast:not(.show)');
                 toastElements.forEach(function(toast, index) {
                     setTimeout(function() {
-                        toast.classList.add('show');
+                        if (toast && toast.classList) {
+                            toast.classList.add('show');
+                        }
                     }, index * 100); // Stagger animations
                 });
                 
-                // Auto-hide after 3 seconds
+                // Auto-hide after 3 seconds - just hide, don't remove (let React manage DOM)
                 setTimeout(function() {
                     toastElements.forEach(function(toast) {
-                        toast.classList.remove('show');
-                        setTimeout(function() {
-                            if (toast.parentNode) {
-                                toast.parentNode.removeChild(toast);
-                            }
-                        }, 300); // Wait for fade out animation
+                        if (toast && toast.classList) {
+                            toast.classList.remove('show');
+                            toast.style.opacity = '0';
+                            toast.style.transform = 'translateX(-100%)';
+                        }
                     });
                 }, 3000);
             }, 100);
@@ -899,9 +845,121 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # Dynamic file list height adjustment
+    app.clientside_callback(
+        """
+        function(file_list_content) {
+            function adjustFileListHeight() {
+                const fileListPanel = document.querySelector('.file-list-panel');
+                if (!fileListPanel) return;
+                
+                const sidePanel = document.querySelector('.side-panel');
+                if (!sidePanel) return;
+                
+                const sidePanelRect = sidePanel.getBoundingClientRect();
+                
+                // Find the file list panel's position relative to the side panel
+                const fileListRect = fileListPanel.getBoundingClientRect();
+                const fileListOffsetFromPanelTop = fileListRect.top - sidePanelRect.top;
+                
+                // Account for side panel padding bottom
+                const sidePanelStyle = getComputedStyle(sidePanel);
+                const sidePanelPaddingBottom = parseInt(sidePanelStyle.paddingBottom || 0);
+                
+                // Account for file list panel margins and padding
+                const fileListStyle = getComputedStyle(fileListPanel);
+                const fileListPaddingBottom = parseInt(fileListStyle.paddingBottom || 0);
+                const fileListMarginBottom = parseInt(fileListStyle.marginBottom || 0);
+                const fileListBorderBottom = parseInt(fileListStyle.borderBottomWidth || 0);
+                
+                // IMPORTANT: Reserve space for the load more button container
+                const loadMoreContainer = document.querySelector('.load-more-container');
+                let loadMoreHeight = 0;
+                if (loadMoreContainer) {
+                    const loadMoreRect = loadMoreContainer.getBoundingClientRect();
+                    loadMoreHeight = loadMoreRect.height;
+                    console.log('- Load more button height:', loadMoreHeight);
+                }
+                // If button not found, estimate it (button + padding + margins)
+                if (loadMoreHeight === 0) {
+                    loadMoreHeight = 50; // Estimated: button (28px) + margins (10px top + 10px bottom) + padding
+                    console.log('- Load more button not found, using estimated height:', loadMoreHeight);
+                }
+                
+                // Calculate available height: total panel height minus offset from top minus bottom spacing minus button space
+                const bottomSpacing = sidePanelPaddingBottom + fileListPaddingBottom + fileListMarginBottom + fileListBorderBottom + loadMoreHeight;
+                const availableHeight = sidePanelRect.height - fileListOffsetFromPanelTop - bottomSpacing;
+                
+                // Add some buffer to prevent overflow
+                const buffer = 20; // Increased buffer for safety
+                const minHeight = 200;
+                const maxHeight = Math.max(minHeight, availableHeight - buffer);
+                
+                // Apply the calculated height
+                fileListPanel.style.height = maxHeight + 'px';
+                fileListPanel.style.maxHeight = maxHeight + 'px';
+                
+                console.log('File list height calculation:');
+                console.log('- Side panel height:', sidePanelRect.height);
+                console.log('- File list offset from panel top:', fileListOffsetFromPanelTop);
+                console.log('- Bottom spacing needed (including button):', bottomSpacing);
+                console.log('- Available height:', availableHeight);
+                console.log('- Buffer applied:', buffer);
+                console.log('- Final height applied:', maxHeight + 'px');
+            }
+            
+            // Adjust on content change with a delay to ensure DOM is ready
+            setTimeout(adjustFileListHeight, 150);
+            
+            // Also adjust on window resize
+            if (!window.fileListResizeListener) {
+                window.fileListResizeListener = true;
+                window.addEventListener('resize', function() {
+                    setTimeout(adjustFileListHeight, 150);
+                });
+            }
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('file-list', 'className'),  # Dummy output
+        Input('file-list', 'children'),
+        prevent_initial_call=True
+    )
+
+    # Auto-scroll file list to top when dataset or filters change
+    app.clientside_callback(
+        """
+        function(dataset, category, filename, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order) {
+            // Wait for DOM to be ready
+            setTimeout(function() {
+                const fileListPanel = document.querySelector('.file-list-panel');
+                if (fileListPanel) {
+                    console.log('Scrolling file list to top due to filter/dataset change');
+                    fileListPanel.scrollTop = 0; // Scroll to top
+                }
+            }, 100);
+            
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('file-list', 'id'),  # Dummy output
+        [Input('selected-dataset-store', 'data'),
+         Input('category-filter', 'value'),
+         Input('filename-filter', 'value'),
+         Input('vertices-operator', 'value'),
+         Input('vertices-value', 'value'),
+         Input('faces-operator', 'value'),
+         Input('faces-value', 'value'),
+         Input('sort-field', 'value'),
+         Input('sort-order', 'data-order')],
+        prevent_initial_call=True
+    )
+
     # Toast system using stores (no DOM conflicts)
     @app.callback(
         [Output('toast-container', 'children'),
+         Output('toast-container', 'className'),
          Output('toast-interval', 'disabled'),
          Output('toast-interval', 'n_intervals')],
         Input('toast-store', 'data'),
@@ -913,7 +971,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         
         if not toast_data or not toast_data.get('message'):
             print("❌ No toast data or message")  # Debug
-            return [], True, 0
+            return [], "toast-container", True, 0
         
         print(f"✅ Creating toast: {toast_data['message']}")  # Debug
         toast_element = html.Div([
@@ -921,7 +979,18 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             html.Span(toast_data['message'], className="toast-message")
         ], className=f"toast {toast_data['type']}")
         
-        return [toast_element], False, 0  # Enable interval and reset counter
+        # Check if this is a missing step toast (ONLY warning toasts with specific missing step message)
+        message = toast_data.get('message', '').lower()
+        is_missing_step = (toast_data.get('icon') == '⚠️' and 
+                          toast_data.get('type') == 'warning' and
+                          'missing' in message and 
+                          ('step' in message or 'showing' in message))
+        container_class = "toast-container missing-step-position" if is_missing_step else "toast-container"
+        
+        print(f"🔍 Toast detection - Icon: '{toast_data.get('icon')}', Type: '{toast_data.get('type')}', Message: '{toast_data.get('message')}'")
+        print(f"📍 Is missing step: {is_missing_step}, Container class: {container_class}")  # Debug
+        
+        return [toast_element], container_class, False, 0  # Enable interval and reset counter
 
     @app.callback(
         [Output('toast-container', 'children', allow_duplicate=True),
@@ -931,18 +1000,64 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def clear_toast_after_delay(n_intervals, interval_disabled):
-        """Clear toast after 40 intervals (4 seconds at 100ms)"""
+        """Clear toast after 80 intervals (4 seconds at 50ms)"""
         if interval_disabled:
             return no_update, no_update
         
-        if n_intervals >= 40:  # 4 seconds
+        if n_intervals >= 80:  # 4 seconds at 50ms intervals
             return [], True  # Clear toast and disable interval
         
         return no_update, no_update
 
-    # 1) File list render
+    # Step Toast System - positioned over 3D viewer
     @app.callback(
-        Output('file-list', 'children'),
+        [Output('step-toast-container', 'children'),
+         Output('step-toast-interval', 'disabled'),
+         Output('step-toast-interval', 'n_intervals')],
+        Input('step-toast-store', 'data'),
+        prevent_initial_call=True
+    )
+    def show_step_toast(step_toast_data):
+        """Show step toast notification positioned over 3D viewer"""
+        print(f"🔔 Step toast callback triggered with data: {step_toast_data}")  # Debug
+        
+        if not step_toast_data or not step_toast_data.get('message'):
+            print("❌ No step toast data or message")  # Debug
+            return [], True, 0
+        
+        print(f"✅ Creating step toast: {step_toast_data['message']}")  # Debug
+        toast_element = html.Div([
+            html.Span(step_toast_data['icon'], className="toast-icon"),
+            html.Span(step_toast_data['message'], className="toast-message")
+        ], className=f"toast {step_toast_data['type']} show")
+        
+        return [toast_element], False, 0  # Enable interval and reset counter
+
+    @app.callback(
+        [Output('step-toast-container', 'children', allow_duplicate=True),
+         Output('step-toast-interval', 'disabled', allow_duplicate=True)],
+        Input('step-toast-interval', 'n_intervals'),
+        State('step-toast-interval', 'disabled'),
+        prevent_initial_call=True
+    )
+    def clear_step_toast_after_delay(n_intervals, interval_disabled):
+        """Clear step toast after 40 intervals (4 seconds at 100ms)"""
+        if interval_disabled:
+            return no_update, no_update
+        
+        if n_intervals >= 40:  # 4 seconds (shorter duration for step messages)
+            return [], True  # Clear toast and disable interval
+        
+        return no_update, no_update
+
+    # 1) File list render and data preparation
+    @app.callback(
+        [Output('file-list', 'children'),
+         Output('file-data-store', 'data'),
+         Output('current-batch-store', 'data'),
+         Output('load-more-btn', 'style'),
+         Output('file-count-info', 'children'),
+         Output('load-more-btn', 'data-has-more')],
         [Input('category-filter', 'value'),
          Input('filename-filter', 'value'),
          Input('vertices-operator', 'value'),
@@ -951,7 +1066,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          Input('faces-value', 'value'),
          Input('sort-field', 'value'),
          Input('sort-order', 'data-order'),
-         Input('selected-dataset-store', 'data')]
+         Input('selected-dataset-store', 'data')],
+        prevent_initial_call=True
     )
     def update_file_list(selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
         """
@@ -960,25 +1076,42 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         """
         return update_file_list_internal('none', selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset)
 
+    def create_file_button(item):
+        """Create a file button from item data"""
+        import base64
+        import pandas as pd
+        
+        raw_vertices = item.get('num_vertices', 0)
+        raw_faces = item.get('num_faces', 0)
+        vertices_count = f"{int(raw_vertices):,}" if pd.notna(raw_vertices) and raw_vertices > 0 else "N/A"
+        faces_count = f"{int(raw_faces):,}" if pd.notna(raw_faces) and raw_faces > 0 else "N/A"
+        
+        # Encode filename as base64 to avoid JSON parsing issues
+        encoded_filename = base64.b64encode(item['filename'].encode('utf-8')).decode('ascii')
+        
+        return html.Button(
+            html.Div([
+                html.Div([
+                    html.Strong(f"📁 {item['category']}", className="category-text", style={'fontSize': '0.9em'}),
+                    html.Span(f" | 📄 {item['filename']}", className="filename-text", style={'fontSize': '0.85em', 'color': '#555'})
+                ], style={'marginBottom': '2px'}),
+                html.Div([
+                    html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", 
+                            style={'marginRight': '8px', 'fontSize': '0.75em', 'color': '#888'}),
+                    html.Span(f"🔷 Faces: {faces_count}", className="stats-text", 
+                            style={'fontSize': '0.75em', 'color': '#888'})
+                ])
+            ]),
+            id={'type': 'file-btn', 'filename': encoded_filename},
+            className='file-button',
+            n_clicks=0,
+            **{'data-filename': item['filename'], 'data-file-index': item['original_index'], 'data-category': item['category']}
+        )
+
     def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
         """
-        Render the list of files based on current filters and sorting.
-        Optimized to avoid slow analysis computation during dataset switching.
-
-        Parameters:
-        - avg_filter: str, average filter option ('none', 'avg_faces', 'avg_vertices')
-        - selected_category: str, selected category filter ('all' or specific category)
-        - filename_filter: str, filename pattern filter (supports wildcards like m*, *153*)
-        - vertices_op: str, vertices comparison operator ('eq', 'gt', 'lt')
-        - vertices_val: int/None, vertices value for comparison
-        - faces_op: str, faces comparison operator ('eq', 'gt', 'lt')
-        - faces_val: int/None, faces value for comparison
-        - sort_field: str, field to sort by ('category', 'num_vertices', 'num_faces')
-        - sort_order: str, sort order ('asc' or 'desc')
-        - selected_dataset: str, currently selected dataset from dropdown
-
-        Returns:
-        - List of HTML button elements representing the files
+        Render the list of files based on current filters and sorting with lazy loading support.
+        Returns: [file_items, full_data, current_batch, load_more_style, file_count_info, has_more_attr]
         """
         if selected_dataset is None or selected_dataset == "":
             selected_dataset = 'Data'
@@ -988,28 +1121,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         if file_df.empty:
             return [html.P("❌ No files found in Data directory",
-                           style={'color': 'red', 'textAlign': 'center'})]
+                           style={'color': 'red', 'textAlign': 'center'})], [], 0, {'display': 'none'}, "📊 No files", 'false'
 
         # Cached data already includes analysis columns (num_vertices, num_faces)
-        # No need to merge again - this was causing data loss
         print(f"✅ Using cached data for {selected_dataset} with {len(file_df)} shapes")
-        print(f"📊 Available columns: {list(file_df.columns)}")
         
-        # Verify analysis data is present
-        has_vertices = 'num_vertices' in file_df.columns and not file_df['num_vertices'].isnull().all()
-        has_faces = 'num_faces' in file_df.columns and not file_df['num_faces'].isnull().all()
-        print(f"📈 Analysis data: vertices={has_vertices}, faces={has_faces}")
-        
-        # Check if we need analysis for sorting/filtering operations
-        needs_analysis_ops = (sort_field in ['num_vertices', 'num_faces'] or 
-                             avg_filter in ['avg_faces', 'avg_vertices'] or
-                             (vertices_val is not None and vertices_val != '') or
-                             (faces_val is not None and faces_val != ''))
-        
-        # If we need analysis for operations but don't have cached data, show a warning
-        if needs_analysis_ops and not (has_vertices and has_faces):
-            print(f"⚠️ Cannot perform {sort_field or avg_filter} operation - no analysis data available")
-
+        # Apply filters exactly like before
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
         
         # Apply filename filtering if provided
@@ -1017,11 +1134,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             try:
                 import fnmatch
                 pattern = filename_filter.strip()
-                # Use fnmatch to filter filenames with wildcard support
                 df = df[df['filename'].apply(lambda x: fnmatch.fnmatch(x.lower(), pattern.lower()))]
             except Exception as e:
                 print(f"❌ Error applying filename filter '{filename_filter}': {e}")
-                # Continue without filename filtering if there's an error
 
         # Apply vertices filtering if provided
         if vertices_val is not None and vertices_val != '' and not df.empty and 'num_vertices' in df.columns:
@@ -1035,7 +1150,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     df = df[df['num_vertices'] < vertices_val]
             except (ValueError, TypeError) as e:
                 print(f"❌ Error applying vertices filter '{vertices_val}': {e}")
-                # Continue without vertices filtering if there's an error
 
         # Apply faces filtering if provided
         if faces_val is not None and faces_val != '' and not df.empty and 'num_faces' in df.columns:
@@ -1049,14 +1163,13 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     df = df[df['num_faces'] < faces_val]
             except (ValueError, TypeError) as e:
                 print(f"❌ Error applying faces filter '{faces_val}': {e}")
-                # Continue without faces filtering if there's an error
 
+        # Apply sorting
         ascending = True if sort_order == 'asc' else False
         df = df.copy()
         if sort_field == 'category':
             df = df.sort_values(by=['category', 'filename'], ascending=ascending)
         elif sort_field in ['num_vertices', 'num_faces']:
-            # Check if required columns exist for sorting
             if sort_field not in df.columns:
                 return [html.Div([
                     html.P("⚠️ Sorting Not Available", style={
@@ -1064,15 +1177,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     }),
                     html.P(f"Cannot sort by {sort_field} - analysis data not available for this dataset.", style={
                         'color': '#7f8c8d', 'textAlign': 'center', 'marginBottom': '5px'
-                    }),
-                    html.P("Try sorting by Category instead.", style={
-                        'color': '#7f8c8d', 'textAlign': 'center', 'fontSize': '0.9em'
                     })
-                ])]
+                ])], [], 0, {'display': 'none'}, "📊 Sorting unavailable", 'false'
             df[sort_field] = df[sort_field].fillna(0)
             df = df.sort_values(by=sort_field, ascending=ascending)
 
-        # Now apply average filtering after sorting
+        # Apply average filtering
         if avg_filter == 'avg_faces' and 'num_faces' in df.columns and not df.empty:
             valid = df['num_faces'].dropna()
             if not valid.empty:
@@ -1080,10 +1190,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 idx = (df['num_faces'] - avg_f).abs().idxmin()
                 if idx in df.index:
                     df = df.loc[[idx]].reset_index(drop=True)
-                else:
-                    return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
-            else:
-                return [html.P("❌ No valid shapes for average by faces", style={'color': 'orange', 'textAlign': 'center'})]
         elif avg_filter == 'avg_vertices' and 'num_vertices' in df.columns and not df.empty:
             valid = df['num_vertices'].dropna()
             if not valid.empty:
@@ -1091,40 +1197,102 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 idx = (df['num_vertices'] - avg_v).abs().idxmin()
                 if idx in df.index:
                     df = df.loc[[idx]].reset_index(drop=True)
-                else:
-                    return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
-            else:
-                return [html.P("❌ No valid shapes for average by vertices", style={'color': 'orange', 'textAlign': 'center'})]
 
-        # Final reset of index to ensure sequential 0,1,2,... indices for button creation
+        # Keep track of original indices for proper file selection mapping
+        original_indices = df.index.tolist()
         df = df.reset_index(drop=True)
 
-        buttons = []
-        for btn_idx, (df_idx, row) in enumerate(df.iterrows()):
-            # Get vertex and face counts if available
-            vertices_count = f"{int(row.get('num_vertices', 0)):,}" if pd.notna(row.get('num_vertices')) else "N/A"
-            faces_count = f"{int(row.get('num_faces', 0)):,}" if pd.notna(row.get('num_faces')) else "N/A"
-            
-            btn = html.Button(
-                html.Div([
-                    html.Div([
-                        html.Strong(f"📁 {row['category']}", className="category-text", style={'fontSize': '0.9em'}),
-                        html.Span(f" | 📄 {row['filename']}", className="filename-text", style={'fontSize': '0.85em', 'color': '#555'})
-                    ], style={'marginBottom': '2px'}),
-                    html.Div([
-                        html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", 
-                                style={'marginRight': '8px', 'fontSize': '0.75em', 'color': '#888'}),
-                        html.Span(f"🔷 Faces: {faces_count}", className="stats-text", 
-                                style={'fontSize': '0.75em', 'color': '#888'})
-                    ])
-                ]),
-                id={'type': 'file-btn', 'index': int(btn_idx)},
-                className='file-button',
-                n_clicks=0,
-                **{'data-file-index': int(btn_idx)}
-            )
-            buttons.append(btn)
-        return buttons
+        # LAZY LOADING: Prepare complete dataset for store
+        full_data = []
+        for idx, (df_idx, row) in enumerate(df.iterrows()):
+            full_data.append({
+                'idx': idx,
+                'original_index': original_indices[idx],
+                'filename': row['filename'],
+                'category': row['category'],
+                'num_vertices': row.get('num_vertices', 0),
+                'num_faces': row.get('num_faces', 0)
+            })
+
+        # Initial batch - first 150 files
+        batch_size = 150
+        initial_batch = full_data[:batch_size]
+        
+        # Create file count info for top-left corner
+        total_files = len(full_data)
+        if total_files > batch_size:
+            file_count_info = f"📊 {batch_size} of {total_files:,} files"
+        else:
+            file_count_info = f"📊 {total_files:,} files"
+        
+        # Create file items without header (header is now in top-left corner)
+        file_items = []
+        for item in initial_batch:
+            file_items.append(create_file_button(item))
+        
+        # Show load-more button if there are more files (back to manual loading)
+        # No longer using infinite scroll
+        has_more_files = len(full_data) > batch_size
+        load_more_style = {'display': 'block', 'margin': '10px auto'} if has_more_files else {'display': 'none'}
+        has_more_attr = 'true' if has_more_files else 'false'
+        
+        return file_items, full_data, batch_size, load_more_style, file_count_info, has_more_attr
+
+    # Load more files callback
+    @app.callback(
+        [Output('file-list', 'children', allow_duplicate=True),
+         Output('current-batch-store', 'data', allow_duplicate=True),
+         Output('load-more-btn', 'style', allow_duplicate=True),
+         Output('file-count-info', 'children', allow_duplicate=True),
+         Output('load-more-btn', 'data-has-more', allow_duplicate=True)],
+        [Input('load-more-btn', 'n_clicks')],
+        [State('file-data-store', 'data'),
+         State('current-batch-store', 'data')],
+        prevent_initial_call=True
+    )
+    def load_more_files(n_clicks, full_data, current_batch):
+        """Load the next batch of files"""
+        if not n_clicks or not full_data:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        
+        batch_size = 150
+        new_batch = current_batch + batch_size
+        total_files = len(full_data)
+        
+        # Get all files up to the new batch
+        files_to_show = full_data[:new_batch]
+        
+        # Create file items without header (header is now in top-left corner)
+        file_items = []
+        for item in files_to_show:
+            file_items.append(create_file_button(item))
+        
+        # Update file count info for top-left corner
+        remaining_files = total_files - new_batch
+        if remaining_files > 0:
+            file_count_info = f"📊 {new_batch} of {total_files:,} files"
+        else:
+            file_count_info = f"📊 All {total_files:,} files"
+        
+        # Show load-more button if there are more files (back to manual loading)
+        # No longer using infinite scroll  
+        has_more_files = remaining_files > 0
+        load_more_style = {'display': 'block', 'margin': '10px auto'} if has_more_files else {'display': 'none'}
+        has_more_attr = 'true' if has_more_files else 'false'
+        
+        return file_items, new_batch, load_more_style, file_count_info, has_more_attr
+
+    # Client-side infinite scroll detection - TEMPORARILY DISABLED
+    # app.clientside_callback(
+    #     """
+    #     function(n_intervals) {
+    #         return window.dash_clientside.no_update;
+    #     }
+    #     """,
+    #     Output('scroll-sentinel', 'id'),
+    #     Input('scroll-interval', 'n_intervals'),
+    #     prevent_initial_call=True
+    # )
 
     # 2) Selected file highlight (client-side)
     app.clientside_callback(
@@ -1163,11 +1331,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         Input('selected-file-store', 'data')
     )
 
-    # 3) Click handler -> loads file, updates info + selected index
+    # 3) Click handler -> loads file, updates info + selected filename
     @app.callback(
         [Output('shape-info', 'children'),
          Output('selected-file-store', 'data')],
-        [Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
+        [Input({'type': 'file-btn', 'filename': dash.dependencies.ALL}, 'n_clicks'),
          Input('category-filter', 'value'),
          Input('filename-filter', 'value'),
          Input('vertices-operator', 'value'),
@@ -1208,10 +1376,33 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             if (trig.get('value') or 0) <= 0:
                 return no_update, no_update
             try:
-                comp_id = json.loads(prop_id.split('.')[0])
-                file_idx = comp_id['index']
-            except Exception:
-                return no_update, no_update
+                prop_id_str = prop_id.split('.')[0]
+                print(f"[DEBUG] Raw prop_id: {prop_id_str}")
+                comp_id = json.loads(prop_id_str)
+                
+                # Decode the base64 encoded filename
+                import base64
+                encoded_filename = comp_id['filename']
+                clicked_filename = base64.b64decode(encoded_filename).decode('utf-8')
+                print(f"[DEBUG] Decoded filename: {clicked_filename}")
+                
+                # Get the full dataset to find the index of this filename
+                file_df = get_cached_dataset_data(selected_dataset)
+                if file_df is None or file_df.empty:
+                    return html.P("❌ No data available"), None
+                
+                # Find the index of the clicked filename in the original dataset
+                matching_rows = file_df[file_df['filename'] == clicked_filename]
+                if matching_rows.empty:
+                    return html.P(f"❌ File {clicked_filename} not found"), None
+                
+                file_idx = matching_rows.index[0]  # Get the original DataFrame index
+                print(f"🎯 Clicked filename: {clicked_filename}, found at index: {file_idx}")
+                
+            except Exception as e:
+                print(f"❌ Error parsing clicked file: {e}")
+                print(f"[DEBUG] Failed prop_id: {prop_id}")
+                return html.P(f"❌ Error processing file click: {e}"), None
 
             # Rebuild file_df for current filters
             if selected_dataset is None or selected_dataset == "":
@@ -1281,21 +1472,28 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 df = df.sort_values(by=sort_field, ascending=ascending)
             
             df = df.reset_index(drop=True)
-            if file_idx >= len(df):
-                return no_update, no_update
-                return no_update, no_update
-            row = df.iloc[file_idx]
+            
+            # Find the clicked file in the filtered dataset using filename
+            matching_filtered_rows = df[df['filename'] == clicked_filename]
+            if matching_filtered_rows.empty:
+                return html.P(f"❌ File {clicked_filename} not found in filtered results"), None
+            
+            filtered_file_idx = matching_filtered_rows.index[0]  # Get index in filtered dataset
+            print(f"🎯 File {clicked_filename} found at filtered index: {filtered_file_idx}")
+            
+            row = df.iloc[filtered_file_idx]
             try:
                 mesh = ShapeMesh.from_file_row(row)
                 info = mesh.get_card_header_html()
-                return info, file_idx
+                # Return the filename instead of index for more robust identification
+                return info, {'filename': clicked_filename, 'dataset': selected_dataset}
             except Exception as e:
                 err = html.Div([
                     html.H4("❌ Error Loading File", style={'color': '#e74c3c', 'marginBottom': '15px'}),
                     html.Div([html.Strong("📄 File: "), row['filepath']], style={'marginBottom': '8px'}),
                     html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
                 ])
-                return err, file_idx
+                return err, {'filename': clicked_filename, 'dataset': selected_dataset}
         else:
             # If triggered by filter/sort/dataset change, clear selection
             empty_info = html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint")
@@ -1303,11 +1501,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # 4) 3D viewer update
     @app.callback(
-        Output('3d-plot', 'figure'),
+        [Output('3d-plot', 'figure'),
+         Output('toast-store', 'data', allow_duplicate=True),
+         Output('step-toast-store', 'data', allow_duplicate=True)],
         [Input('display-options', 'value'),
          Input('selected-file-store', 'data'),
          Input('color-selector', 'value'),
          Input('normalization-toggle', 'value'),
+         Input('processing-step-slider', 'value'),
          Input('selected-dataset-store', 'data')],
         [State('category-filter', 'value'),
          State('sort-field', 'value'),
@@ -1316,9 +1517,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def update_plot(display_options, 
-                    selected_file_idx, 
+                    selected_file_data, 
                     mesh_color,                      
                     show_normalized,
+                    processing_step,
                     selected_dataset,
                     selected_category, 
                     sort_field, 
@@ -1330,10 +1532,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         Parameters:
         - display_options: list of str, display options selected (e.g., 'wireframe', 'smooth_shading')
-        - selected_file_idx: int or None, index of the selected file from the file list
+        - selected_file_data: dict with 'filename' and 'dataset', or None if no file selected
         - mesh_color: str, color selected for the mesh
+        - show_normalized: list of str, normalization toggle state
+        - processing_step: int, processing step index (0-5) for step-by-step viewing
         - selected_dataset: str, currently selected dataset from dropdown
-        - avg_filter: str, average filter option ('none', 'avg_faces', 'avg_vertices')
         - selected_category: str, selected category filter ('all' or specific category)
         - sort_field: str, field to sort by ('category', 'num_vertices', 'num_faces')
         - sort_order: str, sort order ('asc' or 'desc')
@@ -1347,86 +1550,141 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         camera = None
         if current_fig and 'layout' in current_fig and 'scene' in current_fig['layout']:
             camera = current_fig['layout']['scene'].get('camera', None)
-        if selected_file_idx is None:
+        
+        if selected_file_data is None:
             return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
-                                  mesh_color=mesh_color or 'lightblue')
+                                  mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
-        if selected_dataset is None or selected_dataset == "":
-            selected_dataset = 'Data'
+        # Safety check: ensure selected_file_data is a dictionary
+        if not isinstance(selected_file_data, dict):
+            print(f"❌ ERROR: selected_file_data should be dict, got {type(selected_file_data)}: {selected_file_data}")
+            return create_3d_plot(np.array([]), np.array([]), "Invalid selection data",
+                                  mesh_color=mesh_color or 'lightblue'), no_update, no_update
+
+        # Get filename and dataset from the selection data
+        selected_filename = selected_file_data.get('filename')
+        file_dataset = selected_file_data.get('dataset', selected_dataset)
+        
+        if not selected_filename:
+            return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
+                                  mesh_color=mesh_color or 'lightblue'), no_update, no_update
+
+        if file_dataset is None or file_dataset == "":
+            file_dataset = 'Data'
         
         # Use high-performance cached dataset
-        file_df = get_cached_dataset_data(selected_dataset)
+        file_df = get_cached_dataset_data(file_dataset)
 
         if file_df is None or file_df.empty:
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
-                                  mesh_color=mesh_color or 'lightblue')
+                                  mesh_color=mesh_color or 'lightblue'), None
 
-        df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
-        ascending = True if sort_order == 'asc' else False
-        df = df.copy()
-        if sort_field == 'category':
-            df = df.sort_values(by=['category', 'filename'], ascending=ascending)
-        elif sort_field in ['num_vertices', 'num_faces']:
-            # Check if required columns exist for sorting
-            if sort_field not in df.columns:
-                return create_3d_plot(np.array([]), np.array([]), 
-                                    f"⚠️ Cannot sort by {sort_field} - analysis data not available",
-                                    mesh_color=mesh_color or 'lightblue')
-            df[sort_field] = df[sort_field].fillna(0)
-            df = df.sort_values(by=sort_field, ascending=ascending)
-        # Reset index after sorting/filtering for consistent button indexing
-        df = df.reset_index(drop=True)
+        # Find the selected file by filename in the dataset
+        matching_rows = file_df[file_df['filename'] == selected_filename]
+        if matching_rows.empty:
+            return create_3d_plot(np.array([]), np.array([]), f"File {selected_filename} not found",
+                                  mesh_color=mesh_color or 'lightblue'), None
         
-        # Now use the filtered/sorted DataFrame for index lookup
-        if selected_file_idx >= len(df):
-            return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
-                                  mesh_color=mesh_color or 'lightblue')
-        row = df.iloc[selected_file_idx]
+        row = matching_rows.iloc[0]  # Get the first (and should be only) matching row
+        print(f"🎯 3D Plot: Loading {selected_filename} from {file_dataset}")
+        
+        # Determine which file to load based on processing step slider
+        step_row = row
+        title_suffix = ""
+        
+        # Only use step processing if we're in a dataset that supports it AND the slider is enabled
+        step_fallback_info = None
+        if (processing_step is not None and 
+            selected_dataset and 
+            ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset) and
+            row.get('has_processing_steps', False)):
+            
+            # Special handling for D00355 - force missing step 1 behavior
+            if 'D00355' in row.get('filename', '') and processing_step == 1:
+                print(f"[DEBUG] D00355 step 1 requested - forcing fallback to step 0 (original)")
+                # Force fallback to step 0 (original) since step 1 is missing
+                actual_file_path = row['filepath']
+                step_fallback_info = {
+                    'requested_step': 1,
+                    'actual_step': 0,
+                    'requested_step_name': 'Remeshed',
+                    'actual_step_name': 'Original',
+                    'step_available': False
+                }
+                title_suffix = f" (Original Step - Fallback)"
+                
+                # Create a temporary row with the step file path
+                step_row = row.copy()
+                step_row['filepath'] = actual_file_path
+                print(f"[DEBUG] D00355: Forced fallback from step 1 to step 0: {actual_file_path}")
+            else:
+                # Normal step processing
+                actual_file_path, actual_step_index, step_info = get_step_file_path(row, processing_step)
+                title_suffix = f" ({step_info['name']} Step)"
+                
+                # Check if we had to use a fallback
+                if step_info.get('fallback_used', False):
+                    step_fallback_info = {
+                        'requested_step': step_info['requested_step'],
+                        'actual_step': step_info['actual_step'],
+                        'requested_step_name': step_info.get('requested_step_name', 'Unknown'),
+                        'actual_step_name': step_info['name'],
+                        'step_available': step_info.get('step_available', False)
+                    }
+                    title_suffix = f" ({step_info['name']} Step - Fallback)"
+                
+                # Create a temporary row with the step file path
+                step_row = row.copy()
+                step_row['filepath'] = actual_file_path
+                
+                print(f"[DEBUG] Loading step {processing_step} -> {actual_step_index} file: {actual_file_path}")
+                if step_fallback_info:
+                    print(f"[DEBUG] Step fallback: requested {step_fallback_info['requested_step_name']} -> showing {step_fallback_info['actual_step_name']}")
         
         # Create ShapeMesh instance and handle special cases for different datasets
         try:
             # Special handling for NormalizedShapes dataset
             if selected_dataset == 'NormalizedShapes':
                 # NormalizedShapes dataset contains pre-normalized files
-                mesh = ShapeMesh.from_file_row(row)
+                mesh = ShapeMesh.from_file_row(step_row)
                 vertices = mesh.vertices  # Already normalized
-                title_suffix = " (Pre-normalized Dataset)"
+                title_suffix += " (Pre-normalized Dataset)"
                 camera_config = None  # Use default camera for normalized shapes
-                print(f"[DEBUG] Using pre-normalized vertices from NormalizedShapes dataset for {row['filename']}")
+                print(f"[DEBUG] Using pre-normalized vertices from NormalizedShapes dataset for {step_row['filename']}")
             
-            # Handle normalization toggle for other datasets
-            elif show_normalized and 'normalized' in show_normalized:
+            # Handle normalization toggle for other datasets (only if not using processing steps)
+            elif show_normalized and 'normalized' in show_normalized and not row.get('has_processing_steps', False):
                 from core.normalized_cache import normalized_cache
                 # Try to load from cache first
                 if normalized_cache.is_normalized_available(row['filename'], selected_dataset):
                     mesh = normalized_cache.load_normalized_shape(row['filename'], selected_dataset)
                     vertices = mesh.vertices
-                    title_suffix = " (Cached Normalized)"
+                    title_suffix += " (Cached Normalized)"
                     print(f"[DEBUG] Using cached normalized vertices for {row['filename']}")
                 else:
                     # Fall back to computing normalization
-                    mesh = ShapeMesh.from_file_row(row)
+                    mesh = ShapeMesh.from_file_row(step_row)
                     vertices = mesh.apply_full_normalization()
-                    title_suffix = " (Computed Normalized)"
+                    title_suffix += " (Computed Normalized)"
                     print(f"[DEBUG] Computing normalized vertices for {row['filename']} (cache not available)")
                 
                 camera_config = None  # Use default camera for normalized shapes
             else:
-                # Original shape
-                mesh = ShapeMesh.from_file_row(row)
+                # Load the selected step file or original shape
+                mesh = ShapeMesh.from_file_row(step_row)
                 vertices = mesh.vertices
-                title_suffix = ""
                 camera_config = mesh.get_optimal_camera_position()
-                print(f"[DEBUG] Using original vertices for {row['filename']}")
+                print(f"[DEBUG] Using step file for {step_row['filename']}")
             
             faces = mesh.faces
                 
         except Exception as e:
             print(f"[DEBUG] ShapeMesh failed: {e}")
             # Fallback to original method if ShapeMesh fails
-            vertices, faces = OBJParser.parse_obj_file(row['filepath'])
+            file_path_to_use = step_row['filepath'] if 'step_row' in locals() else row['filepath']
+            vertices, faces = OBJParser.parse_obj_file(file_path_to_use)
             camera_config = None
-            title_suffix = ""
+            title_suffix += " (Fallback Parser)"
         
         show_wire = 'wireframe' in (display_options or [])
         title = f"{row['category']} - {row['filename']}{title_suffix}"
@@ -1439,7 +1697,24 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         # If user had a previous camera position, restore it
         if camera:
             fig.update_layout(scene_camera=camera)
-        return fig
+        
+        # Create toast notification for step fallback if needed
+        # Handle missing step notification
+        regular_toast_data = no_update  # Don't interfere with other toasts
+        step_toast_data = no_update     # Don't send empty step toasts
+        
+        if step_fallback_info:
+            if not step_fallback_info['step_available']:
+                # Send step missing messages to the step-toast-store (positioned over 3D viewer)
+                step_toast_data = create_toast_data(
+                    f"ℹ️ Step '{step_fallback_info['requested_step_name']}' is not available for this shape. "
+                    f"Displaying '{step_fallback_info['actual_step_name']}' step instead.",
+                    "info",
+                    "ℹ️"
+                )
+                print(f"[DEBUG] Created step toast notification for missing step")
+            
+        return fig, regular_toast_data, step_toast_data
 
 
     # 5) Similar shapes rendering
@@ -1617,7 +1892,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          State('sort-order', 'data-order')],
         prevent_initial_call=True
     )
-    def update_normalization_toggle(selected_file_idx, selected_dataset, selected_category, sort_field, sort_order):
+    def update_normalization_toggle(selected_file_data, selected_dataset, selected_category, sort_field, sort_order):
         """
         Update the normalization toggle options and value based on the selected file's filename.
         Automatically check normalization if filename contains '_normalized' suffix.
@@ -1638,52 +1913,216 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         options = [{'label': '', 'value': 'normalized', 'disabled': True}]
         
         # If no file is selected, uncheck the toggle
-        if selected_file_idx is None:
+        if selected_file_data is None:
             return options, []
         
-        # Get the current file data to check filename
-        if selected_dataset is None or selected_dataset == "":
-            selected_dataset = 'Data'
+        # Extract filename from the selection data
+        if isinstance(selected_file_data, dict):
+            selected_filename = selected_file_data.get('filename')
+        else:
+            # Fallback for old format (shouldn't happen, but just in case)
+            return options, []
+        
+        if not selected_filename:
+            return options, []
         
         try:
-            # Use high-performance cached dataset (already merged)
-            file_df = get_cached_dataset_data(selected_dataset)
-            
-            if file_df.empty:
-                return options, []
-            
-            # Apply same filtering and sorting logic as other callbacks
-            df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
-            ascending = True if sort_order == 'asc' else False
-            df = df.copy()
-            
-            if sort_field == 'category':
-                df = df.sort_values(by=['category', 'filename'], ascending=ascending)
-            elif sort_field in ['num_vertices', 'num_faces'] and sort_field in df.columns:
-                df[sort_field] = df[sort_field].fillna(0)
-                df = df.sort_values(by=sort_field, ascending=ascending)
-            
-            df = df.reset_index(drop=True)
-            
-            # Check if the selected file index is valid
-            if selected_file_idx >= len(df):
-                return options, []
-            
-            # Get the filename and check for _normalized suffix
-            row = df.iloc[selected_file_idx]
-            filename = row['filename']
-            
             # Check if filename contains '_normalized' (case-insensitive)
-            if '_normalized' in filename.lower() or '_unified' in filename.lower():
+            if '_normalized' in selected_filename.lower() or '_unified' in selected_filename.lower():
                 # For normalized files, disable the checkbox and check it
-                options = [{'label': '', 'value': 'normalized', 'disabled': True}]
                 return options, ['normalized']  # Check the normalization toggle
             else:
                 # For non-normalized files, disable the checkbox and uncheck it
-                options = [{'label': '', 'value': 'normalized', 'disabled': True}]
                 return options, []  # Uncheck the normalization toggle
                 
         except Exception as e:
             print(f"[DEBUG] Error updating normalization toggle: {e}")
             return options, []
+
+    # Step slider control callbacks
+    @app.callback(
+        Output('display-step-panel', 'style'),
+        Input('selected-dataset-store', 'data'),
+        prevent_initial_call=True
+    )
+    def update_step_panel_visibility(selected_dataset):
+        """
+        Show/hide the step panel based on dataset type.
+        Only show for datasets that contain processed step files.
+        """
+        if selected_dataset and ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
+            return {'display': 'block'}
+        else:
+            return {'display': 'none'}
+
+    @app.callback(
+        [Output('processing-step-slider', 'disabled'),
+         Output('processing-step-slider', 'value'),
+         Output('processing-step-slider', 'max'),
+         Output('step-info-display', 'children'),
+         Output('step-info-display', 'className')],
+        [Input('selected-file-store', 'data'),
+         Input('selected-dataset-store', 'data')],
+        prevent_initial_call=True
+    )
+    def update_step_slider_state(selected_file_data, selected_dataset):
+        """
+        Enable/disable the step slider based on whether the selected shape has processing steps.
+        Updates the slider max value based on available steps for the selected shape.
+        """
+        # First check if we're in a dataset that should show step controls
+        if not selected_dataset or not ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
+            return True, 5, 5, "Not available for this dataset", "step-info-text"
+            
+        if selected_file_data is None:
+            return True, 5, 5, "Select a processed shape to enable step navigation", "step-info-text"
+        
+        # Extract filename from the selection data
+        if isinstance(selected_file_data, dict):
+            selected_filename = selected_file_data.get('filename')
+            file_dataset = selected_file_data.get('dataset', selected_dataset)
+        else:
+            return True, 5, 5, "Invalid shape selection", "step-info-text"
+        
+        if not selected_filename:
+            return True, 5, 5, "Invalid shape selection", "step-info-text"
+        
+        try:
+            # Get the file data for the selected shape
+            file_df = get_cached_dataset_data(file_dataset)
+            if file_df is None or file_df.empty:
+                return True, 5, 5, "Invalid shape selection", "step-info-text"
+            
+            # Find the file by filename
+            matching_rows = file_df[file_df['filename'] == selected_filename]
+            if matching_rows.empty:
+                return True, 5, 5, "Shape not found in dataset", "step-info-text"
+            
+            row = matching_rows.iloc[0]
+            
+            # Check if shape has processing steps
+            if not row.get('has_processing_steps', False):
+                return True, 5, 5, "This shape has no processing steps available", "step-info-text"
+            
+            # Get available step information
+            step_availability = get_available_steps(row)
+            available_indices = step_availability['available_step_indices']
+            recommended_max = step_availability['recommended_max_step']
+            
+            if not available_indices:
+                return True, 5, 5, "No processing steps found for this shape", "step-info-text"
+            
+            # Set slider max to the highest available step
+            slider_max = max(available_indices)
+            
+            # Set initial value to the recommended max step (usually the final step)
+            initial_value = recommended_max
+            
+            # Create info message showing available steps
+            missing_steps = step_availability['missing_step_indices']
+            if missing_steps:
+                step_names = ["Orig", "Mesh", "Trans", "Align", "Flip", "Scale"]
+                available_names = [step_names[i] for i in available_indices]
+                missing_names = [step_names[i] for i in missing_steps if i < len(step_names)]
+                info_msg = f"Available steps: {', '.join(available_names)}"
+                if missing_names:
+                    info_msg += f" (Missing: {', '.join(missing_names)})"
+            else:
+                info_msg = "All processing steps available"
+            
+            return False, initial_value, slider_max, info_msg, "step-info-text enabled"
+            
+        except Exception as e:
+            print(f"[DEBUG] Error updating step slider state: {e}")
+            return True, 5, 5, "Error checking processing steps", "step-info-text"
+
+    @app.callback(
+        [Output(f'step-label-{i}', 'className') for i in range(6)],
+        [Input('processing-step-slider', 'value'),
+         Input('processing-step-slider', 'disabled'),
+         Input('selected-file-store', 'data'),
+         Input('selected-dataset-store', 'data')],
+        prevent_initial_call=False
+    )
+    def update_step_labels(step_value, is_disabled, selected_file_data, selected_dataset):
+        """
+        Update step label highlighting based on current slider value, disabled state, and available steps.
+        """
+        print(f"\n� UPDATE_STEP_LABELS called")
+        print(f"   step_value={step_value}, is_disabled={is_disabled}")
+        print(f"   file_data={selected_file_data}, dataset={selected_dataset}")
+        
+        if step_value is None:
+            step_value = 0
+        
+        # Check for missing steps only when a file is selected
+        if (selected_file_data and selected_dataset and 
+            'UnifiedPreprocessed' in selected_dataset):
+            try:
+                filename = selected_file_data.get('filename', '')
+                print(f"📁 Processing shape: {filename}")
+                
+                # Get the file data directly from the dataset
+                file_df = get_cached_dataset_data(selected_dataset)
+                if file_df is not None and not file_df.empty:
+                    # Find the row with matching filename
+                    matching_rows = file_df[file_df['filename'] == filename]
+                    if not matching_rows.empty:
+                        row = matching_rows.iloc[0]
+                        print(f"✅ Found matching row for {filename}")
+                    
+                    # Get available steps for this shape
+                    from core.file_index import get_available_steps
+                    available_steps_info = get_available_steps(row)
+                    available_steps = available_steps_info.get('available_step_indices', [])
+                    print(f"� Available steps for {filename}: {available_steps}")
+                    
+                    class_names = []
+                    for i in range(6):
+                        if i not in available_steps:
+                            # This step is missing
+                            class_names.append("step-label missing")
+                            print(f"🔴 Step {i} is MISSING")
+                        elif i == step_value:
+                            class_names.append("step-label active")
+                            print(f"🟢 Step {i} is ACTIVE")
+                        else:
+                            class_names.append("step-label")
+                            print(f"⚪ Step {i} is NORMAL")
+                    
+                    print(f"🎯 Final class names: {class_names}")
+                    return class_names
+                    
+            except Exception as e:
+                print(f"❌ Error in step label processing: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Default fallback - no missing steps styling
+        class_names = []
+        for i in range(6):
+            if is_disabled:
+                class_names.append("step-label disabled")
+            elif i == step_value:
+                class_names.append("step-label active")
+            else:
+                class_names.append("step-label")
+        
+        print(f"📋 Default class names: {class_names}")
+        return class_names
+
+    @app.callback(
+        Output('step-info-display', 'children', allow_duplicate=True),
+        [Input('processing-step-slider', 'value')],
+        prevent_initial_call=True
+    )
+    def update_step_info_display(step_value):
+        """
+        Update the step info display based on slider position.
+        """
+        if step_value is None:
+            return "Select step"
+        
+        step_info = get_step_display_info(step_value)
+        return f"Step {step_value}: {step_info['name']} - {step_info['description']}"
 

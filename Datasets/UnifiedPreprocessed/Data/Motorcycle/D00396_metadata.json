@@ -3,16 +3,16 @@
   "category": "Motorcycle",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 2820,
-    "final_faces_count": 4999
+    "target_vertices": 7500,
+    "final_vertices_count": 9995,
+    "final_faces_count": 19019
   },
   "normalization_info": {
     "original": {
       "center": [
-        -0.016620245481864384,
-        -0.04979078620454979,
-        0.0027564566969163636
+        -0.009464246481493382,
+        -0.044427791968696874,
+        0.004193826710494917
       ],
       "bounding_box": {
         "min": [
@@ -34,45 +34,45 @@
     },
     "after_centering": {
       "center": [
-        4.7214301026751905e-15,
-        -1.7100190451983572e-15,
-        -6.507304545486899e-17
+        -0.007849885702249275,
+        0.014416702596109584,
+        -0.00024715645681845926
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.17463608481805,
-        0.06408006143932815,
-        0.0072565862637322615
+        0.12997964287245062,
+        0.049923961966632915,
+        0.006603931557356275
       ],
       "eigenvectors": [
         [
-          0.9948588095725792,
-          0.10126581851091628,
-          -0.001087665915749613
+          0.9947489508947056,
+          0.10234288250672965,
+          -0.0006775648279656125
         ],
         [
-          -0.10125454976443769,
-          0.9948307749985593,
-          0.007697094761447054
+          -0.10232937801417447,
+          0.9946902289020041,
+          0.010956592632323237
         ],
         [
-          0.0018614961270787276,
-          -0.0075473914089471995,
-          0.9999697854010836
+          0.0017952963862690188,
+          -0.010829724238974197,
+          0.9999397451765749
         ]
       ],
       "explained_variance_ratio": [
-        0.7099814805816413,
-        0.26051693121646535,
-        0.029501588201893355
+        0.6969136228155752,
+        0.2676779873415662,
+        0.03540838984285857
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -56.780991412093385,
-        -37.971638912843986,
-        -0.8932266369494292
+        -284.4397016617325,
+        -41.355926610333476,
+        -5.862798812814267
       ],
       "flip_factors": [
         -1.0,
@@ -82,30 +82,51 @@
     },
     "final": {
       "center": [
-        1.4284279039348314e-16,
-        -5.0589949880969015e-17,
-        -2.5491822994496057e-18
+        0.0036206579218281765,
+        -0.008656074761158632,
+        0.00023861009000124552
       ],
       "bounding_box": {
         "min": [
-          -0.45555638214888994,
-          -0.29478166645725984,
-          -0.17339502768195175
+          -0.44752674989047514,
+          -0.30056593991837166,
+          -0.1733437146244355
         ],
         "max": [
-          0.5444436178511102,
-          0.306043047816662,
-          0.1778702961861479
+          0.5524732501095247,
+          0.3000791019294301,
+          0.1780127260268626
         ],
         "dimensions": [
-          1.0,
-          0.6008247142739218,
-          0.35126532386809967
+          0.9999999999999999,
+          0.6006450418478018,
+          0.3513564406512981
         ]
       },
-      "max_dimension": 1.0
+      "max_dimension": 0.9999999999999999
     }
   },
-  "processing_timestamp": "2025-09-29 15:14:52",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.05903391425955606,
+    "bary_after_translation": 7.680754634457659e-16,
+    "bbox_before_scaling": 1.7840830087661743,
+    "bbox_after_scaling": 0.9999999999999999
+  },
+  "processing_timestamp": "2025-10-03 21:36:07",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Motorcycle\\D00396_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Motorcycle\\D00396_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Motorcycle\\D00396_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Motorcycle\\D00396_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Motorcycle\\D00396_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Motorcycle\\D00396_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 7.680754634457659e-16,
+    "scaling_error": 1.1102230246251565e-16,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

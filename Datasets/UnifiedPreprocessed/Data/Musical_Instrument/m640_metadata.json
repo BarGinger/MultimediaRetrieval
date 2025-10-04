@@ -3,16 +3,16 @@
   "category": "Musical_Instrument",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 2538,
-    "final_faces_count": 5000
+    "target_vertices": 7500,
+    "final_vertices_count": 8057,
+    "final_faces_count": 16042
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.20674407835521386,
-        0.8075621256029044,
-        0.15456790160762046
+        0.20784319627755415,
+        0.8976378524251986,
+        0.16044944818405668
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        -2.4107325014614807e-16,
-        -3.856297122098318e-15,
-        -2.0087250311578876e-16
+        0.0001274297303820076,
+        0.5515161139536943,
+        0.048211563801552546
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.06985729162574641,
-        0.004050800510813236,
-        0.0007101622325793514
+        0.03380318020742602,
+        0.0032345765124793735,
+        0.00027881683519594987
       ],
       "eigenvectors": [
         [
-          0.002228636939621763,
-          0.997575168991595,
-          0.06956159420816452
+          0.012286390257165426,
+          0.99753108207933,
+          0.06914322020335407
         ],
         [
-          0.9999913436759155,
-          -0.001978808217931563,
-          -0.003660176399223208
+          0.9999048468784832,
+          -0.011822987380536098,
+          -0.007107331307662515
         ],
         [
-          0.003513652035722591,
-          -0.06956914926479008,
-          0.997570943702725
+          0.006272304470115006,
+          -0.0692239644562529,
+          0.997581425720023
         ]
       ],
       "explained_variance_ratio": [
-        0.9361957367718636,
-        0.05428699109970853,
-        0.00951727212842792
+        0.9058489830935985,
+        0.08667935462250372,
+        0.007471662283897829
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -194.10186822342905,
-        0.08060101457097502,
-        0.9409151347667287
+        5415.538358599977,
+        -11.057890777580669,
+        -1.6262245915197577
       ],
       "flip_factors": [
-        -1.0,
         1.0,
-        1.0
+        -1.0,
+        -1.0
       ]
     },
     "final": {
       "center": [
-        -2.5114530890973915e-17,
-        -1.9318449300633757e-17,
-        1.3085269340361696e-17
+        0.5780422444253072,
+        0.007034605318981374,
+        0.010357572403207288
       ],
       "bounding_box": {
         "min": [
-          -0.17562695039691748,
-          -0.18838204599789807,
-          -0.07537410386231723
+          -0.34032718633139597,
+          -0.1925825296169241,
+          -0.10395346924353863
         ],
         "max": [
-          0.8243730496030826,
-          0.19265855116814556,
-          0.1146351904484991
+          0.6596728136686041,
+          0.1882587442689969,
+          0.08597646543014452
         ],
         "dimensions": [
           1.0,
-          0.38104059716604366,
-          0.1900092943108163
+          0.38084127388592104,
+          0.18992993467368313
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:15:44",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.4189790450672809,
+    "bary_after_translation": 3.698020580636311e-15,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-03 21:51:44",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Musical_Instrument\\m640_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Musical_Instrument\\m640_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Musical_Instrument\\m640_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Musical_Instrument\\m640_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Musical_Instrument\\m640_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Musical_Instrument\\m640_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 3.698020580636311e-15,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

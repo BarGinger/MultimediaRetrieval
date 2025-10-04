@@ -60,7 +60,7 @@ def preload_cache():
     print("✅ All datasets preloaded!")
 
 
-def main():
+def main(command=None):
     """Main command-line interface."""
     if len(sys.argv) < 2:
         print("Dataset Cache Management Utility")
@@ -87,4 +87,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() 

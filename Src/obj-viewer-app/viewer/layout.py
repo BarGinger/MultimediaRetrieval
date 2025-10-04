@@ -15,7 +15,19 @@ def build_layout(file_df, dataset_options, selected_dataset):
     # Toast notification system
     html.Div(id="toast-container", className="toast-container", children=[]),
     dcc.Store(id="toast-store", data={"message": "", "type": "", "icon": "", "timestamp": 0}),
-    dcc.Interval(id="toast-interval", interval=100, n_intervals=0, disabled=True),
+    dcc.Interval(id="toast-interval", interval=50, n_intervals=0, disabled=True),
+    
+    # Step-specific toast system (for 3D viewer overlay)
+    dcc.Store(id="step-toast-store", data={"message": "", "type": "", "icon": "", "timestamp": 0}),
+    dcc.Interval(id="step-toast-interval", interval=100, n_intervals=0, disabled=True),
+    
+    # Lazy loading system stores
+    dcc.Store(id="file-data-store", data=[]),  # Complete filtered dataset
+    dcc.Store(id="current-batch-store", data={"batch": 0, "batch_size": 150}),  # Current batch info
+    dcc.Store(id="scroll-trigger-store", data=None),  # Scroll detection trigger
+    
+    # Dummy div for clientside callbacks
+    html.Div(id="dummy-div", style={'display': 'none'}),
 
     # Global loading indicator for shape loading
     html.Div([
@@ -170,29 +182,48 @@ def build_layout(file_df, dataset_options, selected_dataset):
                 ], className="side-panel-controls"),
 
                 html.Div([
+                    # File count info - completely separate and in top-left
+                    html.Div(
+                        id='file-count-info',
+                        className="file-count-info",
+                        children="📊 Loading...",
+                        style={
+                            'fontSize': '13px',
+                            'color': '#3498db',
+                            'fontWeight': 'bold',
+                            'marginBottom': '8px',
+                            'textAlign': 'left',
+                            'width': '100%',
+                            'position': 'relative'
+                        }
+                    ),
+                    
+                    # File list header with action buttons
                     html.Div([
-                        html.Button(
-                            "📊",
-                            id='avg-vertices-btn',
-                            title="Scroll to Average Vertices",
-                            className="action-btn",
-                            n_clicks=0
-                        ),
-                        html.Button(
-                            "🔷",
-                            id='avg-faces-btn',
-                            title="Scroll to Average Faces",
-                            className="action-btn",
-                            n_clicks=0
-                        ),
-                        html.Button(
-                            "↑",
-                            id='sort-order',
-                            title="Sort Order: Ascending (click to change to Descending)",
-                            className="sort-order-btn",
-                            n_clicks=0,
-                            **{'data-order': 'asc'}
-                        )
+                        html.Div([
+                            html.Button(
+                                "📊",
+                                id='avg-vertices-btn',
+                                title="Scroll to Average Vertices",
+                                className="action-btn",
+                                n_clicks=0
+                            ),
+                            html.Button(
+                                "🔷",
+                                id='avg-faces-btn',
+                                title="Scroll to Average Faces",
+                                className="action-btn",
+                                n_clicks=0
+                            ),
+                            html.Button(
+                                "↑",
+                                id='sort-order',
+                                title="Sort Order: Ascending (click to change to Descending)",
+                                className="sort-order-btn",
+                                n_clicks=0,
+                                **{'data-order': 'asc'}
+                            )
+                        ], style={'display': 'flex', 'gap': '5px', 'justifyContent': 'flex-end'})
                     ], className="file-list-buttons"),
                     
                     # Loading indicator for navigation
@@ -212,14 +243,49 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     ], id="toast-message-bar", className="toast-message-bar", style={'display': 'none'})
                 ], className="file-list-header"),
 
-                dcc.Loading(
-                    id="loading-files",
-                    children=[html.Div(
-                        id='file-list',
-                        className="file-list-panel"
-                    )],
-                    type="default"
-                )
+                # File list container with fixed height and button outside scroll area
+                html.Div([
+                    dcc.Loading(
+                        id="loading-files",
+                        children=[html.Div(
+                            id='file-list',
+                            className="file-list-panel"
+                        )],
+                        type="default"
+                    ),
+                    
+                    # Lazy loading controls - now sibling to loading-files
+                    html.Div([
+                        # Visible load more button (back to manual loading for now)
+                        html.Button(
+                            "📥 Load More Files", 
+                            id="load-more-btn",
+                            className="load-more-button",
+                            n_clicks=0,
+                            style={'display': 'block', 'margin': '10px auto'},  # Visible button
+                            **{'data-has-more': 'true'}  # Initial state - will be updated by callbacks
+                        ),
+                        # Scroll sentinel - disabled for now
+                        html.Div(
+                            id="scroll-sentinel",
+                            style={'height': '1px', 'margin': '5px 0', 'display': 'none'}  # Hidden
+                        ),
+                        # Interval component for scroll detection (temporarily disabled)
+                        dcc.Interval(
+                            id='scroll-interval',
+                            interval=60000,  # Very slow to stop the loop temporarily 
+                            n_intervals=0,
+                            disabled=True  # Disable completely for now
+                        )
+                    ], className='load-more-container', style={'textAlign': 'center', 'flexShrink': '0', 'padding': '5px 0'})
+                ], className='file-list-wrapper', style={
+                    'display': 'flex', 
+                    'flexDirection': 'column', 
+                    'flex': '1', 
+                    'minHeight': '0',
+                    'maxHeight': 'calc(100vh - 560px)',  # More room for button by reducing wrapper height
+                    'overflow': 'hidden'
+                })
             ], className="side-panel"),
 
             # Center panel: 3D Visualization + Shape Info
@@ -283,10 +349,38 @@ def build_layout(file_df, dataset_options, selected_dataset):
                                     className="display-color-dropdown"
                                 )
                             ], className="display-color-panel"),
+
+                            html.Div([
+                                html.Label("Processing Step:", className="display-step-label"),
+                                html.Div(
+                                    id='step-info-display',
+                                    children="Select a processed shape to enable step navigation",
+                                    className="step-info-text"
+                                ),
+                                html.Div([
+                                    html.Div("Orig", className="step-label", id="step-label-0"),
+                                    html.Div("Mesh", className="step-label", id="step-label-1"),
+                                    html.Div("Trans", className="step-label", id="step-label-2"),
+                                    html.Div("Align", className="step-label", id="step-label-3"),
+                                    html.Div("Flip", className="step-label", id="step-label-4"),
+                                    html.Div("Scale", className="step-label", id="step-label-5")
+                                ], className="step-labels"),
+                                dcc.Slider(
+                                    id='processing-step-slider',
+                                    min=0, max=5, step=1, value=5,
+                                    marks={},  # Remove built-in marks
+                                    tooltip={'always_visible': True, 'placement': 'bottom'},
+                                    disabled=True,  # Initially disabled, enabled when processed shape is selected
+                                    className="processing-step-slider"
+                                )
+                            ], id="display-step-panel", className="display-step-panel", style={'display': 'none'}),
                         ], className="display-toolbar"),
                     ], className="display-options-panel"),
 
                     html.Div([
+                        # Step-specific toast container (positioned over 3D viewer)
+                        html.Div(id="step-toast-container", className="step-toast-container", children=[]),
+                        
                         dcc.Loading(
                             id="loading-3d",
                             children=[dcc.Graph(

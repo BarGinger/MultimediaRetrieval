@@ -66,34 +66,59 @@
   color: #0d47a1 !important;
 }
 
-/* Toast Notifications */
+/* Toast Notifications - positioned in left panel for action feedback */
 .toast-container {
-  position: absolute;
+  position: fixed;
   top: 60px;
   left: 20px;
   z-index: 1000;
   pointer-events: none;
-  width: calc(20% - 40px);
+  width: 300px;
+  max-width: calc(20% - 40px);
+  transition: all 0.3s ease;
+}
+
+/* Move toast container to right when showing missing step warnings */
+.toast-container.missing-step-position,
+html .toast-container.missing-step-position {
+  left: auto !important;
+  right: 20px !important;
+  top: 80px !important;
+  z-index: 2000 !important;
+  max-width: 400px !important;
 }
 
 .toast {
-  background: #2c3e50;
+  background: rgba(44, 62, 80, 0.95);
   color: white;
-  padding: 8px 12px;
+  padding: 12px 16px;
   margin-bottom: 8px;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
-  opacity: 0;
-  transform: translateX(-100%);
-  transition: all 0.3s ease;
+  line-height: 1.4;
+  opacity: 1;
+  transform: translateX(0);
+  transition: all 0.15s ease;
   pointer-events: auto;
-  animation: toastAutoHide 4s ease-in-out forwards;
+  animation: toastSlideIn 0.2s ease-out;
+  border-left: 4px solid #3498db;
+}
+
+@keyframes toastSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes toastAutoHide {
@@ -117,19 +142,81 @@
 }
 
 .toast.success {
-  background: #27ae60;
+  background: rgba(39, 174, 96, 0.95);
+  border-left-color: #27ae60;
 }
 
 .toast.info {
-  background: #3498db;
+  background: rgba(52, 152, 219, 0.95);
+  border-left-color: #3498db;
 }
 
 .toast.warning {
-  background: #f39c12;
+  background: rgba(255, 193, 7, 0.95);
+  border-left-color: #f39c12;
+  color: #2c3e50 !important;
 }
 
 .toast.error {
-  background: #e74c3c;
+  background: rgba(231, 76, 60, 0.95);
+  border-left-color: #e74c3c;
+}
+
+@keyframes missingStepToastAutoHide {
+  0% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  10%, 85% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* Step-specific toast container - positioned over 3D viewer */
+.step-toast-container {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1500;
+  pointer-events: none;
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  justify-content: center;
+}
+
+.step-toast-container .toast {
+  background: linear-gradient(135deg, rgba(52, 152, 219, 0.95) 0%, rgba(41, 128, 185, 0.95) 100%);
+  color: white;
+  border: 1px solid #3498db;
+  border-left: 4px solid #2980b9;
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+  backdrop-filter: blur(10px);
+  max-width: 450px;
+  pointer-events: auto;
+  animation: stepToastSlideIn 0.3s ease-out;
+}
+
+.step-toast-container .toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes stepToastSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .toast-icon {
@@ -192,8 +279,9 @@
   border: 1px solid #dee2e6;
   border-radius: 8px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: hidden; /* Back to hidden - no scrollbar on side panel */
   height: 100%;
+  min-height: 0; /* Important for flex containers with scrollable children */
 }
 
 .panel-title {
@@ -227,6 +315,9 @@
 #loading-files {
   display: flex;
   flex-direction: column;
+  flex: 1; /* Take available space */
+  min-height: 0; /* Important for flex children with overflow */
+  overflow: hidden; /* Prevent this wrapper from growing beyond available space */
 }
 
 .file-list-header {
@@ -235,6 +326,7 @@
   gap: 8px;
   margin-bottom: 5px;
   margin-top: 10px;
+  flex-shrink: 0; /* Don't shrink this section */
 }
 
 .file-list-buttons {
@@ -252,11 +344,11 @@
   padding: 8px 12px;
 }
 
-/* Toast Message Bar (similar to loading indicator) */
+/* Toast Message Bar (positioned on left side for action feedback) */
 .toast-message-bar {
   position: fixed;
   top: 10px;
-  left: 10px;
+  left: 20px;
   background: rgba(39, 174, 96, 0.95);
   border: 1px solid rgba(39, 174, 96, 0.8);
   border-radius: 6px;
@@ -280,6 +372,17 @@
 @keyframes slideInFromLeft {
   from {
     transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
     opacity: 0;
   }
   to {
@@ -379,9 +482,27 @@
   margin-top: 10px;
   background-color: #fff;
   border-radius: 6px;
-  height: calc(100vh - 480px);
-  min-height: 150px;
-  max-height: calc(100vh - 460px);
+  flex: 1; /* Take available space */
+  min-height: 200px; /* Minimum height for usability */
+}
+
+/* Scrollbar styling for better visibility */
+.file-list-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.file-list-panel::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.file-list-panel::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.file-list-panel::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 .center-panel {
@@ -455,9 +576,9 @@
   margin-left: 5%;
 }
 .display-color-label {
-  font-weight: bold;
-  margin-bottom: 5px;
-  font-size: 0.9em;
+  font-weight: bold !important;
+  margin-bottom: 5px !important;
+  font-size: 0.9em !important;
 }
 .display-color-dropdown {
   font-size: 0.85em;
@@ -692,4 +813,182 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Processing Step Slider Styles */
+.display-step-panel {
+  min-width: 300px;
+  max-width: 350px;
+}
+
+.display-step-label {
+  font-weight: bold !important;
+  margin-bottom: 12px !important;
+  font-size: 0.9em !important;
+  color: #444;
+}
+
+.display-step-panel {
+  background: #f4f4f8;
+  padding: 8px 12px;
+  border-radius: 6px;
+  /* border: 1px solid #ddd; */
+  min-height: 32px;
+}
+
+.processing-step-slider {
+  margin-top: 2px;
+  margin-bottom: 2px;
+  height: 18px;
+  position: relative;
+}
+
+.processing-step-slider .rc-slider-mark {
+  font-size: 0 !important; /* Hide default marks */
+  height: 0 !important;
+}
+
+.processing-step-slider .rc-slider-mark-text {
+  display: none !important; /* Hide default mark text */
+}
+
+.processing-step-slider .rc-slider-track {
+  background: linear-gradient(to right, #95a5a6, #3498db, #9b59b6, #e67e22, #f39c12, #27ae60);
+  height: 6px;
+}
+
+.processing-step-slider .rc-slider-handle {
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  background: #2c3e50;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+}
+
+.processing-step-slider.rc-slider-disabled .rc-slider-track {
+  background: #ddd !important;
+}
+
+.processing-step-slider.rc-slider-disabled .rc-slider-handle {
+  background: #bbb !important;
+  border-color: #ddd !important;
+  cursor: not-allowed !important;
+}
+
+/* Custom step labels positioned above slider */
+.step-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  position: relative;
+  width: 100%;
+}
+
+.step-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #1a202c;
+  text-align: center;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+}
+
+.step-label.active {
+  background: #3498db;
+  color: white;
+  border-color: #2980b9;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);
+}
+
+.step-label.disabled {
+  color: #718096;
+  background: #f7fafc;
+  border-color: #e2e8f0;
+  font-weight: 500;
+}
+
+.step-label.missing {
+  color: #ffffff !important;
+  background: #fb923c !important;
+  border: 2px solid #ea580c !important;
+  text-decoration: line-through !important;
+  opacity: 1 !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  padding: 6px 8px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 8px rgba(229, 62, 62, 0.3) !important;
+}
+
+/* Ensure tooltip doesn't overlap with labels */
+.processing-step-slider .rc-slider-tooltip {
+  z-index: 10;
+}
+
+.processing-step-slider .rc-slider-tooltip-inner {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(44, 62, 80, 0.9);
+  border-radius: 4px;
+}
+
+.step-info-text {
+  font-size: 11px;
+  color: #2c3e50;
+  text-align: center;
+  padding: 2px 0;
+  min-height: 14px;
+  transition: color 0.2s ease;
+  font-weight: 500;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.step-info-text.enabled {
+  color: #10579d;
+  font-weight: bold;
+}
+
+/* Lazy Loading Button Container */
+.side-panel > div[style*="textAlign"] {
+  flex-shrink: 0; /* Don't shrink the button container */
+  margin-top: 5px;
+}
+
+/* Lazy Loading Button */
+.load-more-button {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+  padding: 6px 14px; /* Slightly reduced padding */
+  border-radius: 20px;
+  font-size: 12px; /* Slightly smaller font */
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+  margin: 5px auto; /* Reduced margin */
+  display: block;
+  width: auto;
+  max-width: 150px;
+  position: relative; /* Ensure proper positioning */
+  z-index: 10; /* Keep button on top */
+}
+
+.load-more-button:hover {
+  background: linear-gradient(135deg, #2980b9, #3498db);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+  transform: translateY(-1px);
+}
+
+.load-more-button:active {
+  transform: translateY(0px);
+  box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
 }
