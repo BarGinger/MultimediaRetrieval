@@ -3,16 +3,16 @@
   "category": "Bookset",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 1645,
-    "final_faces_count": 3210
+    "target_vertices": 7500,
+    "final_vertices_count": 6648,
+    "final_faces_count": 12840
   },
   "normalization_info": {
     "original": {
       "center": [
-        4.806574668302725,
-        2.79129691991253,
-        2.5216657300769687
+        4.782506129192805,
+        2.7044140685734743,
+        2.527726562105654
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        -3.9766636454561473e-14,
-        -9.388234870362175e-15,
-        -1.0771525515512158e-15
+        0.03207233629312445,
+        0.654111730316668,
+        0.010753552913457184
       ]
     },
     "pca": {
       "eigenvalues": [
-        9.14428867290556,
-        6.232135446928679,
-        1.5473164138803779
+        9.120484318890737,
+        4.768672023165375,
+        1.4464697607292074
       ],
       "eigenvectors": [
         [
-          0.9841202640954523,
-          -0.17572058417487668,
-          -0.025091474526969488
+          0.984594468348625,
+          -0.17442790161894792,
+          -0.012191801921753275
         ],
         [
-          0.02432613932601462,
-          -0.006508463964943891,
-          0.9996828891415057
+          0.011871381006823436,
+          -0.00288025108427185,
+          0.9999253844496008
         ],
         [
-          0.17582816822736003,
-          0.9844185675788818,
-          0.002130507862949591
+          0.17445000203576802,
+          0.9846657358162219,
+          0.0007651792066899612
         ]
       ],
       "explained_variance_ratio": [
-        0.5403231427880126,
-        0.36824810889255455,
-        0.09142874831943285
+        0.5947252663674577,
+        0.3109538528915536,
+        0.0943208807409887
       ]
     },
     "flipping": {
       "moment_test_values": [
-        2358.0861586599603,
-        47.310477569084696,
-        2208.7810051394354
+        4505.089822631533,
+        178.81192689693097,
+        -12022.545127746525
       ],
       "flip_factors": [
         1.0,
         1.0,
-        1.0
+        -1.0
       ]
     },
     "final": {
       "center": [
-        1.062979491662384e-16,
-        -1.1642156337254682e-18,
-        8.680999181909469e-18
+        -0.00808153036195614,
+        0.0009044361087476936,
+        0.06352765665412088
       ],
       "bounding_box": {
         "min": [
-          -0.4760292896915184,
-          -0.2568520842181015,
-          -0.07607522374453594
+          -0.48320152834966823,
+          -0.2520622233369927,
+          -0.15308906518937324
         ],
         "max": [
-          0.5239707103084815,
-          0.25764919573858996,
-          0.22391137701754477
+          0.5167984716503319,
+          0.2526888411037721,
+          0.14781038538086205
         ],
         "dimensions": [
           1.0,
-          0.5145012799566915,
-          0.2999866007620807
+          0.5047510644407648,
+          0.30089945057023526
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:03:54",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 5.7537391345096,
+    "bary_after_translation": 4.258694065707421e-15,
+    "bbox_before_scaling": 10.502579629421234,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-03 18:28:46",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bookset\\D01135_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bookset\\D01135_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bookset\\D01135_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bookset\\D01135_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bookset\\D01135_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bookset\\D01135_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 4.258694065707421e-15,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }
