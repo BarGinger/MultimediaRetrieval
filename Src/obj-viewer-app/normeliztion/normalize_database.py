@@ -144,8 +144,13 @@ class UnifiedPreprocessingProcessor:
                 mesh = self._upsample_to_range(mesh)
                 was_remeshed = True
             
+            # Compact once before reporting and returning so counts match what will be saved
+            try:
+                mesh.remove_unreferenced_vertices()
+            except Exception:
+                pass
             final_vertices = len(mesh.vertices)
-            print(f"  ✅ Remeshing result: {final_vertices} vertices, {len(mesh.triangles)} faces")
+            print(f"  ✅ Remeshing result: {final_vertices} effective vertices, {len(mesh.triangles)} faces")
             
             # Collect remeshing stats
             self.stats['remeshing_stats'].append({
@@ -160,34 +165,48 @@ class UnifiedPreprocessingProcessor:
         except Exception as e:
             print(f"❌ Remeshing failed for {mesh_path}: {e}")
             return None, None, False
-    
+
+    def _compact_mesh(self, mesh):
+        """Remove vertices not referenced by any triangle to keep effective counts consistent."""
+        try:
+            mesh.remove_unreferenced_vertices()
+        except Exception:
+            pass
+        return mesh
+
     def _decimate_to_range(self, mesh):
         """Decimation logic adapted from resampling_simple.py"""
+        # Start from effective counts
+        mesh = self._compact_mesh(mesh)
         passes = 0
         while passes < self.max_decimation_passes and len(mesh.vertices) > self.max_acceptable_vertices:
             passes += 1
+            # Compact each pass to get effective counts
+            mesh = self._compact_mesh(mesh)
             current_v = len(mesh.vertices)
             faces = len(mesh.triangles)
-            ratio = self.target_vertices / current_v
-            
+            ratio = self.target_vertices / max(current_v, 1)
+
             if ratio < 0.55:
                 retain_ratio = self.gentle_decimation_ratio
             elif ratio < 0.85:
                 retain_ratio = 0.78
             else:
                 retain_ratio = self.fine_decimation_ratio
-                
+
             target_faces = max(200, int(faces * retain_ratio))
-            
+
             try:
                 new_mesh = mesh.simplify_quadric_decimation(target_faces)
+                new_mesh = self._compact_mesh(new_mesh)
                 new_v = len(new_mesh.vertices)
                 if new_v >= current_v - 20:
                     # Stagnation -> force more aggressive step once
                     target_faces = max(100, int(faces * 0.5))
                     new_mesh = mesh.simplify_quadric_decimation(target_faces)
+                    mesh = self._compact_mesh(mesh)
                     new_v = len(new_mesh.vertices)
-                print(f"    Pass {passes}: {current_v} -> {new_v} vertices (faces {faces}->{len(new_mesh.triangles)})")
+                print(f"    Pass {passes}: {current_v} -> {new_v} effective verts (faces {faces}->{len(new_mesh.triangles)})")
                 mesh = new_mesh
             except Exception as e:
                 print(f"    Decimation failed pass {passes}: {e}")
