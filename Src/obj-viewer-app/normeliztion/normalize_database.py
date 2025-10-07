@@ -71,6 +71,23 @@ class UnifiedPreprocessingProcessor:
                 'centering_errors': [],
                 'scaling_errors': [],
                 'by_category': {}
+            },
+            'recentering_triggered': [],  # Track two-pass recentering
+            'eigenvalue_ratios': {
+                'lambda1_over_lambda2': [],
+                'lambda2_over_lambda3': [],
+                'condition_numbers': []
+            },
+            'transformation_magnitudes': {
+                'translations': [],
+                'rotations': [],
+                'scalings': []
+            },
+            'aspect_ratio_errors': [],
+            'moment_values': {
+                'x_axis': [],
+                'y_axis': [],
+                'z_axis': []
             }
         }
     
@@ -752,6 +769,47 @@ class UnifiedPreprocessingProcessor:
             self.stats['enhanced_stats']['bbox_before_scaling'].append(normalization_stats['bbox_before_scaling'])
             self.stats['enhanced_stats']['bbox_after_scaling'].append(normalization_stats['bbox_after_scaling'])
             
+            # Collect additional statistics for comprehensive validation
+            if 'eigenvalue_analysis' in validation_data:
+                eigen_data = validation_data['eigenvalue_analysis']
+                if 'lambda1_over_lambda2' in eigen_data and not np.isinf(eigen_data['lambda1_over_lambda2']):
+                    self.stats['eigenvalue_ratios']['lambda1_over_lambda2'].append(eigen_data['lambda1_over_lambda2'])
+                if 'lambda2_over_lambda3' in eigen_data and not np.isinf(eigen_data['lambda2_over_lambda3']):
+                    self.stats['eigenvalue_ratios']['lambda2_over_lambda3'].append(eigen_data['lambda2_over_lambda3'])
+                if 'condition_number' in eigen_data and not np.isinf(eigen_data['condition_number']):
+                    self.stats['eigenvalue_ratios']['condition_numbers'].append(eigen_data['condition_number'])
+            
+            if 'recentering_analysis' in validation_data:
+                recenter_data = validation_data['recentering_analysis']
+                if recenter_data.get('second_pass_triggered', False):
+                    self.stats['recentering_triggered'].append({
+                        'filename': mesh.filename,
+                        'residual_norm': recenter_data['residual_barycenter_norm']
+                    })
+            
+            if 'transformations' in validation_data:
+                trans_data = validation_data['transformations']
+                if 'translation_magnitude' in trans_data:
+                    self.stats['transformation_magnitudes']['translations'].append(trans_data['translation_magnitude'])
+                if 'rotation_angle_degrees' in trans_data:
+                    self.stats['transformation_magnitudes']['rotations'].append(trans_data['rotation_angle_degrees'])
+                if 'scale_factor' in trans_data:
+                    self.stats['transformation_magnitudes']['scalings'].append(trans_data['scale_factor'])
+            
+            if 'aspect_ratio_analysis' in validation_data:
+                aspect_data = validation_data['aspect_ratio_analysis']
+                if 'preservation_error' in aspect_data:
+                    self.stats['aspect_ratio_errors'].append(aspect_data['preservation_error'])
+            
+            if 'flipping_validation' in validation_data:
+                flip_data = validation_data['flipping_validation']
+                if 'moment_test_values' in flip_data:
+                    moments = flip_data['moment_test_values']
+                    if len(moments) >= 3:
+                        self.stats['moment_values']['x_axis'].append(moments[0])
+                        self.stats['moment_values']['y_axis'].append(moments[1])
+                        self.stats['moment_values']['z_axis'].append(moments[2])
+            
             # Track by category (your existing logic)
             if category not in self.stats['normalization_stats']['by_category']:
                 self.stats['normalization_stats']['by_category'][category] = {
@@ -1057,6 +1115,134 @@ class UnifiedPreprocessingProcessor:
                 final_scaling_error < 1e-6 and
                 validation_data['flipping_validation'].get('flipping_successful', False)
             )
+        }
+        
+        # F. Eigenvalue Ratio Analysis (for PCA quality assessment)
+        try:
+            eigenvalues = validation_data['alignment_validation'].get('eigenvalues', [0, 0, 0])
+            if len(eigenvalues) == 3 and eigenvalues[0] > 0:
+                validation_data['eigenvalue_analysis'] = {
+                    'eigenvalues': eigenvalues,
+                    'lambda1_over_lambda2': float(eigenvalues[0] / eigenvalues[1]) if eigenvalues[1] > 1e-12 else float('inf'),
+                    'lambda2_over_lambda3': float(eigenvalues[1] / eigenvalues[2]) if eigenvalues[2] > 1e-12 else float('inf'),
+                    'condition_number': float(eigenvalues[0] / eigenvalues[2]) if eigenvalues[2] > 1e-12 else float('inf'),
+                    'anisotropy_score': float((eigenvalues[0] - eigenvalues[2]) / eigenvalues[0]) if eigenvalues[0] > 1e-12 else 0.0
+                }
+        except Exception as e:
+            validation_data['eigenvalue_analysis'] = {'error': str(e)}
+        
+        # G. Two-Pass Recentering Tracking
+        if 'translated' in step_vertices:
+            translated_vertices = step_vertices['translated']
+            # Check if triangle indices are valid
+            max_vertex_index = np.max(triangles) if len(triangles) > 0 else 0
+            if len(triangles) > 0 and max_vertex_index < len(translated_vertices):
+                try:
+                    residual_barycenter = calculate_mass_barycenter(translated_vertices, triangles)
+                except:
+                    residual_barycenter = np.mean(translated_vertices, axis=0)
+            else:
+                residual_barycenter = np.mean(translated_vertices, axis=0)
+            
+            residual_distance = float(np.linalg.norm(residual_barycenter))
+            
+            validation_data['recentering_analysis'] = {
+                'residual_barycenter_norm': residual_distance,
+                'second_pass_triggered': residual_distance > RECENTER_EPS,
+                'recenter_threshold': RECENTER_EPS
+            }
+        
+        # H. Per-Vertex Displacement Analysis (track transformation magnitudes)
+        vertex_displacements = {}
+        step_sequence = ['original', 'resampled', 'translated', 'aligned', 'flipped', 'scaled']
+        
+        for i in range(1, len(step_sequence)):
+            prev_step = step_sequence[i-1]
+            curr_step = step_sequence[i]
+            
+            if prev_step in step_vertices and curr_step in step_vertices:
+                prev_verts = step_vertices[prev_step]
+                curr_verts = step_vertices[curr_step]
+                
+                # Only compute if vertex counts match
+                if len(prev_verts) == len(curr_verts):
+                    displacements = np.linalg.norm(curr_verts - prev_verts, axis=1)
+                    vertex_displacements[f'{prev_step}_to_{curr_step}'] = {
+                        'mean': float(np.mean(displacements)),
+                        'max': float(np.max(displacements)),
+                        'std': float(np.std(displacements)),
+                        'median': float(np.median(displacements))
+                    }
+        
+        validation_data['vertex_displacement_analysis'] = vertex_displacements
+        
+        # I. Aspect Ratio Preservation
+        if 'original' in step_vertices and 'scaled' in step_vertices:
+            original_bbox = np.ptp(step_vertices['original'], axis=0)
+            scaled_bbox = np.ptp(step_vertices['scaled'], axis=0)
+            
+            if np.min(original_bbox) > 1e-12 and np.min(scaled_bbox) > 1e-12:
+                # Normalize to get aspect ratios
+                original_aspect = original_bbox / np.max(original_bbox)
+                scaled_aspect = scaled_bbox / np.max(scaled_bbox)
+                
+                aspect_preservation_error = float(np.linalg.norm(original_aspect - scaled_aspect))
+                
+                validation_data['aspect_ratio_analysis'] = {
+                    'original_aspect_ratio': original_aspect.tolist(),
+                    'scaled_aspect_ratio': scaled_aspect.tolist(),
+                    'preservation_error': aspect_preservation_error,
+                    'aspect_preserved': aspect_preservation_error < 1e-6
+                }
+        
+        # J. Compactness Metric (for geometric property preservation)
+        try:
+            from scipy.spatial import ConvexHull
+            
+            # Compute for scaled mesh
+            if len(step_vertices['scaled']) >= 4:
+                hull = ConvexHull(step_vertices['scaled'])
+                volume = hull.volume
+                surface_area = hull.area
+                
+                # Compactness: C = 36π * V^2 / A^3 (sphere = 1.0)
+                compactness = (36 * np.pi * volume**2) / (surface_area**3) if surface_area > 0 else 0
+                
+                validation_data['compactness_analysis'] = {
+                    'convex_hull_volume': float(volume),
+                    'convex_hull_surface_area': float(surface_area),
+                    'compactness': float(compactness),
+                    'sphericity': float(compactness)  # Same as compactness
+                }
+        except Exception as e:
+            validation_data['compactness_analysis'] = {'error': str(e)}
+        
+        # K. Symmetry Detection (for moment test interpretation)
+        bbox_dims = np.ptp(step_vertices['scaled'], axis=0)
+        sorted_dims = np.sort(bbox_dims)[::-1]  # Descending order
+        
+        symmetry_classes = {
+            'spherical': False,  # All dimensions equal
+            'cylindrical': False,  # Two dimensions equal
+            'asymmetric': False   # All dimensions different
+        }
+        
+        dim_tolerance = 0.1  # 10% tolerance
+        if np.allclose(sorted_dims, sorted_dims[0], rtol=dim_tolerance):
+            symmetry_classes['spherical'] = True
+        elif np.allclose(sorted_dims[1:], sorted_dims[1], rtol=dim_tolerance):
+            symmetry_classes['cylindrical'] = True
+        else:
+            symmetry_classes['asymmetric'] = True
+        
+        validation_data['symmetry_analysis'] = {
+            'bounding_box_dimensions': bbox_dims.tolist(),
+            'sorted_dimensions': sorted_dims.tolist(),
+            'symmetry_classification': symmetry_classes,
+            'dimension_ratios': {
+                'max_to_medium': float(sorted_dims[0] / sorted_dims[1]) if sorted_dims[1] > 1e-12 else float('inf'),
+                'medium_to_min': float(sorted_dims[1] / sorted_dims[2]) if sorted_dims[2] > 1e-12 else float('inf')
+            }
         }
         
         # Save validation data to JSON
