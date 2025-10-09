@@ -1,6 +1,6 @@
 from scipy.spatial.distance import pdist
 import numpy as np
-from core.shapeMesh import ShapeMesh
+from core.shapeMesh import ShapeMesh, calculate_mass_barycenter
 import math
 from scipy.spatial.distance import pdist
 from core.transformations import MeshTransformations
@@ -12,13 +12,19 @@ class MeshExtractions:
     """
     def test():
         # create shapeMesh object and compute properties
-        shape1 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Door\\D01005_unified.obj")
-        shape2 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1338_unified.obj")
-        shape3 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
+        # shape1 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Door\\D01005_unified.obj")
+        # shape2 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1338_unified.obj")
+        # shape3 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
 
-        area1 = MeshExtractions.eccentricity(shape1)
-        area2 = MeshExtractions.eccentricity(shape2)
-        area3 = MeshExtractions.eccentricity(shape3)
+        # area1 = MeshExtractions.eccentricity(shape1)
+        # area2 = MeshExtractions.eccentricity(shape2)
+        # area3 = MeshExtractions.eccentricity(shape3)
+
+        shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1339_unified.obj")
+        
+        shapetest.save_as_obj('before.obj')
+        shapetest = MeshTransformations.fill_holes(shapetest)
+        shapetest.save_as_obj('after.obj')
 
         pass
 

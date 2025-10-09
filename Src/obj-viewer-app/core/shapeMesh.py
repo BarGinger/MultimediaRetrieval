@@ -12,21 +12,21 @@ AREA_EPS = 1e-12          # Minimum total surface area before falling back to me
 RECENTER_EPS = 1e-9       # Threshold to apply second recentering pass (pre-scaling)
 
 
-def calculate_mass_barycenter(vertices, triangles):
+def calculate_mass_barycenter(vertices, faces):
     """Area‑weighted (mass) barycenter with degeneracy fallback.
     
     Enhanced version that falls back to simple vertex mean if:
       * Mesh has no triangles, or
       * Total accumulated triangle area < AREA_EPS
     """
-    if len(triangles) == 0:
+    if len(faces) == 0:
         return np.mean(vertices, axis=0)
     
     total_weighted_centroid = np.zeros(3, dtype=np.float64)
     total_area = 0.0
     
-    for tri in triangles:
-        v0, v1, v2 = vertices[tri]
+    for face in faces:
+        v0, v1, v2 = vertices[face]
         face_centroid = (v0 + v1 + v2) / 3.0
         edge1, edge2 = v1 - v0, v2 - v0
         face_area = 0.5 * np.linalg.norm(np.cross(edge1, edge2))
@@ -40,6 +40,24 @@ def calculate_mass_barycenter(vertices, triangles):
     
     return total_weighted_centroid / total_area
 
+def calculate_edge_barycenter(vertices, edges):
+    """same as above but uses edges instead of faces"""
+    if len(edges) == 0:
+        raise ValueError("Cannot compute barycenter for empty edge list")
+    
+    # Calculate midpoint for each edge
+    edge_midpoints = []
+    for v1_idx, v2_idx in edges:
+        v1 = vertices[v1_idx]
+        v2 = vertices[v2_idx]
+        midpoint = (v1 + v2) / 2.0
+        edge_midpoints.append(midpoint)
+    
+    # Barycenter is the average of all edge midpoints
+    edge_midpoints = np.array(edge_midpoints)
+    barycenter = np.mean(edge_midpoints, axis=0)
+    
+    return barycenter
 
 def _num(n):
     """Format number with commas for thousands separator."""
