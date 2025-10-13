@@ -4,7 +4,7 @@ from core.shapeMesh import ShapeMesh, calculate_edge_barycenter
 import math
 from scipy.spatial.distance import pdist
 from scipy.spatial import ConvexHull, QhullError
-from collections import Counter
+from collections import Counter, deque, defaultdict
 
 class MeshTransformations:
 
@@ -94,3 +94,76 @@ class MeshTransformations:
 
         return mesh
     
+    @staticmethod
+    def orient_faces_consistently(mesh: ShapeMesh) -> ShapeMesh:
+        """
+        Ensure all face windings are consistent so that adjacent faces traverse a shared edge in opposite directions"""
+
+        faces = mesh.faces.copy()                           # the faces of the original mesh
+        number_of_faces = faces.shape[0]                    # the number of faces in the original mesh
+        edge_to_faces = defaultdict(list)                   # dictionary of any edge to its face and the direction
+        visited = np.zeros(number_of_faces, dtype=bool)     # bool array which indicates weither the BFS already visited the face
+
+        def face_edges(face):
+            a, b, c = int(face[0]), int(face[1]), int(face[2])
+            return [(a, b), (b, c), (c, a)]
+        
+        def face_flip(fi: int): # no it is not a dessert
+           # (ABC -> ACB)
+            faces[fi] = faces[fi][[0, 2, 1]]
+
+        # make an adjacency matrix for each edge
+        for f in range(number_of_faces):
+            for u, v in face_edges(faces[f]):
+                key = (min(u, v), max(v, u))
+                edge_to_faces[key].append((f, (u, v)))
+
+        # execute a BFS
+        for face in range(number_of_faces):
+            if visited[face]:
+                continue
+
+            queue = deque([face])
+            visited[face] = True
+
+            while queue:
+                current_face = queue.popleft()
+                current_edges = face_edges(faces[current_face])
+
+                for u, v in current_edges:
+                    key = (min(u,v), max(u,v))
+
+                    neighbours = edge_to_faces.get(key, [])
+
+                    current_direction = (u, v)
+
+                    for (neighbour, neighbour_direction) in neighbours:
+                        if neighbour == current_face:
+                            continue
+                        if visited[neighbour]:
+                            continue
+
+                        if neighbour_direction == current_direction:
+                            face_flip(neighbour)
+                            for un, vn in face_edges(faces[neighbour]):
+                                key2 = (e2[0], e2[1]) if e2[0] < e2[1] else (e2[1], e2[0])
+                                lst = edge_to_faces[key2]
+                                for i, (fidx, old_dir) in enumerate(lst):
+                                    if fidx == nbr:
+                                        lst[i] = (fidx, e2)
+
+                        visited[nbr] = True
+                        queue.append(nbr)
+
+        # Return a new mesh object with reoriented faces
+        return ShapeMesh(
+            vertices=mesh.vertices,
+            faces=faces,
+            category=mesh.category,
+            filename=(mesh.filename or "mesh") + "_oriented",
+            face_types=mesh.face_types,
+            bounding_box=mesh.bounding_box,
+            size=mesh.size,
+            filepath=mesh.filepath,
+            base_mesh=mesh.base_mesh,
+        )
