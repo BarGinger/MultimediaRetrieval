@@ -115,7 +115,7 @@ class MeshTransformations:
         # make an adjacency matrix for each edge
         for f in range(number_of_faces):
             for u, v in face_edges(faces[f]):
-                key = (min(u, v), max(v, u))
+                key = (min(u, v), max(u, v))
                 edge_to_faces[key].append((f, (u, v)))
 
         # execute a BFS
@@ -143,19 +143,21 @@ class MeshTransformations:
                         if visited[neighbour]:
                             continue
 
+                        # flip all neighbours to be opposite to the current face
                         if neighbour_direction == current_direction:
                             face_flip(neighbour)
-                            for un, vn in face_edges(faces[neighbour]):
-                                key2 = (e2[0], e2[1]) if e2[0] < e2[1] else (e2[1], e2[0])
+
+                            for e2 in face_edges(faces[neighbour]):
+                                key2 = (min(e2[0], e2[1]), max(e2[0], e2[1]))
                                 lst = edge_to_faces[key2]
-                                for i, (fidx, old_dir) in enumerate(lst):
-                                    if fidx == nbr:
+                                for i, (fidx, _) in enumerate(lst):
+                                    if fidx == neighbour:
                                         lst[i] = (fidx, e2)
+                                        break
 
-                        visited[nbr] = True
-                        queue.append(nbr)
+                        visited[neighbour] = True
+                        queue.append(neighbour)
 
-        # Return a new mesh object with reoriented faces
         return ShapeMesh(
             vertices=mesh.vertices,
             faces=faces,

@@ -21,11 +21,16 @@ class MeshExtractions:
         # area2 = MeshExtractions.eccentricity(shape2)
         # area3 = MeshExtractions.eccentricity(shape3)
 
-        # shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1339_unified.obj")
+        shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
         
-        # shapetest.save_as_obj('before.obj')
-        # shapetest = MeshTransformations.fill_holes(shapetest)
-        # shapetest.save_as_obj('after.obj')
+        shapetest.save_as_obj('before.obj')
+        vol1 = MeshExtractions.volume(shapetest)
+        shapetest = MeshTransformations.fill_holes(shapetest)
+        vol2 = MeshExtractions.volume(shapetest)
+        shapetest = MeshTransformations.orient_faces_consistently(shapetest)
+        vol3 = MeshExtractions.volume(shapetest)
+        print(f"Volume before: {vol1}, after: {vol2}, vol {vol3}")
+        shapetest.save_as_obj('after.obj')
 
         shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Bed\\D00031_unified.obj")
         # A3 descriptor and histogram
