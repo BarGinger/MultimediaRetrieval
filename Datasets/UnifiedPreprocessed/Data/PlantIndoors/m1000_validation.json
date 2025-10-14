@@ -1,23 +1,23 @@
 {
   "filename": "m1000.obj",
   "category": "PlantIndoors",
-  "timestamp": "2025-10-03 22:06:31",
+  "timestamp": "2025-10-13 16:27:25",
   "vertex_counts": {
     "original": 19105,
-    "resampled": 8823,
-    "translated": 8823,
-    "aligned": 8823,
-    "flipped": 8823,
-    "scaled": 8823
+    "resampled": 8398,
+    "translated": 8398,
+    "aligned": 8398,
+    "flipped": 8398,
+    "scaled": 8398
   },
   "centering_validation": {
     "original": {
       "barycenter": [
-        0.5143809710454642,
-        0.6922270252268515,
-        0.43331775873006717
+        0.5158975985519151,
+        0.6925250957319106,
+        0.4331757353406402
       ],
-      "distance_from_origin": 0.9651581828171689,
+      "distance_from_origin": 0.9661172589794829,
       "properly_centered": false
     },
     "resampled": {
@@ -40,51 +40,51 @@
     },
     "aligned": {
       "barycenter": [
-        -2.6729831660519732e-18,
-        4.629888400235309e-16,
-        -5.307010445097825e-16
+        6.531861213323464e-17,
+        2.3952239376098825e-16,
+        -4.407877385184853e-16
       ],
-      "distance_from_origin": 7.042793547088505e-16,
+      "distance_from_origin": 5.058965592215927e-16,
       "properly_centered": true
     },
     "flipped": {
       "barycenter": [
-        2.6729831660519732e-18,
-        4.629888400235309e-16,
-        -5.307010445097825e-16
+        -6.531861213323464e-17,
+        2.3952239376098825e-16,
+        -4.407877385184853e-16
       ],
-      "distance_from_origin": 7.042793547088505e-16,
+      "distance_from_origin": 5.058965592215927e-16,
       "properly_centered": true
     },
     "scaled": {
       "barycenter": [
-        9.743028118206556e-18,
-        2.378936524821812e-16,
-        -4.834239271720862e-16
+        1.1867560793359857e-16,
+        3.1202558027212316e-16,
+        -4.466748234028005e-16
       ],
-      "distance_from_origin": 5.388756905360525e-16,
+      "distance_from_origin": 5.576399021989795e-16,
       "properly_centered": true
     }
   },
   "alignment_validation": {
     "eigenvalues": [
-      0.04388644953162156,
-      0.02487936604742067,
-      0.02058555096134534
+      0.04386552996011604,
+      0.02500538106188583,
+      0.02099770818968674
     ],
     "eigenvalue_ordering_correct": true,
     "eigenvector_alignment": {
       "major_to_x": 1.0,
-      "medium_to_y": 1.0000000000000002,
-      "minor_to_z": 1.0000000000000002
+      "medium_to_y": 0.9999999999999999,
+      "minor_to_z": 1.0
     },
     "alignment_quality": 1.0
   },
   "flipping_validation": {
     "moment_test_values": [
-      159.91480709823833,
-      242.64833903484134,
-      809.540629737009
+      163.0575513594024,
+      265.5127996017925,
+      795.4845683635206
     ],
     "all_moments_positive": true,
     "flipping_successful": true
@@ -92,18 +92,18 @@
   "scaling_validation": {
     "bounding_box": {
       "min": [
-        -0.4316838524143352,
-        -0.23793534390818635,
-        -0.4268900827736668
+        -0.4313345980741854,
+        -0.24519455624363332,
+        -0.4270638423214147
       ],
       "max": [
-        0.5094149868558392,
-        0.4998244301109966,
-        0.5731099172263333
+        0.5106613466643801,
+        0.5060389867315834,
+        0.5729361576785853
       ],
       "dimensions": [
-        0.9410988392701745,
-        0.7377597740191829,
+        0.9419959447385655,
+        0.7512335429752167,
         1.0
       ]
     },
@@ -115,8 +115,92 @@
     "centering_preserved_after_alignment": true,
     "centering_preserved_after_flipping": true,
     "centering_preserved_after_scaling": true,
-    "final_centering_error": 5.388756905360525e-16,
+    "final_centering_error": 5.576399021989795e-16,
     "final_scaling_error": 0.0,
     "overall_normalization_success": true
+  },
+  "bbox_before_scaling": 0.9628411894512405,
+  "eigenvalue_analysis": {
+    "eigenvalues": [
+      0.04386552996011604,
+      0.02500538106188583,
+      0.02099770818968674
+    ],
+    "lambda1_over_lambda2": 1.754243610667369,
+    "lambda2_over_lambda3": 1.1908623948859098,
+    "condition_number": 2.0890627474126484,
+    "anisotropy_score": 0.5213164366467581
+  },
+  "recentering_analysis": {
+    "residual_barycenter_norm": 4.522199478332909e-16,
+    "second_pass_triggered": false,
+    "recenter_threshold": 1e-09
+  },
+  "vertex_displacement_analysis": {
+    "resampled_to_translated": {
+      "mean": 0.8032696275690475,
+      "max": 0.8032696275690474,
+      "std": 1.1102230246251565e-16,
+      "median": 0.8032696275690474
+    },
+    "translated_to_aligned": {
+      "mean": 0.40518187987134435,
+      "max": 0.7569131937155279,
+      "std": 0.16818134726986303,
+      "median": 0.41921016451397874
+    },
+    "aligned_to_flipped": {
+      "mean": 0.3517447214421959,
+      "max": 0.9833715568582082,
+      "std": 0.2425940364044303,
+      "median": 0.3095244292293232
+    },
+    "flipped_to_scaled": {
+      "mean": 0.014568843251256333,
+      "max": 0.02277267441072774,
+      "std": 0.003914901366045063,
+      "median": 0.015250033402075862
+    }
+  },
+  "aspect_ratio_analysis": {
+    "original_aspect_ratio": [
+      0.8997262929290704,
+      1.0,
+      0.8292042121919105
+    ],
+    "scaled_aspect_ratio": [
+      0.9419959447385655,
+      0.7512335429752167,
+      1.0
+    ],
+    "preservation_error": 0.30470095952875703,
+    "aspect_preserved": false
+  },
+  "compactness_analysis": {
+    "convex_hull_volume": 0.2631287924386074,
+    "convex_hull_surface_area": 2.2082401692685947,
+    "compactness": 0.7271938572385463,
+    "sphericity": 0.7271938572385463
+  },
+  "symmetry_analysis": {
+    "bounding_box_dimensions": [
+      0.9419959447385655,
+      0.7512335429752167,
+      1.0
+    ],
+    "sorted_dimensions": [
+      1.0,
+      0.9419959447385655,
+      0.7512335429752167
+    ],
+    "symmetry_classification": {
+      "spherical": false,
+      "cylindrical": false,
+      "asymmetric": true
+    },
+    "dimension_ratios": {
+      "max_to_medium": 1.0615756952940307,
+      "medium_to_min": 1.2539322206085812
+    }
   }
 }
