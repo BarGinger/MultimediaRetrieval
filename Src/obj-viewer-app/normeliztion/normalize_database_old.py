@@ -17,20 +17,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.spatial.distance import pdist
 from scipy import stats
-import matplotlib.pyplot as plt
-import csv as csv_module
-import traceback
-from scipy.spatial import ConvexHull
-
 
 # Add parent directory to path for imports
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.file_index import get_file_tree
-# from core.analysis_cache import merge_analysis_data
+from core.analysis_cache import merge_analysis_data
 from core.shapeMesh import ShapeMesh
-
 
 # Numerical tolerances - following normalization.py improvements
 AREA_EPS = 1e-12          # Minimum total surface area before falling back to mean
@@ -104,7 +98,6 @@ class UnifiedPreprocessingProcessor:
             dataset_dir = self.output_base_dir / dataset
             dataset_dir.mkdir(parents=True, exist_ok=True)
             print(f"   Created: {dataset_dir}")
-
     
     def apply_remeshing_if_needed(self, mesh_path, target_vertices, tolerance=0.2):
         """
@@ -121,84 +114,54 @@ class UnifiedPreprocessingProcessor:
         try:
             # Load with Open3D for remeshing
             mesh = o3d.io.read_triangle_mesh(str(mesh_path))
-
+            
             if len(mesh.vertices) == 0:
                 print(f"❌ Empty mesh: {mesh_path}")
                 return None, None, False
-
-            # Aggressive cleaning to ensure mesh quality
-            try:
-                mesh.remove_degenerate_triangles()
-                mesh.remove_duplicated_vertices()
-                mesh.remove_duplicated_triangles()
-                mesh.remove_non_manifold_edges()
-                mesh.remove_unreferenced_vertices()
-            except Exception as e:
-                print(f"⚠️ Cleaning error: {e}")
-
+            
+            # Clean mesh first
+            mesh.remove_degenerate_triangles()
+            mesh.remove_duplicated_vertices()
+            mesh.remove_duplicated_triangles()
+            mesh.remove_non_manifold_edges()
+            mesh.remove_unreferenced_vertices()
+            
             current_vertices = len(mesh.vertices)
-
-            # Always try to reach target vertex count (±10%)
-            lower_bound = int(target_vertices * 0.9)
-            upper_bound = int(target_vertices * 1.1)
-            was_remeshed = False
-
-            if lower_bound <= current_vertices <= upper_bound:
-                print(f"  ✅ No remeshing needed ({current_vertices} vertices within ±10% of target)")
+            
+            # Check if within acceptable range (like resampling_simple.py)
+            if self.min_acceptable_vertices <= current_vertices <= self.max_acceptable_vertices:
+                print(f"  ✅ No remeshing needed ({current_vertices} vertices within range)")
                 return np.asarray(mesh.vertices), np.asarray(mesh.triangles), False
-
-            # Decimate if too many vertices
-            if current_vertices > upper_bound:
-                print(f"  🔄 Aggressive decimation from {current_vertices} to target {target_vertices}")
+            
+            if current_vertices > self.max_acceptable_vertices:
+                # Simplify mesh using vertex-based logic
+                print(f"  🔄 Simplifying from {current_vertices} to target range {self.target_vertices} ± ({self.min_acceptable_vertices}-{self.max_acceptable_vertices}) vertices")
                 mesh = self._decimate_to_range(mesh)
                 was_remeshed = True
-            # Upsample if too few vertices
-            elif current_vertices < lower_bound:
-                print(f"  🔄 Aggressive upsampling from {current_vertices} to target {target_vertices}")
-                # Temporarily allow more subdivision passes for compliance
-                orig_max_subdiv = getattr(self, 'max_decimation_passes', 8)
-                self.max_decimation_passes = max(8, orig_max_subdiv)
+            else:
+                # Upsample mesh (subdivision approach)
+                print(f"  🔄 Upsampling from {current_vertices} to target range {self.target_vertices} ± ({self.min_acceptable_vertices}-{self.max_acceptable_vertices}) vertices")
                 mesh = self._upsample_to_range(mesh)
-                # If still below, force one more subdivision if possible
-                if len(mesh.vertices) < lower_bound and hasattr(mesh, 'subdivide_midpoint'):
-                    try:
-                        mesh = mesh.subdivide_midpoint(number_of_iterations=1)
-                        print(f"    🔄 Final forced subdivision, now {len(mesh.vertices)} vertices")
-                    except Exception as e:
-                        print(f"    ⚠️ Final subdivision failed: {e}")
                 was_remeshed = True
-
-            # Final compacting and trimming
+            
+            # Compact once before reporting and returning so counts match what will be saved
             try:
                 mesh.remove_unreferenced_vertices()
             except Exception:
                 pass
-
-            # If still above upper bound, decimate again
-            if len(mesh.vertices) > upper_bound:
-                print(f"    🔧 Final trimming: {len(mesh.vertices)} → target {target_vertices}")
-                mesh = self._decimate_to_range(mesh)
-
             final_vertices = len(mesh.vertices)
             print(f"  ✅ Remeshing result: {final_vertices} effective vertices, {len(mesh.triangles)} faces")
-
-            # Collect remeshing stats with enhanced upsampling log if available
-            remeshing_entry = {
+            
+            # Collect remeshing stats
+            self.stats['remeshing_stats'].append({
                 'original_vertices': current_vertices,
                 'target_vertices': target_vertices,
                 'final_vertices': final_vertices,
                 'reduction_ratio': final_vertices / current_vertices if current_vertices > 0 else 1.0
-            }
-
-            # Add upsampling log if available (from _upsample_to_range)
-            if hasattr(self, '_current_upsampling_log'):
-                remeshing_entry['upsampling_log'] = self._current_upsampling_log
-                delattr(self, '_current_upsampling_log')
-
-            self.stats['remeshing_stats'].append(remeshing_entry)
-
+            })
+            
             return np.asarray(mesh.vertices), np.asarray(mesh.triangles), was_remeshed
-
+                
         except Exception as e:
             print(f"❌ Remeshing failed for {mesh_path}: {e}")
             return None, None, False
@@ -251,516 +214,44 @@ class UnifiedPreprocessingProcessor:
         return mesh
     
     def _upsample_to_range(self, mesh):
-        """
-        Enhanced upsampling with Loop subdivision, quality checks, and connectivity validation
-        
-        Improvements:
-        1. Uses Loop subdivision (smoother, better quality)
-        2. Checks connectivity after each subdivision pass
-        3. Validates no floating/detached geometry created
-        4. Conservative limits on upsampling factor
-        5. Falls back gracefully on failures
-        6. Logs all validation results for export
-        """
+        """Upsampling logic adapted from resampling_simple.py"""
         max_subdiv_passes = 4
         target_min_fill = self.min_acceptable_vertices
         target_soft_cap = 9000
         allow_overshoot_factor = 1.25
-        max_upsampling_factor = 10  # Don't allow more than 10x vertex increase
-        
-        original_vertex_count = len(mesh.vertices)
-        max_allowed_vertices = original_vertex_count * max_upsampling_factor
-        
-        # Initialize upsampling log for validation export
-        upsampling_log = {
-            'original_vertices': original_vertex_count,
-            'target_range': [self.min_acceptable_vertices, self.max_acceptable_vertices],
-            'max_upsampling_factor': max_upsampling_factor,
-            'subdivision_passes': [],
-            'quality_checks': [],
-            'warnings': [],
-            'final_result': {}
-        }
-        
-        # For very low-poly meshes (< 500 vertices), be more aggressive
-        if original_vertex_count < 500:
-            msg = f"Very low-poly mesh ({original_vertex_count} vertices), using aggressive upsampling"
-            print(f"    ⚡ {msg}")
-            upsampling_log['warnings'].append(msg)
-            max_subdiv_passes = 6  # Allow up to 6 passes for small meshes
-            max_upsampling_factor = 20  # Allow up to 20x increase
-            max_allowed_vertices = original_vertex_count * max_upsampling_factor
-            upsampling_log['max_upsampling_factor'] = max_upsampling_factor
-            upsampling_log['max_subdiv_passes_adjusted'] = max_subdiv_passes
         
         passes = 0
-        subdivision_method = 'unknown'
-        
         while passes < max_subdiv_passes and len(mesh.vertices) < target_min_fill:
             current_v = len(mesh.vertices)
-            
-            # Check 1: Prevent excessive upsampling
-            if current_v >= max_allowed_vertices:
-                msg = f"Reached max upsampling factor ({max_upsampling_factor}x), stopping at {current_v} vertices"
-                print(f"    🛑 {msg}")
-                upsampling_log['warnings'].append(msg)
+            # Predict overshoot: midpoint roughly ~2x vertices
+            if current_v * 2 > self.target_vertices * allow_overshoot_factor:
                 break
-            
-            # Check 2: Predict overshoot before subdivision
-            predicted_vertices = current_v * 2  # Rough estimate
-            if predicted_vertices > self.target_vertices * allow_overshoot_factor:
-                msg = f"Predicted overshoot ({predicted_vertices} > {self.target_vertices * allow_overshoot_factor:.0f}), stopping"
-                print(f"    🛑 {msg}")
-                upsampling_log['warnings'].append(msg)
-                break
-            
-            # Check 3: Validate mesh connectivity BEFORE subdivision (skip on first pass)
-            # On first pass, the mesh might have minor topology issues after cleaning,
-            # but subdivision might actually improve it
-            # SKIP THIS CHECK - it's too restrictive and prevents valid subdivision
-            # We'll check connectivity AFTER subdivision instead to catch actual problems
-            # if passes > 0:
-            #     connectivity_before = self._validate_mesh_connectivity(mesh)
-            #     if not connectivity_before['is_valid']:
-            #         msg = f"Mesh has connectivity issues before subdivision pass {passes + 1}"
-            #         print(f"    ❌ {msg}")
-            #         upsampling_log['warnings'].append(msg)
-            #         upsampling_log['quality_checks'].append({
-            #             'pass': passes + 1,
-            #             'stage': 'pre_subdivision',
-            #             'check': 'connectivity',
-            #             'result': connectivity_before
-            #         })
-            #         break
-            
             try:
-                # Always use Midpoint subdivision - it's more robust for meshes with complex topology
-                # Loop subdivision can fragment meshes at non-manifold edges, causing parts to detach
-                # Midpoint is slightly less smooth but preserves mesh connectivity much better
-                subdivision_method = 'midpoint'
-                print(f"    🔄 Applying Midpoint subdivision (pass {passes + 1})...")
-                new_mesh = mesh.subdivide_midpoint(number_of_iterations=1)
-
-                
-                new_vertex_count = len(new_mesh.vertices)
-                increase_factor = new_vertex_count / current_v if current_v > 0 else 1.0
-                
-                # Check 4: Validate reasonable vertex increase
-                # For low-poly meshes (<1000 vertices), allow higher increase factors
-                # since subdivision naturally creates more vertices
-                # For higher-poly meshes, be more conservative
-                max_increase = 5.0 if current_v < 1000 else 3.0
-                
-                if increase_factor > max_increase:
-                    msg = f"Suspicious vertex increase: {current_v} → {new_vertex_count} ({increase_factor:.1f}x > {max_increase}x), reverting"
-                    print(f"    ⚠️  {msg}")
-                    upsampling_log['warnings'].append(msg)
-                    upsampling_log['subdivision_passes'].append({
-                        'pass': passes + 1,
-                        'method': subdivision_method,
-                        'before_vertices': current_v,
-                        'after_vertices': new_vertex_count,
-                        'increase_factor': increase_factor,
-                        'status': 'rejected_excessive_increase'
-                    })
-                    break
-                
-                # Check 5: Validate mesh connectivity AFTER subdivision
-                connectivity_after = self._validate_mesh_connectivity(new_mesh)
-                
-                # Allow multiple components - complex shapes like airplanes can have 6+ legitimate parts
-                # Only reject if subdivision INCREASES the component count (indicates artifacts)
-                # Get original component count
-                if passes == 0:
-                    # First pass - check original mesh component count
-                    connectivity_original = self._validate_mesh_connectivity(mesh)
-                    original_components = connectivity_original['connected_components']
-                else:
-                    # Use the component count from previous iteration
-                    original_components = getattr(self, '_last_component_count', 1)
-                
-                # Store current component count for next iteration
-                self._last_component_count = connectivity_after['connected_components']
-                
-                # Reject only if subdivision INCREASED components (breaking the mesh apart)
-                components_increased = connectivity_after['connected_components'] > original_components * 1.5
-                
-                if not connectivity_after['is_valid'] and components_increased:
-                    # If Loop subdivision increased components, try midpoint as fallback
-                    if subdivision_method == 'loop' and hasattr(mesh, 'subdivide_midpoint'):
-                        print(f"    ⚠️  Loop subdivision increased components {original_components}→{connectivity_after['connected_components']}, trying midpoint fallback...")
-                        try:
-                            new_mesh_fallback = mesh.subdivide_midpoint(number_of_iterations=1)
-                            connectivity_fallback = self._validate_mesh_connectivity(new_mesh_fallback)
-                            
-                            fallback_increased = connectivity_fallback['connected_components'] > original_components * 1.5
-                            if not fallback_increased:
-                                # Midpoint worked better, use it
-                                print(f"    ✅ Midpoint subdivision successful ({connectivity_fallback['connected_components']} components)")
-                                new_mesh = new_mesh_fallback
-                                new_vertex_count = len(new_mesh.vertices)
-                                increase_factor = new_vertex_count / current_v if current_v > 0 else 1.0
-                                subdivision_method = 'midpoint_fallback'
-                                connectivity_after = connectivity_fallback
-                                self._last_component_count = connectivity_fallback['connected_components']
-                            else:
-                                # Midpoint also failed, reject
-                                msg = f"Both Loop and midpoint subdivision increased components ({original_components}→{connectivity_after['connected_components']} and {connectivity_fallback['connected_components']}), stopping"
-                                print(f"    ❌ {msg}")
-                                upsampling_log['warnings'].append(msg)
-                                upsampling_log['quality_checks'].append({
-                                    'pass': passes + 1,
-                                    'stage': 'post_subdivision',
-                                    'check': 'connectivity',
-                                    'result': {'loop': connectivity_after, 'midpoint': connectivity_fallback}
-                                })
-                                upsampling_log['subdivision_passes'].append({
-                                    'pass': passes + 1,
-                                    'method': 'loop_and_midpoint_both_failed',
-                                    'before_vertices': current_v,
-                                    'after_vertices': new_vertex_count,
-                                    'increase_factor': increase_factor,
-                                    'status': 'rejected_connectivity'
-                                })
-                                break
-                        except Exception as e:
-                            msg = f"Midpoint fallback failed: {str(e)}"
-                            print(f"    ❌ {msg}")
-                            upsampling_log['warnings'].append(msg)
-                            upsampling_log['subdivision_passes'].append({
-                                'pass': passes + 1,
-                                'method': subdivision_method,
-                                'before_vertices': current_v,
-                                'after_vertices': new_vertex_count,
-                                'increase_factor': increase_factor,
-                                'status': 'rejected_connectivity'
-                            })
-                            break
-                    else:
-                        # No fallback available or already using midpoint
-                        msg = f"Subdivision increased components {original_components}→{connectivity_after['connected_components']}, stopping"
-                        print(f"    ❌ {msg}")
-                        upsampling_log['warnings'].append(msg)
-                        upsampling_log['quality_checks'].append({
-                            'pass': passes + 1,
-                            'stage': 'post_subdivision',
-                            'check': 'connectivity',
-                            'result': connectivity_after
-                        })
-                        upsampling_log['subdivision_passes'].append({
-                            'pass': passes + 1,
-                            'method': subdivision_method,
-                            'before_vertices': current_v,
-                            'after_vertices': new_vertex_count,
-                            'increase_factor': increase_factor,
-                            'status': 'rejected_connectivity'
-                        })
-                        break
-                
-                # Check 6: Validate no floating geometry created
-                floating_check = self._validate_no_floating_geometry(new_mesh)
-                if not floating_check['is_valid']:
-                    msg = f"Subdivision created floating geometry, reverting to {current_v} vertices"
-                    print(f"    ❌ {msg}")
-                    upsampling_log['warnings'].append(msg)
-                    upsampling_log['quality_checks'].append({
-                        'pass': passes + 1,
-                        'stage': 'post_subdivision',
-                        'check': 'floating_geometry',
-                        'result': floating_check
-                    })
-                    upsampling_log['subdivision_passes'].append({
-                        'pass': passes + 1,
-                        'method': subdivision_method,
-                        'before_vertices': current_v,
-                        'after_vertices': new_vertex_count,
-                        'increase_factor': increase_factor,
-                        'status': 'rejected_floating_geometry'
-                    })
-                    break
-                
-                # Check 7: Detect subdivision stagnation
-                if new_vertex_count <= current_v + 10:
-                    msg = f"Subdivision stagnated ({current_v} → {new_vertex_count}), stopping"
-                    print(f"    ⚠️  {msg}")
-                    upsampling_log['warnings'].append(msg)
-                    upsampling_log['subdivision_passes'].append({
-                        'pass': passes + 1,
-                        'method': subdivision_method,
-                        'before_vertices': current_v,
-                        'after_vertices': new_vertex_count,
-                        'increase_factor': increase_factor,
-                        'status': 'rejected_stagnation'
-                    })
-                    break
-                
-                # All checks passed, accept the subdivided mesh
-                mesh = new_mesh
+                mesh = mesh.subdivide_midpoint(number_of_iterations=1)
                 passes += 1
-                print(f"    ✅ Pass {passes}: {current_v} → {new_vertex_count} vertices (quality checks passed)")
-                
-                upsampling_log['subdivision_passes'].append({
-                    'pass': passes,
-                    'method': subdivision_method,
-                    'before_vertices': current_v,
-                    'after_vertices': new_vertex_count,
-                    'increase_factor': increase_factor,
-                    'status': 'accepted',
-                    'connectivity_check': connectivity_after,
-                    'floating_geometry_check': floating_check
-                })
-                
-                # Check 8: Stop if we've reached a reasonable target
-                if new_vertex_count >= target_soft_cap:
-                    msg = f"Reached soft cap ({target_soft_cap}), stopping"
-                    print(f"    ✅ {msg}")
-                    upsampling_log['warnings'].append(msg)
+                print(f"    Subdiv pass {passes}: {current_v} -> {len(mesh.vertices)} vertices")
+                if len(mesh.vertices) >= target_soft_cap:
                     break
-                    
             except Exception as e:
-                msg = f"Subdivision failed at pass {passes + 1}: {str(e)}"
-                print(f"    ❌ {msg}")
-                upsampling_log['warnings'].append(msg)
-                upsampling_log['subdivision_passes'].append({
-                    'pass': passes + 1,
-                    'method': subdivision_method,
-                    'before_vertices': current_v,
-                    'status': 'error',
-                    'error': str(e)
-                })
+                print(f"    Subdivision failed pass {passes}: {e}")
                 break
         
-        # Final validation
-        final_vertex_count = len(mesh.vertices)
-        upsampling_factor = final_vertex_count / original_vertex_count if original_vertex_count > 0 else 1.0
+        # If still below minimum acceptable, allow one final pass
+        if len(mesh.vertices) < self.min_acceptable_vertices and passes < max_subdiv_passes:
+            prev = len(mesh.vertices)
+            try:
+                mesh = mesh.subdivide_midpoint(number_of_iterations=1)
+                print(f"    Final assist pass: {prev}->{len(mesh.vertices)}")
+            except Exception:
+                pass
         
-        print(f"    📊 Upsampling complete: {original_vertex_count} → {final_vertex_count} vertices ({upsampling_factor:.1f}x)")
-        
-        upsampling_log['final_result'] = {
-            'final_vertices': final_vertex_count,
-            'upsampling_factor': upsampling_factor,
-            'passes_completed': passes,
-            'subdivision_method_used': subdivision_method
-        }
-        
-        # If still significantly below minimum, issue warning but don't force further subdivision
-        if final_vertex_count < self.min_acceptable_vertices:
-            deficit = self.min_acceptable_vertices - final_vertex_count
-            msg = f"Final vertex count ({final_vertex_count}) below target minimum ({self.min_acceptable_vertices}), deficit: {deficit} vertices"
-            print(f"    ⚠️  {msg}")
-            print(f"    ⚡ Forcing final subdivision to reach minimum if possible")
-            upsampling_log['warnings'].append(msg)
-            upsampling_log['warnings'].append("Forcing final subdivision to reach minimum")
-            upsampling_log['final_result']['below_minimum'] = True
-            # Try to force subdivision
-            if hasattr(mesh, 'subdivide_midpoint'):
-                try:
-                    mesh = mesh.subdivide_midpoint(number_of_iterations=1)
-                    print(f"    ⚡ Final forced subdivision, now {len(mesh.vertices)} vertices")
-                except Exception as e:
-                    print(f"    ⚠️ Final subdivision failed: {e}")
-        
-        # If we overshot the absolute max, trim gently
-        if final_vertex_count > self.max_acceptable_vertices:
-            print(f"    🔧 Final trimming: {final_vertex_count} → target ~{self.target_vertices}")
-            upsampling_log['warnings'].append(f"Overshot maximum, applying decimation from {final_vertex_count}")
+        # If we overshot absolute max, trim gently
+        if len(mesh.vertices) > self.max_acceptable_vertices:
             mesh = self._decimate_to_range(mesh)
-            upsampling_log['final_result']['decimation_applied'] = True
-            upsampling_log['final_result']['final_vertices_after_decimation'] = len(mesh.vertices)
-        
-        # Store upsampling log for validation export
-        if not hasattr(self, '_current_upsampling_log'):
-            self._current_upsampling_log = upsampling_log
-        else:
-            self._current_upsampling_log = upsampling_log
         
         return mesh
     
-    def _validate_mesh_connectivity(self, mesh):
-        """
-        Validate mesh connectivity and topology
-        
-        Returns dictionary with validation results:
-        - is_valid: bool (overall connectivity status)
-        - isolated_vertices: int (vertices not referenced by any triangle)
-        - degenerate_triangles: int (triangles with duplicate vertices)
-        - connected_components: int (number of separate mesh parts)
-        - details: dict with additional information
-        """
-        result = {
-            'is_valid': True,
-            'isolated_vertices': 0,
-            'degenerate_triangles': 0,
-            'connected_components': 0,
-            'details': {}
-        }
-        
-        vertices = np.asarray(mesh.vertices)
-        triangles = np.asarray(mesh.triangles)
-        
-        if len(vertices) == 0 or len(triangles) == 0:
-            result['is_valid'] = False
-            result['details']['error'] = 'Empty mesh'
-            return result
-        
-        # Check 1: Validate all triangle indices are within bounds
-        max_vertex_index = len(vertices) - 1
-        invalid_indices = np.any((triangles < 0) | (triangles > max_vertex_index))
-        if invalid_indices:
-            result['is_valid'] = False
-            result['details']['invalid_triangle_indices'] = True
-            return result
-        
-        # Check 2: Find degenerate triangles (triangles where vertices are duplicated)
-        degenerate_count = 0
-        for tri in triangles:
-            if tri[0] == tri[1] or tri[1] == tri[2] or tri[0] == tri[2]:
-                degenerate_count += 1
-        
-        result['degenerate_triangles'] = degenerate_count
-        if degenerate_count > len(triangles) * 0.01:  # More than 1% degenerate
-            result['is_valid'] = False
-            result['details']['excessive_degenerate_triangles'] = degenerate_count
-        
-        # Check 3: Find isolated vertices (not referenced by any triangle)
-        referenced_vertices = np.unique(triangles.flatten())
-        all_vertex_indices = set(range(len(vertices)))
-        isolated = all_vertex_indices - set(referenced_vertices)
-        result['isolated_vertices'] = len(isolated)
-        
-        if len(isolated) > len(vertices) * 0.05:  # More than 5% isolated
-            result['is_valid'] = False
-            result['details']['excessive_isolated_vertices'] = len(isolated)
-        
-        # Check 4: Count connected components (mesh parts)
-        # Build adjacency graph from triangles
-        try:
-            # Create adjacency list for vertices
-            adjacency = {i: set() for i in range(len(vertices))}
-            for tri in triangles:
-                adjacency[tri[0]].update([tri[1], tri[2]])
-                adjacency[tri[1]].update([tri[0], tri[2]])
-                adjacency[tri[2]].update([tri[0], tri[1]])
-            
-            # Find connected components using BFS
-            visited = set()
-            components = 0
-            
-            for start_vertex in range(len(vertices)):
-                if start_vertex in visited:
-                    continue
-                
-                # BFS from this vertex
-                components += 1
-                queue = [start_vertex]
-                visited.add(start_vertex)
-                
-                while queue:
-                    current = queue.pop(0)
-                    for neighbor in adjacency[current]:
-                        if neighbor not in visited:
-                            visited.add(neighbor)
-                            queue.append(neighbor)
-            
-            result['connected_components'] = components
-            
-            # Multiple connected components are acceptable for complex shapes (airplanes, furniture, etc.)
-            # Only flag as invalid if there are an excessive number of components (>50 indicates fragmentation)
-            if components > 50:
-                result['is_valid'] = False
-                result['details']['excessive_components'] = components
-            elif components > 1:
-                # Note multiple components but don't mark as invalid
-                result['details']['multiple_components'] = components
-                
-        except Exception as e:
-            result['details']['connectivity_check_error'] = str(e)
-        
-        return result
-    
-    def _validate_no_floating_geometry(self, mesh):
-        """
-        Validate that subdivision didn't create floating/detached geometry
-        
-        Checks for:
-        1. Vertices significantly far from the main mesh body
-        2. Suspicious spatial outliers that indicate subdivision artifacts
-        
-        Returns dictionary with validation results:
-        - is_valid: bool (True if no floating geometry detected)
-        - outlier_count: int (number of suspicious vertices)
-        - max_distance_ratio: float (ratio of max to median distance from centroid)
-        - details: dict with additional information
-        """
-        result = {
-            'is_valid': True,
-            'outlier_count': 0,
-            'max_distance_ratio': 0.0,
-            'details': {}
-        }
-        
-        vertices = np.asarray(mesh.vertices)
-        
-        if len(vertices) < 10:
-            result['details']['too_few_vertices'] = len(vertices)
-            return result
-        
-        # Calculate distances from centroid
-        centroid = vertices.mean(axis=0)
-        distances = np.linalg.norm(vertices - centroid, axis=1)
-        
-        # Statistical analysis
-        median_distance = np.median(distances)
-        mean_distance = np.mean(distances)
-        std_distance = np.std(distances)
-        max_distance = np.max(distances)
-        
-        result['details']['median_distance'] = float(median_distance)
-        result['details']['mean_distance'] = float(mean_distance)
-        result['details']['std_distance'] = float(std_distance)
-        result['details']['max_distance'] = float(max_distance)
-        
-        if median_distance == 0:
-            result['details']['warning'] = 'All vertices at same location'
-            return result
-        
-        # Check 1: Max distance ratio
-        # If max distance is more than 10x the median, likely has floating geometry
-        max_distance_ratio = max_distance / median_distance if median_distance > 0 else 0
-        result['max_distance_ratio'] = float(max_distance_ratio)
-        
-        if max_distance_ratio > 10.0:
-            result['is_valid'] = False
-            result['details']['excessive_max_distance_ratio'] = max_distance_ratio
-        
-        # Check 2: Outlier detection using IQR method
-        q75 = np.percentile(distances, 75)
-        q25 = np.percentile(distances, 25)
-        iqr = q75 - q25
-        
-        if iqr > 0:
-            outlier_threshold = q75 + 3 * iqr  # 3x IQR beyond Q3
-            outliers = distances > outlier_threshold
-            outlier_count = np.sum(outliers)
-            result['outlier_count'] = int(outlier_count)
-            result['details']['outlier_threshold'] = float(outlier_threshold)
-            result['details']['iqr'] = float(iqr)
-            
-            # If more than 1% of vertices are outliers, flag as suspicious
-            if outlier_count > len(vertices) * 0.01:
-                result['is_valid'] = False
-                result['details']['excessive_outliers'] = outlier_count
-        
-        # Check 3: Distance spread
-        # If std deviation is more than 2x the mean, spatial distribution is suspicious
-        if mean_distance > 0 and std_distance / mean_distance > 2.0:
-            result['is_valid'] = False
-            result['details']['excessive_distance_spread'] = std_distance / mean_distance
-        
-        return result
-    
     def validate_mesh_quality(self, vertices, faces):
-
         """Validate mesh quality and topology"""
         quality_data = {
             'vertex_count': len(vertices),
@@ -933,7 +424,9 @@ class UnifiedPreprocessingProcessor:
         return category_analysis
     
     def create_validation_plots(self, output_dir, all_validation_data):
-        """Create comprehensive validation plots""" 
+        """Create comprehensive validation plots"""
+        import matplotlib.pyplot as plt
+        import seaborn as sns
         
         plots_dir = os.path.join(output_dir, 'validation_plots')
         os.makedirs(plots_dir, exist_ok=True)
@@ -993,8 +486,8 @@ class UnifiedPreprocessingProcessor:
         # 2. Error Distribution
         error_categories = list(error_counts.keys())
         error_values = list(error_counts.values())
-        error_values_array = np.array(error_values)
-        if error_values and np.sum(error_values_array) > 0 and not np.isnan(error_values_array).any():
+        
+        if error_values:
             ax2.pie(error_values, labels=error_categories, autopct='%1.1f%%', startangle=90)
             ax2.set_title('Error Distribution by Category')
         else:
@@ -1354,6 +847,7 @@ class UnifiedPreprocessingProcessor:
             return True
             
         except Exception as e:
+            import traceback
             error_msg = f"Error processing {row.get('filename', 'unknown')}: {str(e)}"
             print(f"\n❌ {error_msg}")
             traceback.print_exc()
@@ -1534,7 +1028,8 @@ class UnifiedPreprocessingProcessor:
         
         # B. Alignment Validation (PCA verification)
         aligned_vertices = step_vertices['aligned']
-        try:            
+        try:
+            from sklearn.decomposition import PCA
             pca = PCA(n_components=3)
             pca.fit(aligned_vertices)
             
@@ -1597,16 +1092,6 @@ class UnifiedPreprocessingProcessor:
                 validation_data['flipping_validation'] = {'error': 'Triangle indices exceed flipped vertex count'}
         else:
             validation_data['flipping_validation'] = {'error': 'No triangles available for moment test'}
-        
-        # Store bbox dimensions BEFORE scaling (from the flipped step)
-        # This is needed for normalization_statistics.csv
-        flipped_vertices = step_vertices['flipped']
-        bbox_before_min = np.min(flipped_vertices, axis=0)
-        bbox_before_max = np.max(flipped_vertices, axis=0)
-        bbox_before_dimensions = bbox_before_max - bbox_before_min
-        max_dimension_before_scaling = np.max(bbox_before_dimensions)
-        
-        validation_data['bbox_before_scaling'] = float(max_dimension_before_scaling)
         
         # D. Scaling Validation
         scaled_vertices = step_vertices['scaled']
@@ -1731,6 +1216,8 @@ class UnifiedPreprocessingProcessor:
         
         # J. Compactness Metric (for geometric property preservation)
         try:
+            from scipy.spatial import ConvexHull
+            
             # Compute for scaled mesh
             if len(step_vertices['scaled']) >= 4:
                 hull = ConvexHull(step_vertices['scaled'])
@@ -1807,66 +1294,10 @@ class UnifiedPreprocessingProcessor:
         
         return validation_data
     
-    def save_normalization_statistics_csv(self, all_validations, dataset_output_dir):
-        """
-        Generate normalization_statistics.csv in the same format as normalization.py
-        
-        This creates a simple per-mesh CSV with the same columns as the original
-        normalization.py script for easy comparison and analysis.
-        
-        Args:
-            all_validations: List of validation dictionaries
-            dataset_output_dir: Path to dataset-specific output directory
-        """
-        stats_file = dataset_output_dir / "normalization_statistics.csv"
-        
-        # Prepare data in the same format as normalization.py
-        csv_data = []
-        for i, validation in enumerate(all_validations, 1):
-            # Extract the same metrics as normalization.py
-            centering_validation = validation.get('centering_validation', {})
-            scaling_validation = validation.get('scaling_validation', {})
-            
-            # Get barycenter distances before/after translation
-            bary_before = centering_validation.get('original', {}).get('distance_from_origin', 0)
-            bary_after = centering_validation.get('translated', {}).get('distance_from_origin', 0)
-            
-            # Get bbox dimensions before/after scaling
-            # bbox_before_scaling: stored from the 'flipped' step (before scaling was applied)
-            bbox_before = validation.get('bbox_before_scaling', 0.0)
-            
-            # After scaling
-            bbox_after = scaling_validation.get('max_dimension', 1.0)
-            
-            row = {
-                'mesh_index': i,
-                'bary_before_translation': float(bary_before),
-                'bary_after_translation': float(bary_after),
-                'bbox_before_scaling': float(bbox_before),
-                'bbox_after_scaling': float(bbox_after)
-            }
-            csv_data.append(row)
-        
-        # Write to CSV file in the exact same format as normalization.py        
-        with open(stats_file, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['mesh_index', 'bary_before_translation', 'bary_after_translation', 'bbox_before_scaling', 'bbox_after_scaling']
-            writer = csv_module.DictWriter(csvfile, fieldnames=fieldnames)
-            
-            writer.writeheader()
-            writer.writerows(csv_data)
-        
-        print(f"📊 Normalization statistics CSV saved: {stats_file}")
-        return stats_file
-    
-    def save_dataset_validation_summary(self, all_validations, dataset_output_dir):
-        """Save comprehensive validation summary for entire dataset
-        
-        Args:
-            all_validations: List of validation dictionaries
-            dataset_output_dir: Path to dataset-specific output directory
-        """
-        summary_file = dataset_output_dir / "validation_summary.csv"
-        detailed_file = dataset_output_dir / "validation_detailed.json"
+    def save_dataset_validation_summary(self, all_validations):
+        """Save comprehensive validation summary for entire dataset"""
+        summary_file = self.output_base_dir / "validation_summary.csv"
+        detailed_file = self.output_base_dir / "validation_detailed.json"
         
         # Prepare CSV data
         csv_data = []
@@ -1901,6 +1332,7 @@ class UnifiedPreprocessingProcessor:
                 category_stats[category]['successful'] += 1
         
         # Save CSV
+        import csv as csv_module
         with open(summary_file, 'w', newline='', encoding='utf-8') as f:
             if csv_data:
                 writer = csv_module.DictWriter(f, fieldnames=csv_data[0].keys())
@@ -1937,24 +1369,9 @@ class UnifiedPreprocessingProcessor:
             'detailed_validations': all_validations
         }
         
-        # Save detailed JSON with error handling
-        try:
-            def convert_np(obj):
-                if isinstance(obj, dict):
-                    return {k: convert_np(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [convert_np(v) for v in obj]
-                elif isinstance(obj, (np.integer, np.floating)):
-                    return obj.item()
-                elif isinstance(obj, np.bool_):
-                    return bool(obj)
-                else:
-                    return obj
-            with open(detailed_file, 'w') as f:
-                json.dump(convert_np(summary_stats), f, indent=2)
-        except Exception as e:
-            print(f"❌ Error saving detailed validation JSON to {detailed_file}: {e}")            
-            traceback.print_exc()
+        # Save detailed JSON
+        with open(detailed_file, 'w') as f:
+            json.dump(summary_stats, f, indent=2)
         
         print(f"\n📊 Validation Summary:")
         print(f"   Total shapes validated: {total_shapes}")
@@ -2015,135 +1432,6 @@ class UnifiedPreprocessingProcessor:
         with open(output_path, 'w') as f:
             json.dump(metadata, f, indent=2)
     
-    def regenerate_validation_from_existing_steps(self, dataset_name):
-        """
-        Regenerate validation data from existing step-by-step OBJ files
-        
-        This is MUCH faster than reprocessing - just reads existing files
-        and recomputes validation metrics with new bbox_before_scaling data.
-        
-        Args:
-            dataset_name: Name of the dataset to regenerate validations for
-        
-        Returns:
-            Number of validations successfully regenerated
-        """
-        print(f"\n🔄 Regenerating validation data from existing step files...")
-        print(f"   Dataset: {dataset_name}")
-        
-        dataset_output_dir = self.output_base_dir / dataset_name
-        
-        if not dataset_output_dir.exists():
-            print(f"❌ Dataset output directory not found: {dataset_output_dir}")
-            return 0
-        
-        # Find all categories with processed shapes
-        category_dirs = [d for d in dataset_output_dir.iterdir() if d.is_dir() and d.name != 'validation_plots']
-        
-        regenerated_count = 0
-        all_validations = []
-        
-        for category_dir in tqdm(category_dirs, desc="Regenerating validations"):
-            category = category_dir.name
-            
-            # Find all step file sets (look for *_05_scaled.obj files as markers)
-            scaled_files = list(category_dir.glob("*_05_scaled.obj"))
-            
-            for scaled_file in scaled_files:
-                base_name = scaled_file.stem.replace("_05_scaled", "")
-                
-                # Check if all step files exist
-                step_files = {
-                    'original': category_dir / f"{base_name}_00_original.obj",
-                    'translated': category_dir / f"{base_name}_02_translated.obj",
-                    'aligned': category_dir / f"{base_name}_03_aligned.obj",
-                    'flipped': category_dir / f"{base_name}_04_flipped.obj",
-                    'scaled': category_dir / f"{base_name}_05_scaled.obj"
-                }
-                
-                # Check for optional remeshed file
-                remeshed_file = category_dir / f"{base_name}_01_remeshed.obj"
-                if remeshed_file.exists():
-                    step_files['resampled'] = remeshed_file
-                else:
-                    # Use original as resampled if no remeshing was done
-                    step_files['resampled'] = step_files['original']
-                
-                # Verify all required files exist
-                if not all(f.exists() for f in step_files.values()):
-                    print(f"⚠️  Skipping {base_name}: Missing step files")
-                    continue
-                
-                try:
-                    # Load vertices and faces from each step file
-                    # Important: Each step may have different face connectivity after remeshing
-                    step_vertices = {}
-                    step_faces = {}
-                    
-                    for step_name, step_file in step_files.items():
-                        mesh = o3d.io.read_triangle_mesh(str(step_file))
-                        vertices = np.asarray(mesh.vertices)
-                        faces = np.asarray(mesh.triangles)
-                        
-                        # Validate that face indices are within bounds
-                        if len(faces) > 0 and len(vertices) > 0:
-                            max_index = np.max(faces)
-                            if max_index >= len(vertices):
-                                print(f"⚠️  Warning: {base_name} {step_name} has invalid face indices (max: {max_index}, vertices: {len(vertices)})")
-                                # Try to filter out invalid faces
-                                valid_faces = faces[np.all(faces < len(vertices), axis=1)]
-                                if len(valid_faces) > 0:
-                                    faces = valid_faces
-                                    print(f"   Filtered to {len(valid_faces)} valid faces")
-                                else:
-                                    print(f"   No valid faces found, skipping this shape")
-                                    continue
-                        
-                        step_vertices[step_name] = vertices
-                        step_faces[step_name] = faces
-                    
-                    # Use faces from the scaled step for ShapeMesh (most reliable)
-                    final_faces = step_faces.get('scaled', step_faces.get('original'))
-                    
-                    # Create a minimal ShapeMesh object for validation
-                    temp_mesh = ShapeMesh(
-                        vertices=step_vertices['scaled'],
-                        faces=final_faces,
-                        category=category,
-                        filename=f"{base_name}.obj",
-                        filepath=str(step_files['original']),
-                        size=None
-                    )
-                    
-                    # Perform comprehensive validation with the loaded step vertices
-                    validation_data = self.perform_comprehensive_validation(
-                        temp_mesh, step_vertices, category_dir, base_name
-                    )
-                    
-                    # Add additional validation analyses
-                    validation_data['mesh_quality'] = self.validate_mesh_quality(
-                        step_vertices['scaled'], final_faces
-                    )
-                    validation_data['transformations'] = self.analyze_transformations(step_vertices)
-                    validation_data['category_analysis'] = self.category_specific_validation(
-                        category, validation_data
-                    )
-                    
-                    all_validations.append(validation_data)
-                    regenerated_count += 1
-                    
-                except Exception as e:
-                    print(f"❌ Error regenerating validation for {base_name}: {str(e)}")
-                    continue
-        
-        # Store validations for summary generation
-        if not hasattr(self, 'all_validations'):
-            self.all_validations = []
-        self.all_validations = all_validations
-        
-        print(f"\n✅ Successfully regenerated {regenerated_count} validation files")
-        return regenerated_count
-    
     def process_dataset(self, dataset_name):
         """Process all shapes in a dataset (enhanced version of your method)"""
         print(f"\nProcessing dataset: {dataset_name}")
@@ -2151,10 +1439,6 @@ class UnifiedPreprocessingProcessor:
         print("Enhanced Pipeline: Remeshing → Enhanced Translation → PCA → Flipping → Enhanced Scaling")
         print("Improvements: Two-pass recentering, area-weighted barycenter, post-scaling recenter")
         print("=" * 60)
-        
-        # Get dataset-specific output directory
-        dataset_output_dir = self.output_base_dir / dataset_name
-        dataset_output_dir.mkdir(parents=True, exist_ok=True)
         
         # Get file list for dataset (your existing logic)
         file_df = get_file_tree(data_dir=dataset_name)
@@ -2165,122 +1449,35 @@ class UnifiedPreprocessingProcessor:
         
         print(f"Found {len(file_df)} shapes across {file_df['category'].nunique()} categories")
         
-        # Check if shapes are already processed - if so, offer to just regenerate validation
-        sample_row = file_df.iloc[0]
-        category = sample_row.get('category', 'Unknown')
-        category_dir = dataset_output_dir / category
-        base_name = Path(sample_row.get('filename', '')).stem
-        normalized_obj_path = category_dir / f"{base_name}_unified.obj"
-        
-        if normalized_obj_path.exists():
-            print(f"\n💡 Detected existing processed shapes!")
-            print(f"   To save time, regenerating validation data from existing step files...")
-            print(f"   (This is ~100x faster than reprocessing all meshes)")
+        # Process each shape (your existing loop structure)
+        for idx, row in tqdm(file_df.iterrows(), total=len(file_df), desc=f"Processing {dataset_name}"):
+            success = self.process_shape(row, dataset_name)
             
-            # Regenerate validation data from existing step files
-            regenerated_count = self.regenerate_validation_from_existing_steps(dataset_name)
-            
-            if regenerated_count == 0:
-                print(f"\n⚠️  No validations regenerated. Falling back to full processing...")
-                # Fall through to normal processing below
-                process_shapes = True
-            else:
-                # Skip to validation summary generation
-                process_shapes = False
-        else:
-            # Normal processing path
-            print(f"\n🔄 Processing shapes...")
-            process_shapes = True
-        
-        # Process shapes if needed
-        if process_shapes:
-            # Process each shape (your existing loop structure)
-            for idx, row in tqdm(file_df.iterrows(), total=len(file_df), desc=f"Processing {dataset_name}"):
-                success = self.process_shape(row, dataset_name)
-                
-                # Progress logging every 50 shapes
-                if (idx + 1) % 50 == 0:
-                    success_rate = self.stats['successful'] / max(self.stats['total_processed'], 1) * 100
-                    print(f"\nProgress: {idx+1}/{len(file_df)} ({success_rate:.1f}% success rate)")
+            # Progress logging every 50 shapes
+            if (idx + 1) % 50 == 0:
+                success_rate = self.stats['successful'] / max(self.stats['total_processed'], 1) * 100
+                print(f"\nProgress: {idx+1}/{len(file_df)} ({success_rate:.1f}% success rate)")
         
         # Generate validation summary for this dataset
         if hasattr(self, 'all_validations') and self.all_validations:
             print(f"\n🔍 Generating comprehensive validation summary for {dataset_name}...")
+            validation_stats = self.save_dataset_validation_summary(self.all_validations)
             
-            # Save comprehensive validation summary (enhanced CSV + detailed JSON)
-            try:
-                validation_stats = self.save_dataset_validation_summary(self.all_validations, dataset_output_dir)
-            except Exception as e:
-                print(f"Error occurred while saving validation summary: {e}")
-                print(traceback.format_exc())
-                validation_stats = {}
-
-            # Save normalization_statistics.csv in normalization.py format for easy comparison
-            try:                    
-                print(f"\n📊 Generating normalization_statistics.csv (normalization.py format)...")
-                self.save_normalization_statistics_csv(self.all_validations, dataset_output_dir)
-            except Exception as e:
-                print(f"Error occurred while saving normalization statistics: {e}")
-                print(traceback.format_exc())
-
             # Create comprehensive validation plots
-            try:
-                print(f"\n📊 Creating validation visualization plots...")
-                plots_dir = self.create_validation_plots(str(dataset_output_dir), self.all_validations)
-                print(f"✅ Validation plots saved to: {plots_dir}")
-            except Exception as e:
-                print(f"Error occurred while creating validation plots: {e}")
-                print(traceback.format_exc())
-
-            # Save dataset-specific processing report
-            try:
-                print(f"\n📄 Saving dataset-specific processing report...")
-                self.save_processing_report(dataset_name)
-
-            except Exception as e:
-                print(f"Error occurred while saving processing report: {e}")
-                print(traceback.format_exc())
-
+            print(f"\n📊 Creating validation visualization plots...")
+            plots_dir = self.create_validation_plots(str(self.output_base_dir), self.all_validations)
+            print(f"✅ Validation plots saved to: {plots_dir}")
+            
             return validation_stats
     
-    def _convert_numpy_types(self, obj):
-        """Recursively convert numpy types to native Python types for JSON serialization"""
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.bool_):
-            return bool(obj)
-        elif isinstance(obj, dict):
-            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
-        elif isinstance(obj, list):
-            return [self._convert_numpy_types(item) for item in obj]
-        elif isinstance(obj, tuple):
-            return tuple(self._convert_numpy_types(item) for item in obj)
-        else:
-            return obj
-    
-    def save_processing_report(self, dataset_name=None):
-        """Save comprehensive processing report (enhanced version)
-        
-        Args:
-            dataset_name: If provided, saves dataset-specific report. Otherwise saves global summary.
-        """
-        if dataset_name:
-            # Save dataset-specific report
-            dataset_output_dir = self.output_base_dir / dataset_name
-            report_path = dataset_output_dir / f"{dataset_name}_processing_report.json"
-        else:
-            # Save global summary report
-            report_path = self.output_base_dir / "unified_processing_report.json"
+    def save_processing_report(self):
+        """Save comprehensive processing report (enhanced version)"""
+        report_path = self.output_base_dir / "unified_processing_report.json"
         
         processing_time = time.time() - self.stats['start_time']
         
         # Enhanced report with remeshing stats
         report = {
-            'dataset': dataset_name if dataset_name else 'all_datasets',
             'processing_summary': {
                 'total_shapes': self.stats['total_processed'],
                 'successful': self.stats['successful'],
@@ -2292,29 +1489,21 @@ class UnifiedPreprocessingProcessor:
             'remeshing_summary': {
                 'shapes_remeshed': len(self.stats['remeshing_stats']),
                 'target_vertices': self.target_vertices,
-                'avg_reduction_ratio': float(np.mean([s['reduction_ratio'] for s in self.stats['remeshing_stats']])) if self.stats['remeshing_stats'] else 1.0
+                'avg_reduction_ratio': np.mean([s['reduction_ratio'] for s in self.stats['remeshing_stats']]) if self.stats['remeshing_stats'] else 1.0
             },
             'normalization_quality': {
-                'mean_centering_error': float(np.mean(self.stats['normalization_stats']['centering_errors'])) if self.stats['normalization_stats']['centering_errors'] else 0.0,
-                'max_centering_error': float(np.max(self.stats['normalization_stats']['centering_errors'])) if self.stats['normalization_stats']['centering_errors'] else 0.0,
-                'mean_scaling_error': float(np.mean(self.stats['normalization_stats']['scaling_errors'])) if self.stats['normalization_stats']['scaling_errors'] else 0.0,
-                'max_scaling_error': float(np.max(self.stats['normalization_stats']['scaling_errors'])) if self.stats['normalization_stats']['scaling_errors'] else 0.0
+                'mean_centering_error': np.mean(self.stats['normalization_stats']['centering_errors']) if self.stats['normalization_stats']['centering_errors'] else 0,
+                'max_centering_error': np.max(self.stats['normalization_stats']['centering_errors']) if self.stats['normalization_stats']['centering_errors'] else 0,
+                'mean_scaling_error': np.mean(self.stats['normalization_stats']['scaling_errors']) if self.stats['normalization_stats']['scaling_errors'] else 0,
+                'max_scaling_error': np.max(self.stats['normalization_stats']['scaling_errors']) if self.stats['normalization_stats']['scaling_errors'] else 0
             },
             'by_category': self.stats['normalization_stats']['by_category'],
             'errors': self.stats['errors'],
             'remeshing_details': self.stats['remeshing_stats']
         }
         
-        # Convert all numpy types to native Python types
-        report = self._convert_numpy_types(report)
-        
         with open(report_path, 'w') as f:
             json.dump(report, f, indent=2)
-        
-        if dataset_name:
-            print(f"📄 Dataset-specific processing report saved: {report_path}")
-        else:
-            print(f"📄 Global processing report saved: {report_path}")
         
         return report
     
@@ -2569,16 +1758,16 @@ class UnifiedPreprocessingProcessor:
         # 1. Generate analysis for original datasets in Preprocessing folder
         print("\n📊 ANALYZING ORIGINAL DATASETS")
         print("-" * 40)
-
-        original_datasets = ["Data", "Data_sampled", "Data_resampled", "Jet"]
-
+        
+        original_datasets = ["Data", "Data_sampled", "Data_resampled", "Data_sampled_resampled", "Data_sampled_resampled_normalized"]
+        
         for dataset_name in original_datasets:
             try:
                 # Check if original dataset exists
                 original_dataset_path = Path(f"../../Datasets/{dataset_name}")
                 if original_dataset_path.exists():
                     print(f"\n🔍 Analyzing original dataset: {dataset_name}")
-                    csv_file = self.analyze_processed_dataset(dataset_name, output_dir=str(self.output_base_dir / dataset_name))
+                    csv_file = self.analyze_processed_dataset(dataset_name, output_dir="../../Preprocessing")
                     if csv_file:
                         generated_csvs.append(csv_file)
                 else:
@@ -2653,8 +1842,6 @@ def main():
     
     # Use your preferred dataset
     datasets = ["Data"]  # Adjust as needed
-    # datasets = ["Data_sampled"]  # Adjust as needed
-    # datasets = ["Jet"]  # Adjust as needed
     
     # Initialize processor with remeshing target
     processor = UnifiedPreprocessingProcessor(target_vertices=7500)
@@ -2663,20 +1850,31 @@ def main():
     # Setup directories
     processor.setup_output_directories(datasets)
     
-    # Process each dataset (process_dataset has its own smart skip/regeneration logic)
+    # Check if processing is needed (smart skip logic)
+    skip_processing = True
     for dataset in datasets:
-        try:
-            processor.process_dataset(dataset)
-        except Exception as e:
-            print(f"❌ Failed to process dataset {dataset}: {str(e)}")
+        dataset_output_dir = processor.output_base_dir / dataset
+        if not dataset_output_dir.exists() or len(list(dataset_output_dir.rglob("*.obj"))) == 0:
+            skip_processing = False
+            break
     
-    # Generate and save processing report if any processing occurred
-    if processor.stats['total_processed'] > 0 or (hasattr(processor, 'all_validations') and processor.all_validations):
+    if skip_processing:
+        print("\n📋 All datasets appear to be already processed, skipping preprocessing and normalization")
+        print("   To force reprocessing, delete the UnifiedPreprocessed folder")
+    else:
+        # Process each dataset
+        for dataset in datasets:
+            try:
+                processor.process_dataset(dataset)
+            except Exception as e:
+                print(f"❌ Failed to process dataset {dataset}: {str(e)}")
+        
+        # Generate and save processing report
         report = processor.save_processing_report()
         processor.print_summary(report)
     
     # Always generate analysis CSV files (with their own smart skip logic)
-    # processor.generate_analysis_for_all_datasets()
+    processor.generate_analysis_for_all_datasets()
 
 if __name__ == "__main__":
     main()
