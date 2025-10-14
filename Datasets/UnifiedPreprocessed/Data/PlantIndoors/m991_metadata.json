@@ -3,16 +3,16 @@
   "category": "PlantIndoors",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 4180,
-    "final_faces_count": 4838
+    "target_vertices": 7500,
+    "final_vertices_count": 9252,
+    "final_faces_count": 13551
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.5446779172408559,
-        0.47948451618748633,
-        0.5703471408350367
+        0.5403588507935474,
+        0.4788631261708887,
+        0.5543873614099697
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        2.6811620441103124e-15,
-        2.5973906704340503e-15,
-        -2.722968049870121e-16
+        -0.02436410190660221,
+        0.1304349239894364,
+        -0.005729609701067529
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.05754256711731195,
-        0.03645615728647498,
-        0.0171267635724313
+        0.059297719153961655,
+        0.03900718755496784,
+        0.015192942636063154
       ],
       "eigenvectors": [
         [
-          0.9027115087470261,
-          0.0626052274619635,
-          -0.4256671439870633
+          0.886715057809237,
+          0.07106736321908155,
+          -0.45682144886098375
         ],
         [
-          0.43024634805016804,
-          -0.131102180833197,
-          0.893140693379421
+          0.46198475053065363,
+          -0.09879023632984206,
+          0.8813685832176138
         ],
         [
-          -0.00010938537881198824,
-          0.9893901170292815,
-          0.14528311794432086
+          -0.017507042339896056,
+          0.9925673373081453,
+          0.12043082818584261
         ]
       ],
       "explained_variance_ratio": [
-        0.5178161029054517,
-        0.3280629669250757,
-        0.15412093016947262
+        0.5224567645658017,
+        0.34368217353969427,
+        0.13386106189450403
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -69.5959178761811,
-        -20.0323880453099,
-        30.34274041609362
+        -284.41728487410114,
+        -186.35274808672474,
+        -354.4735577457191
       ],
       "flip_factors": [
         -1.0,
         -1.0,
-        1.0
+        -1.0
       ]
     },
     "final": {
       "center": [
-        1.1425270617950213e-16,
-        -7.391499029002995e-17,
-        1.912345879737112e-17
+        0.00994549738122446,
+        0.029878062030057943,
+        0.13224097822356914
       ],
       "bounding_box": {
         "min": [
-          -0.40549766480632027,
-          -0.44840573460436284,
-          -0.3154457955143738
+          -0.3919242119164905,
+          -0.4402479563811061,
+          -0.3472265332052945
         ],
         "max": [
-          0.5945023351936797,
-          0.5207639475314937,
-          0.4835899630508728
+          0.6080757880835095,
+          0.5301013878926597,
+          0.4508127352816159
         ],
         "dimensions": [
           1.0,
-          0.9691696821358565,
-          0.7990357585652466
+          0.9703493442737658,
+          0.7980392684869104
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:16:44",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.8683577872676579,
+    "bary_after_translation": 2.6879567924784016e-15,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 16:32:07",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantIndoors\\m991_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantIndoors\\m991_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantIndoors\\m991_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantIndoors\\m991_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantIndoors\\m991_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantIndoors\\m991_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 2.6879567924784016e-15,
+    "scaling_error": 0.0,
+    "alignment_quality": 0.9999999999999997,
+    "flipping_success": true
+  }
 }

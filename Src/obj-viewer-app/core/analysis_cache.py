@@ -55,57 +55,66 @@ class AnalysisCache:
     
     def _get_analysis_path(self, dataset: str) -> Optional[str]:
         """Get the analysis CSV path for a dataset."""
-        # Handle nested datasets (e.g., "UnifiedPreprocessed/Data")
-        if "/" in dataset:
-            # For nested datasets, try to find analysis for the base dataset
-            base_dataset = dataset.split("/")[-1]  # Get "Data" from "UnifiedPreprocessed/Data"
-            return self._get_analysis_path(base_dataset)
         
         # Try multiple potential paths for each dataset
         potential_paths = []
         
-        # Direct dataset mappings
+        # Direct dataset mappings - Updated to match enhanced preprocessing script logic
         path_mapping = {
+            # Original datasets - analysis files saved in Preprocessing folder
             'Data': [
+                'Preprocessing/analysis_results_data.csv',
                 'Preprocessing/analysis_results.csv',
-                'Datasets/analysis_results_data.csv',
-                'analysis_results.csv'
+                'Datasets/Data/analysis_results.csv'
             ],
             'Data_sampled': [
+                'Preprocessing/analysis_results_data_sampled.csv',
                 'Preprocessing/analysis_results_sampled.csv',
-                'analysis_results_sampled.csv'
+                'Datasets/Data_sampled/analysis_results.csv'
             ],
             'Data_resampled': [
+                'Preprocessing/analysis_results_data_resampled.csv',
                 'Preprocessing/analysis_results_resampled.csv',
-                'analysis_results_resampled.csv'
+                'Datasets/Data_resampled/analysis_results.csv'
             ],
             'Data_sampled_resampled': [
+                'Preprocessing/analysis_results_data_sampled_resampled.csv',
                 'Preprocessing/analysis_results_sampled_resampled.csv',
-                'analysis_results_sampled_resampled.csv'
+                'Datasets/Data_sampled_resampled/analysis_results.csv'
             ],
             'Data_sampled_resampled_normalized': [
+                'Preprocessing/analysis_results_data_sampled_resampled_normalized.csv',
                 'Preprocessing/analysis_results_sampled_resampled_normalized.csv',
-                'analysis_results_sampled_resampled_normalized.csv'
+                'Datasets/Data_sampled_resampled_normalized/analysis_results.csv'
             ],
             'Data_sampled_resampled_simple': [
+                'Preprocessing/analysis_results_data_sampled_resampled_simple.csv',
                 'Preprocessing/analysis_results_sampled_resampled_simple.csv',
-                'analysis_results_sampled_resampled_simple.csv'
+                'Datasets/Data_sampled_resampled_simple/analysis_results.csv'
             ],
+            # Processed datasets - analysis files saved in dataset folder
             'UnifiedPreprocessed/Data': [
-                'UnifiedPreprocessed/Data/analysis_results_unified.csv',
+                'Datasets/UnifiedPreprocessed/Data/analysis_results.csv',
+                'Datasets/UnifiedPreprocessed/analysis_results.csv',
+                'Preprocessing/analysis_results_resampled.csv'  # fallback
+            ],
+            'UnifiedPreprocessed_Data': [
+                'Datasets/UnifiedPreprocessed/Data/analysis_results.csv',
+                'Datasets/UnifiedPreprocessed/analysis_results.csv',
                 'analysis_results_unified.csv'
             ],
         }
         
         potential_paths = path_mapping.get(dataset, [])
         
-        # Also try generic patterns
-        generic_patterns = [
-            f'Preprocessing/analysis_results_{dataset.lower()}.csv',
-            f'analysis_results_{dataset.lower()}.csv',
-            f'Datasets/{dataset}/analysis_results.csv'
-        ]
-        potential_paths.extend(generic_patterns)
+        # Only add generic patterns if no specific mapping exists
+        if not potential_paths:
+            generic_patterns = [
+                f'Preprocessing/analysis_results_{dataset.lower()}.csv',
+                f'analysis_results_{dataset.lower()}.csv',
+                f'Datasets/{dataset}/analysis_results.csv'
+            ]
+            potential_paths.extend(generic_patterns)
         
         # Find project root and check all potential paths
         project_root = Path(__file__).resolve().parent.parent
@@ -156,26 +165,62 @@ def merge_analysis_data(file_df: pd.DataFrame, dataset: str) -> pd.DataFrame:
     
     if analysis_df is not None:
         # Handle filename matching for processed files
-        # Processed files have "_unified.obj" suffix, original analysis has ".obj"
+        # File list shows only *_05_scaled.obj files, but analysis CSV contains all files
         file_df_copy = file_df.copy()
         
-        # Create a mapping column for matching
-        file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
-        analysis_df_copy = analysis_df.copy()
-        analysis_df_copy['base_filename'] = analysis_df_copy['filename']
+        # Create mapping for different filename patterns
+        file_df_copy['base_filename'] = file_df_copy['filename'].copy()
         
-        # Merge on category and base filename
+        # For processed datasets, map from displayed filename to analysis filename
+        if 'UnifiedPreprocessed' in dataset:
+            # For UnifiedPreprocessed datasets:
+            # - App shows: m1337_05_scaled.obj 
+            # - Analysis CSV might have: m1337_05_scaled.obj (if generated by enhanced script)
+            #   or m1337.obj (if using fallback analysis from original dataset)
+            
+            # Try exact match first, then fallback to base name without step suffix
+            file_df_copy['fallback_filename'] = file_df_copy['filename'].str.replace(r'_\d+_scaled\.obj$', '.obj', regex=True)
+        else:
+            # For original datasets, filenames should match directly
+            file_df_copy['fallback_filename'] = file_df_copy['filename']
+        
+        analysis_df_copy = analysis_df.copy()
+        
+        # First try exact filename match
         merged = pd.merge(
             file_df_copy, 
-            analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
-            on=['category', 'base_filename'], 
+            analysis_df_copy[['category', 'filename', 'num_vertices', 'num_faces']],
+            on=['category', 'filename'], 
             how='left'
         )
         
-        # Drop the temporary matching column
-        merged = merged.drop('base_filename', axis=1)
+        # For unmatched entries, try fallback filename matching
+        unmatched_mask = merged['num_vertices'].isna()
+        if unmatched_mask.any() and 'fallback_filename' in file_df_copy.columns:
+            print(f"[DEBUG] Trying fallback filename matching for {unmatched_mask.sum()} entries...")
+            
+            # Create temporary merge with fallback filenames
+            unmatched_df = file_df_copy[unmatched_mask].copy()
+            unmatched_df['filename'] = unmatched_df['fallback_filename']  # Use fallback for matching
+            
+            fallback_merged = pd.merge(
+                unmatched_df[['category', 'filename', 'filepath', 'fallback_filename']],
+                analysis_df_copy[['category', 'filename', 'num_vertices', 'num_faces']],
+                on=['category', 'filename'],
+                how='left'
+            )
+            
+            # Update the main merged dataframe with fallback results
+            for idx in fallback_merged.index:
+                if not pd.isna(fallback_merged.loc[idx, 'num_vertices']):
+                    orig_idx = unmatched_df.index[idx]
+                    merged.loc[orig_idx, 'num_vertices'] = fallback_merged.loc[idx, 'num_vertices']
+                    merged.loc[orig_idx, 'num_faces'] = fallback_merged.loc[idx, 'num_faces']
         
-        # For rows without analysis data, compute on-the-fly
+        # Clean up temporary columns
+        merged = merged.drop(['fallback_filename'], axis=1, errors='ignore')
+        
+        # For rows still without analysis data, compute on-the-fly
         missing_analysis = merged['num_vertices'].isna()
         if missing_analysis.any():
             print(f"Computing analysis for {missing_analysis.sum()} files without cached data...")

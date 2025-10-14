@@ -1,0 +1,938 @@
+\documentclass[10pt]{article}
+
+\usepackage{fullpage}
+\usepackage{CJKutf8} 
+\usepackage[utf8]{inputenc}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage[section]{placeins}
+\usepackage{xcolor}
+\usepackage{breakcites}
+\usepackage{lineno}
+\usepackage{hyphenat}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{booktabs}
+
+
+\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+
+\usepackage[style=numeric,sorting=none]{biblatex}
+\addbibresource{bibliography.bib} % 
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\raggedbottom 
+% \bibliographystyle{unsrt} % make reference numbering to be according to appearance in text 
+
+
+
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[colorlinks = true,
+            linkcolor = blue,
+            urlcolor  = blue,
+            citecolor = blue,
+            anchorcolor = blue]{hyperref}
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\@combinedblfloats{\box\@outputbox}{\unvbox\@outputbox}{}{%
+  \errmessage{\noexpand\@combinedblfloats could not be patched}%
+}%
+\makeatother
+
+
+% \usepackage{natbib}
+
+\newcommand\comments[1]{\textcolor{blue}{#1}}
+
+
+\renewenvironment{abstract}
+  {{\bfseries\noindent{\abstractname}\par\nobreak}\footnotesize}
+  {\bigskip}
+
+\titlespacing{\section}{0pt}{*3}{*1}
+\titlespacing{\subsection}{0pt}{*2}{*0.5}
+\titlespacing{\subsubsection}{0pt}{*1.5}{0pt}
+
+
+\usepackage{authblk}
+
+
+\usepackage{graphicx}
+\usepackage[space]{grffile}
+\usepackage{latexsym}
+\usepackage{textcomp}
+\usepackage{longtable}
+\usepackage{tabulary}
+\usepackage{booktabs,array,multirow}
+\usepackage{amsfonts,amsmath,amssymb}
+\providecommand\citet{\cite}
+\providecommand\citep{\cite}
+\providecommand\citealt{\cite}
+% You can conditionalize code for latexml or normal latex using this.
+\newif\iflatexml\latexmlfalse
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}%
+
+\AtBeginDocument{\DeclareGraphicsExtensions{.pdf,.PDF,.eps,.EPS,.png,.PNG,.tif,.TIF,.jpg,.JPG,.jpeg,.JPEG}}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[dvipsnames,tables]{xcolor}
+
+\begin{document}
+
+\title{Multimedia Retrieval - Report~ ~}
+
+\author[1]{Rutger Vincken}
+\author[1]{Bar Melinarskiy}%
+\author[1]{Arie Klaver}%
+\affil[1]{
+  \institution{Graduate School of Natural Sciences, Utrecht University,}
+  \
+  \country{the Netherlands}
+}
+
+
+\vspace{-1em}
+
+
+
+  
+  \date{September 16, 2025}
+
+
+\begingroup
+\let\center\flushleft
+\let\endcenter\endflushleft
+\maketitle
+\endgroup
+
+\tableofcontents
+
+
+\pagebreak
+\begin{abstract}
+\comments{TBD}
+\end{abstract}%
+
+
+% \sloppy
+
+
+\section{Introduction} \label{sec:introduction}
+
+Content-based 3D shape retrieval addresses the fundamental challenge of identifying similar three-dimensional objects within large databases using geometric and topological properties rather than textual metadata. Given a query shape, such systems must rank database entries by similarity and return the most relevant matches, requiring sophisticated understanding of shape characteristics across different scales and representations.
+
+In this work, we implement a complete 3D shape retrieval system using a collection of triangular meshes spanning diverse semantic categories and geometric complexities. Originating from the Princeton Shape Benchmark \cite{shilane2004princeton}, the dataset includes everyday objects, vehicles, buildings, tools, and animal models, offering a broad test-suite for evaluating retrieval accuracy and computational performance.
+
+The system was developed through six main stages: data visualization and preprocessing, geometric normalization, feature extraction, similarity metric design, spatial indexing, and performance evaluation. Each stage builds on the previous to form an end-to-end pipeline that allows querying a shape and retrieving the most similar objects from the database. The following sections describe these stages in detail and present the results of our evaluation. The full source code to our project is available via \href{https://github.com/BarGinger/MultimediaRetrieval.git}{GitHub}.
+
+\section{Dataset}
+For this multimedia retrieval assignment, we utilized a comprehensive 3D shape database containing diverse geometric objects organized into semantic categories. The database comprises shapes sourced from the Princeton Shape Benchmark \cite{shilane2004princeton}, offering a diverse range of 3D mesh objects suitable for content-based shape retrieval research. The complete data set used can be found \href{https://github.com/BarGinger/MultimediaRetrieval/tree/4489fb12a23cc732ef120aa5b21304f50ea49b45/Datasets/Data}{here}.
+
+The dataset comprises 2,483 3D mesh objects distributed across 69 distinct semantic categories, ranging from everyday objects like chairs, tables, and cups to more specialized items such as aircraft, musical instruments, and architectural elements. This diversity ensures comprehensive coverage of different shape characteristics, geometric complexities, and semantic domains essential for robust retrieval system evaluation. The category distribution ranges from 15 to 143 shapes per category, with an average of 36.0 shapes per category and a median of 27 shapes per category.
+
+Each shape in the database is associated with a class label corresponding to its semantic category, derived from the original benchmark collections' folder organization structure. These class labels serve as ground truth for evaluation purposes in our content-based shape retrieval system. The shapes are stored in OBJ format \cite{bourke1999obj}, a widely-used standard for 3D mesh representation, containing vertex coordinates, face connectivity information, and associated geometric metadata.
+
+The collection, as detailed in Table \ref{tab:dataset_composition}, exhibits significant variety in geometric complexity, with shapes averaging 5,908 vertices and 12,110 faces per object. This natural variation in mesh resolution and complexity provides an excellent testbed for evaluating the robustness and effectiveness of different shape descriptors and retrieval algorithms across objects of varying geometric detail and structural characteristics. Given the inherent variability in mesh resolution and geometric representation across the collection, a systematic preprocessing and normalization pipeline was essential to ensure consistent feature extraction and reliable retrieval performance. The comprehensive details of this multi-step process are presented in Sections \ref{step2} and \ref{step3}.
+
+\begin{table}[ht]
+\centering
+\caption{3D Shape Dataset Composition}
+\label{tab:dataset_composition}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.8}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Category} & \textbf{Count} & \textbf{Avg Vertices} & \textbf{Avg Faces} \\
+\midrule
+AircraftBuoyant & 16 & 2,509 & 4,925 \\
+Apartment & 23 & 11,924 & 14,838 \\
+AquaticAnimal & 29 & 4,216 & 8,136 \\
+Bed & 27 & 5,357 & 9,687 \\
+Bicycle & 26 & 15,402 & 30,099 \\
+Biplane & 45 & 8,978 & 15,099 \\
+Bird & 44 & 2,836 & 5,536 \\
+Bookset & 20 & 880 & 4,541 \\
+Bottle & 31 & 3,292 & 6,106 \\
+BuildingNonResidential & 44 & 3,058 & 5,726 \\
+Bus & 20 & 7,732 & 47,260 \\
+Car & 89 & 11,170 & 20,282 \\
+Cellphone & 20 & 9,793 & 18,375 \\
+Chess & 42 & 3,837 & 7,636 \\
+City & 27 & 5,955 & 8,765 \\
+ClassicPiano & 20 & 3,035 & 16,214 \\
+Computer & 33 & 3,118 & 5,780 \\
+ComputerKeyboard & 20 & 4,308 & 22,554 \\
+Cup & 30 & 3,695 & 7,014 \\
+DeskLamp & 31 & 4,718 & 8,384 \\
+DeskPhone & 20 & 16,459 & 29,363 \\
+Door & 44 & 1,151 & 2,171 \\
+Drum & 20 & 2,692 & 15,600 \\
+Fish & 20 & 3,898 & 6,529 \\
+FloorLamp & 28 & 6,284 & 11,059 \\
+Glasses & 20 & 5,161 & 9,562 \\
+Guitar & 20 & 9,831 & 17,443 \\
+Gun & 58 & 4,391 & 8,476 \\
+Hand & 37 & 6,380 & 12,715 \\
+Hat & 15 & 2,339 & 4,552 \\
+Helicopter & 51 & 5,772 & 10,804 \\
+House & 46 & 7,485 & 15,064 \\
+HumanHead & 51 & 4,085 & 13,916 \\
+Humanoid & 142 & 4,240 & 8,418 \\
+Insect & 66 & 3,698 & 7,071 \\
+Jet & 143 & 1,142 & 2,098 \\
+Knife & 27 & 650 & 2,739 \\
+MilitaryVehicle & 20 & 14,750 & 24,322 \\
+Monitor & 20 & 7,513 & 12,996 \\
+Monoplane & 20 & 1,644 & 2,921 \\
+Motorcycle & 26 & 14,202 & 25,867 \\
+Mug & 26 & 5,909 & 11,624 \\
+MultiSeat & 45 & 5,096 & 9,451 \\
+Musical\_Instrument & 21 & 8,074 & 15,687 \\
+NonWheelChair & 60 & 2,264 & 4,108 \\
+PianoBoard & 20 & 2,542 & 14,883 \\
+PlantIndoors & 65 & 17,213 & 10,505 \\
+PlantWildNonTree & 27 & 7,688 & 11,221 \\
+Quadruped & 57 & 5,240 & 9,504 \\
+RectangleTable & 64 & 817 & 1,615 \\
+Rocket & 20 & 7,092 & 4,014 \\
+RoundTable & 37 & 1,848 & 3,433 \\
+Shelf & 43 & 1,289 & 1,686 \\
+Ship & 63 & 5,076 & 8,690 \\
+Sign & 15 & 1,402 & 2,703 \\
+Skyscraper & 20 & 25,559 & 25,817 \\
+Spoon & 20 & 959 & 3,291 \\
+Starship & 31 & 5,596 & 11,386 \\
+SubmachineGun & 20 & 5,295 & 9,687 \\
+Sword & 53 & 4,529 & 8,701 \\
+Tool & 44 & 2,951 & 5,827 \\
+Train & 30 & 5,273 & 25,320 \\
+Tree & 47 & 15,587 & 13,812 \\
+Truck & 27 & 7,176 & 31,413 \\
+TruckNonContainer & 20 & 5,646 & 33,820 \\
+Vase & 20 & 971 & 1,936 \\
+Violin & 20 & 3,357 & 20,536 \\
+Wheel & 17 & 1,192 & 2,218 \\
+WheelChair & 20 & 12,465 & 22,059 \\
+\midrule
+\textbf{Total} & \textbf{2483} & \textbf{5,908} & \textbf{12,110} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{Mathematical Notations}
+The following notations are used throughout this report:
+
+\begin{itemize}
+    \item $V = \{v_1, v_2, \ldots, v_n\}$: Set of mesh vertices, where each $v_i \in \mathbb{R}^3$.
+    \item $F = \{f_1, f_2, \ldots, f_m\}$: Set of mesh faces, where each $f_j$ is a sequence of vertex indices.
+    \item $M = (V, F)$: A mesh, consisting of vertices and faces.
+    \item $\mathbf{n}_f$: The normal vector of face $f$.
+    \item $\mathbf{n}_i$: The normal vector at vertex $v_i$, computed as the average of adjacent face normals.
+    \item $E$: Set of unique mesh edges, extracted from the faces.
+    \item $c \in \mathcal{C}$: The semantic class label of the mesh, where $\mathcal{C}$ is the set of all possible classes.
+    \item $|V| = n$: The number of vertices in the mesh.
+    \item $|F| = m$: The number of faces in the mesh.
+    \item $\tau(f_j)$: The type of face $f_j$ (triangle, quadrilateral, or polygon).
+    \item $\mathcal{T}(M) = \{\tau(f_j) \mid f_j \in F\}$: The set of face types present in the mesh.
+    \item $B(M) = [\mathbf{v}_{\min}, \mathbf{v}_{\max}]$: The axis-aligned bounding box of $M$, where 
+          $\mathbf{v}_{\min} = (\min_i v_i^x, \min_i v_i^y, \min_i v_i^z)$ and 
+          $\mathbf{v}_{\max} = (\max_i v_i^x, \max_i v_i^y, \max_i v_i^z)$.
+    \item $\mathbf{s} = (s_x, s_y, s_z)$: Side lengths of the bounding box, with $s_x = v_{\max}^x - v_{\min}^x$, etc.
+    \item $s_{\max} = \max(s_x, s_y, s_z)$: Longest side length of the bounding box.
+    \item $\alpha = \tfrac{1}{s_{\max}}$: Uniform scaling factor ensuring that the longest side of the bounding box is mapped to $1.0$.
+    \item $\mathbf{b}(M)$: The mass barycenter of mesh $M$, computed as the area-weighted average of triangle centroids.
+\end{itemize}
+
+
+
+
+
+\section{Technical Prerequisites}
+
+The following technical prerequisites were required for the development and execution of our 3D shape retrieval system:
+
+\begin{itemize}
+    \item \textbf{Programming Languages:} Python 3.10
+    \item \textbf{Third-party Libraries:}
+    \begin{itemize}[label=$\square$]
+        \item Dash – web application framework
+        \item Plotly – interactive 3D visualization
+        \item Pandas – data manipulation and analysis
+        \item NumPy – numerical computations
+        \item Open3D -  an open-source library that supports rapid development of software that deals with 3D data
+        \item Scikit-learn - an open source machine learning library that supports supervised and unsupervised learning
+    \end{itemize}
+    \item \textbf{Development Tools and Frameworks:}
+    \begin{itemize}[label=$\square$]
+        \item Visual Studio Code – primary IDE
+        \item Git – version control
+        \item Anaconda – environment management
+    \end{itemize}
+\end{itemize}
+
+\subsection{Framework Architecture and Design Rationale}
+
+The viewer app was developed as a web-based application, using Dash \cite{dash} to manage reactive interactions and Plotly \cite{plotly} to provide efficient 3D visualization capabilities. The selection of this technology stack was guided by three requirements: 
+\begin{enumerate}
+    \item Real-time interactive exploration of the large mesh dataset.
+    \item Cross-platform accessibility without the need for specialized 3D software.
+    \item Seamless integration with Python-based scientific computing tools for efficient data processing, such as Pandas~\cite{mckinney2011pandas} and NumPy \cite{harris2020array}.
+\end{enumerate}
+
+
+% (1) real-time interactive exploration of the large mesh dataset, (2) cross-platform accessibility without the need for specialized 3D software, and (3) seamless integration with Python-based scientific computing tools for efficient data processing frameworks such as Pandas \cite{mckinney2011pandas} and NumPy \cite{harris2020array}. 
+
+The framework architecture follows a model--view--controller paradigm \cite{deacon2009model}, which separates data processing (model), user interface (view), and interaction logic (controller). This separation improves maintainability and supports extensibility for the integration of subsequent retrieval components.
+
+\section{Step 1: Read and view the data}
+
+Effective retrieval requires a clear understanding of the dataset at hand. To address this, our system begins with the development of an exploration and visualization framework tailored to 3D meshes. The following subsections provide a detailed breakdown of the application's implementation.
+
+The purpose of this stage is to establish a comprehensive environment for systematic analysis of the mesh datasets. Interactive visualization is a central component in multimedia retrieval, as it enables researchers to assess data distributions, identify potential preprocessing challenges, and validate algorithmic decisions.
+
+\subsection{Data Format Processing and Geometric Representation}
+
+Our system processes triangular mesh data stored in the Wavefront OBJ format, which has become the de facto standard for 3D model interchange due to its simplicity and widespread software support \cite{bourke1999obj}. The OBJ format represents 3D objects through two primary components: vertex coordinates defining spatial geometry and face definitions specifying triangular connectivity.
+
+We implemented a custom \texttt{OBJParser} class that addresses several technical challenges inherent in OBJ processing:
+
+\begin{itemize}
+    \item \textbf{Index Convention Translation}: OBJ files use 1-based indexing while NumPy arrays require 0-based
+    \item \textbf{Polygon Triangulation}: Automatic conversion of quad faces to triangles through diagonal splitting, ensuring consistent triangular mesh representation required for downstream processing
+    \item \textbf{Robust Parsing}: Error handling for malformed geometry definitions and missing vertex references
+\end{itemize}
+
+The parser extracts vertex coordinates $V = \{v_1, v_2, \ldots, v_n\}$ where $v_i \in \mathbb{R}^3$ and face connectivity $F = \{f_1, f_2, \ldots, f_m\}$ where each face $f_j$ contains three vertex indices, forming the fundamental mesh representation $M = (V, F)$ used throughout our retrieval pipeline.
+
+\subsection{Interactive Visualization System}
+
+The visualization component leverages Plotly's WebGL-based 3D rendering engine, which provides hardware-accelerated graphics suitable for real-time interaction with complex meshes \cite{qin2021web}. Our implementation incorporates several advanced rendering techniques:
+
+To visualize 3D shapes in our web application, we use the textit{Mesh3d} object from the Plotly Graph Objects library \cite{go}. This tool allows us to render interactive 3D meshes directly in the browser, providing smooth rotation, zooming, and lighting effects. By leveraging Plotly's capabilities, we can display complex surfaces and wireframes in a user-friendly way.
+
+\subsubsection{Wireframe Edge Visualization}
+
+Our optional wireframe overlay uses an efficient edge extraction method that avoids duplicate edges by storing them in a set. For each face $f$ in the set of faces $F$, we iterate over its edges. Each edge is represented by a pair of vertex indices, sorted to ensure consistency. We add each sorted edge to the set $E$, which automatically removes duplicates.
+
+This set-based approach guarantees $O(F)$ complexity for edge extraction, where $F$ is the number of faces. The resulting set contains $E$ unique edges. This significantly reduces rendering overhead compared to naive enumeration of all face edges~\cite[pp.~17--19]{botsch2010polygon}.
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\KwIn{Set of faces $F$ (each face is a list of vertex indices)}
+\KwOut{Set of unique edges $E$}
+$E \gets \emptyset$\tcp*[l]{Initialize empty edge set}
+\ForEach{face $f \in F$}{
+    \For{$i \gets 0$ \KwTo $|f|-1$}{
+        $v_1 \gets f[i]$\;
+        $v_2 \gets f[(i+1) \bmod |f|]$\;
+        $edge \gets \text{sort}(v_1, v_2)$\tcp*[l]{Sort vertex indices for consistency}
+        $E \gets E \cup \{edge\}$\tcp*[l]{Add edge to set (deduplication)}
+    }
+}
+\Return{$E$}
+\caption{Efficient Wireframe Edge Extraction}
+\end{algorithm}
+
+\subsection{3D Shape Viewer Web Application}
+Our interactive web application, shown in Figure \ref{Fig-UI-1}, enables users to explore 3D models directly in their browser. The figure displays an example visualization of a bird mesh.  Below, we describe the main components and design choices that support usability, performance, and data quality.
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/UI.png}
+\caption{{\textbf{Initial version of interactive user interface for 3D shape retrieval}. Users can filter the object list by category,
+such as ``Bird,'' or scroll through the complete list. Selecting a model
+reveals detailed information, including file size, vertices, faces,
+dimensions, and quality, along with an interactive 3D visualization.
+Display options such as wireframe edges and customizable colors support
+both structural inspection and visual comparison of shapes.
+{\label{Fig-UI-1}}%
+}}
+\end{center}
+\end{figure}
+
+\subsection{Hierarchical Data Organization and Metadata Extraction}
+
+To facilitate systematic exploration and evaluation, we utilized the organization of the 3D models into a hierarchical directory structure by category. The application automatically scans these folders, identifies available models, and extracts key metadata such as vertex and face counts, file size, and bounding box dimensions. This metadata is presented to users for quick assessment and is also used to label models as high or low resolution, supporting both user selection and algorithmic preprocessing. As shown in Figure \ref{Fig-UI-Filter-By-Category}, users can filter models by category to quickly focus on the objects they wish to view.
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.45\columnwidth]{figures/Filter by Category.png}
+\caption{\textbf{Filter by category}. (A) The user can filter by a specific category or display objects from all categories. (B) For example, we filtered on all objects of beds.}
+{\label{Fig-UI-Filter-By-Category}}
+\end{center}
+\end{figure}
+
+\subsection{Performance and Usability}
+
+To ensure a smooth user experience, our application is optimized for performance and reliability. Model files are loaded and parsed for display only when selected, which keeps memory usage low and startup times fast. Client-side handling of simple interactions, such as file selection highlighting, provides immediate feedback. Robust error handling further enhances usability by notifying users of any issues during file loading.
+
+\subsection{3D Visualization and Display Features}
+
+The viewer enables users to interactively explore 3D models using Plotly's \texttt{Mesh3d} object. Users can rotate, zoom, and pan the models, as well as customize display options such as mesh color, wireframe edges, and smooth shading. The smooth shading feature allows users to toggle between flat and smooth surface rendering for enhanced geometric inspection (see Figure \ref{Fig-UI-Shading}). These features support both visual comparison and structural inspection, making it easier to understand the geometry and quality of each shape. These capabilities are demonstrated in Figures \ref{Fig-UI-Rotation}, \ref{Fig-UI-Display-Features}, and \ref{Fig-UI-Shading}.
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.5\columnwidth]{figures/rotation.png}
+\caption{\textbf{Rotation demonstration.} (A) Example display of a plane object and its metadata; (B–D) the same object shown at different rotation angles.}
+{\label{Fig-UI-Rotation}}
+\end{center}
+\end{figure}
+
+To enable the user to control the shape's shading, we utilized the \textit{flatshading} parameter of Plotly's Mesh3d object. This parameter controls whether normal smoothing is applied to the mesh: when enabled, the mesh is rendered with flat, angular faces for a low-poly appearance; when disabled, smooth shading is used, resulting in a visually softer surface with interpolated lighting across vertices. An example of this feature can be seen in Figure \ref{Fig-UI-Shading}.
+
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.5\columnwidth]{figures/Smooth shading.png}
+\caption{
+    \textbf{Smooth shading demonstration.} 
+    (A) Example display of a plane object and its metadata using Plotly's default flat shading, where each face is rendered with a uniform color and sharp edges are visible. 
+    (B) The same object shown with smooth shading enabled, resulting in a visually smoother surface appearance as lighting is interpolated across vertices. 
+    This feature allows users to toggle between flat and smooth shading in the viewer for enhanced geometric inspection and comparison.
+}
+{\label{Fig-UI-Shading}}
+\end{center}
+\end{figure}
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.6\columnwidth]{figures/display features.png}
+\caption{\textbf{Display features demonstration.} (A) Zooming in on the same plane object from Figure \ref{Fig-UI-Rotation}. (B) Changing the object's color from blue to orange. (C) Showing the plane's edges by enabling the "Show edges" checkbox above the viewer. (D) Displaying a pink train object with its edges visible, illustrating both color change and edge visualization.}
+{\label{Fig-UI-Display-Features}}
+\end{center}
+\end{figure}
+
+This application streamlines the process of inspecting and comparing 3D models, providing both visual feedback and essential metadata to support further analysis and retrieval experiments.
+
+\section{Step 2: Preprocessing and cleaning} \label{step2}
+The dataset contains a large variety of 3D objects that differ significantly in complexity, resolution and overall quality. Before features can be reliably extracted and used for retrieval, it is essential to ensure that all shapes satisfy certain quality requirements. Poorly sampled meshes, inconsistent scaling, or misaligned objects may bias the descriptors extracted later on, which in turn reduces the effectiveness and fairness of the retrieval system.
+
+In this section, we analyze the structural characteristics of all shapes in the database and identify common irregularities such as extreme outliers in the number of vertices and faces, as well as variations in scale and positioning. By collecting global statistics over the dataset, we obtain a better understanding of its variability and can determine which objects require resampling or refinement.
+
+Next, we apply a set of preprocessing operations to improve dataset consistency. These operations include mesh simplification for overly large shapes, refinement for undersampled ones, and normalization to standardize the position and scale of each object. The resulting database forms a more balanced and homogeneous foundation for the subsequent feature extraction stage, ensuring that differences in descriptors reflect meaningful shape characteristics rather than artifacts of the raw input data.
+
+\subsection{Step 2.1: Analyzing a single shape}
+Before starting the preprocessing and cleaning of the dataset, we first obtain an overview of the initial variability of the objects. 
+For this purpose, we implemented a simple analysis tool that reports, for each shape $M = (V, F)$, the following properties:
+\begin{itemize}
+    \item The semantic class label $c \in \mathcal{C}$ of the shape.
+    \item The number of vertices $|V|$ and the number of faces $|F|$.
+    \item The set of face types $\mathcal{T}(M)$, which indicates whether the shape consists of only triangles, only quadrilaterals, or a mixture of polygon types.
+    \item The axis-aligned bounding box $B(M) = [\mathbf{v}_{\min}, \mathbf{v}_{\max}]$, defined by the minimum and maximum coordinates among all vertices.
+\end{itemize}
+This information provides a concise summary of the raw dataset characteristics and highlights potential sources of variability that may need to be addressed in subsequent preprocessing steps.
+
+The tool operates by iterating over all files in the dataset in \texttt{.obj} format. In this format, each line encodes either a vertex position (\texttt{v}), a vertex normal (\texttt{vn}), or a face (\texttt{f}). During parsing, each vertex is added to the set $V$, and each face to the set $F$, while ignoring additional attributes such as normals and texture coordinates. Once all lines have been processed, we directly obtain $|V|$ and $|F|$. The bounding box $B(M)$ is computed by taking the coordinate-wise minima and maxima of the vertices. Face types are determined by checking the number of vertices in each face, distinguishing between triangles, quadrilaterals, and higher-order polygons. 
+
+The extracted statistics are written to a comma-separated values (\texttt{CSV}) file, producing one record per shape. In the next step, we will aggregate these records to obtain statistics over the entire dataset.
+
+\subsection{Step 2.2: Statistics over the whole database}
+Having obtained the individual characteristics of each object, we now analyze their distribution across the entire dataset. 
+We start by examining the distribution of shapes across the different classes. 
+The resulting histogram is shown in Figure \ref{Fig-Histogram-Classes}.
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/shape_histogram_classes_old.png}
+\caption{
+    \textbf{Distribution of shape classes.} 
+    The histogram shows the number of shapes per class in the dataset. The vertical axis indicates the shape classes, while the horizontal axis represents the number of shapes in each class.
+}
+{\label{Fig-Histogram-Classes}}
+\end{center}
+\end{figure}
+
+From the histogram, we observe that most classes contain between 20 and 50 shapes. 
+There are a few outliers with either fewer shapes or significantly more. Notably, the \textit{jet} and \textit{humanoid} classes contain over 140 shapes each, representing the largest class sizes in the dataset.
+
+%maybe something about resampling of the dataset?%
+
+%Histogram of vertex count %
+Now that we have an overview of the distribution of shapes across classes, we next examine the vertex counts of the shapes.  
+To visualize this, we plot a histogram of the vertex counts, shown in Figure \ref{Fig-Histogram-Vertices}.  
+The histogram spans the range from $0$ to $100{,}000$ vertices and is divided into $30$ uniform bins, each covering approximately $3{,}333$ vertices.  
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.6\columnwidth]{figures/shape_histogram_vertices_old.png}  
+\caption{  
+    \textbf{Distribution of vertex counts.}  
+    Histogram of the number of vertices per shape.  
+    The horizontal axis shows vertex count (in bins of $\sim$3,333 vertices) and the vertical axis shows the number of shapes in each bin.  
+    The dotted line indicates the mean vertex count.  
+}  
+{\label{Fig-Histogram-Vertices}}  
+\end{center}  
+\end{figure}  
+
+We observe that most shapes fall into the lower bins, with vertex counts below $3{,}333$.  
+The mean vertex count of $5610$ lies outside this first bin, indicating a skew towards higher counts.  
+In addition, there are several clear outliers, with vertex counts exceeding $90{,}000$.  
+
+The average shape, based on vertex count, is \texttt{D00926.obj}, shown in Figure \ref{Fig-Average-Vertices}. We also show several outliers.
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.7\columnwidth]{figures/vertices_average_outliers.png}  
+\caption{  
+    \textbf{Average shape and outliers for number of vertices.}
+    (A) The average shape in the dataset has $5{,}610$ vertices. The shape closest to this average is object \texttt{D00926.obj} of the \textit{Truck} class, with $5{,}602$ vertices. (B) The shape with the lowest number of vertices is \textit{Door} object \texttt{m1708.obj}, with $16$ vertices. (C) The shape with the highest number of vertices is \textit{PlantIndoors} object \texttt{D00159.obj}, with $98{,}256$ vertices.
+}  
+{\label{Fig-Average-Vertices}}  
+\end{center}  
+\end{figure}  
+
+%Histogram of face count%
+We also examine the face count of the shapes. We again visualize this by plotting a histogram, this time of the face counts, as shown in Figure \ref{Fig-Histogram-Faces}. The histograms spans the range from $0$ to $140{,}000$ faces and is divided into $30$ uniform bins, each covering approximately $4{,}667$ faces.
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.6\columnwidth]{figures/shape_histogram_faces.png}  
+\caption{  
+    \textbf{Distribution of Face counts.}  
+    Histogram of the number of faces per shape.  
+    The horizontal axis shows face count (in bins of $\sim$4,667 vertices) and the vertical axis shows the number of shapes in each bin.  
+    The dotted line indicates the mean face count.  
+}  
+{\label{Fig-Histogram-Faces}}  
+\end{center}  
+\end{figure}  
+
+We observe a similar distribution as with the vertex count, with a large spike in the lowest bin and a skew towards higher counts. The average however, lies higher then for the vertex count, at $10{,}692$ faces. We also see similar outliers, this time ranging up to $130{,}000$.
+
+The average shape, based on the face count, is \texttt{m1120.obj}, shown in Figure \ref{Fig-Average-Faces}. We also show several outliers.
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.7\columnwidth]{figures/faces_average_outliers.png}  
+\caption{  
+    \textbf{Average shape and outliers for number of faces.}
+    (A) The average shape in the dataset has $10{,}692$ faces. The shape closest to this average is object \texttt{m1659.obj} of the \textit{City} class, with exactly $10{,}692$ faces. (B) The shape with the lowest number of faces is \textit{Door} object \texttt{m1708.obj}, with $16$ faces. (C) The shape with the highest number of faces is \textit{Biplane} object \texttt{m1120.obj}, with $129{,}881$ faces.
+}  
+{\label{Fig-Average-Faces}}  
+\end{center}  
+\end{figure}  
+We also inspected the face types of the objects in the dataset, classifying them as consisting of only triangles, only quadrilaterals, or a mixture of polygon types. We found that all objects consist solely of triangular faces, so no further processing was required in this regard.
+
+\subsection{Step 2.3. Resampling outliers} \label{step2.3}
+%Why remesh?%
+From the obtained statistics it has become clear that the dataset contains a wide variety of shapes. To ensure fair and unbiased feature extraction and object retrieval, it is necessary to reduce the influence of extreme outliers in terms of vertex count. For this reason, we apply a remeshing step that regularizes the mesh resolution across the dataset. This ensures that all shapes are represented at a comparable level of detail, making subsequent analysis and retrieval more consistent and reliable.
+
+%Target vertex count, why this?%
+For the remeshing step, it is necessary to specify a target resolution in terms of vertex count. We chose a nominal target of $7{,}500$ vertices, which offers a good compromise between preserving geometric detail and maintaining manageable processing times. Because it is often impractical to achieve exactly this number of vertices, we allow a tolerance range of $5{,}000$ to $10{,}000$ vertices. Remeshing therefore stops once the mesh falls within this range, ensuring both consistency across the dataset and robustness of the preprocessing pipeline.
+
+%What tools were used?%
+The remeshing procedure was implemented using \textbf{Open3D} \cite{Zhou2018} (version $\geq$0.18), an open-source library for 3D data processing. Open3D provides efficient tools for handling triangle meshes, including vertex and triangle access, mesh cleaning, simplification, and subdivision. Its functions for \emph{quadric-based decimation} and \emph{midpoint subdivision} were used to adjust mesh resolution while preserving the shape of the geometry. Additionally, \textbf{NumPy} \cite{harris2020array} was employed for numerical computations, nearest-neighbor searches, and vertex reprojection.
+
+The goal of the remeshing step is to reduce the variation in mesh resolution across the dataset and limit the influence of outlier meshes. The algorithm works as follows:
+
+\begin{enumerate}
+    \item \textbf{Vertex Count Check:} Each mesh is first checked against the target vertex range of 5,000 to 10,000 vertices (nominal target: 7,500). Meshes that are already within this range are copied without modification.
+
+    \item \textbf{Upsampling:} Meshes with fewer vertices than the minimum threshold are increased in resolution using a \emph{feature-preserving midpoint subdivision}. New vertices are projected toward local planes or neighborhood centroids to maintain surface features and prevent excessive smoothing. This process is repeated in multiple passes until the mesh reaches the desired resolution.
+
+    \item \textbf{Downsampling:} Meshes exceeding the maximum vertex threshold are simplified using \emph{quadric-based decimation}. The reduction is applied iteratively in multiple passes, with the reduction ratio adapted depending on how far the mesh is from the target. If the decimation stalls, a more aggressive pass is applied to ensure the mesh falls within the target range.
+
+    \item \textbf{Feature Preservation:} Sharp edges and important geometric features are identified based on dihedral angles between adjacent faces. During subdivision and decimation, these features guide the placement of new vertices and the removal of faces to retain the overall shape. Planar regions are preserved by blending vertex positions toward fitted local planes when possible.
+
+    \item \textbf{Fallback and Robustness:} In rare cases where standard upsampling fails, a single subdivision pass followed by light decimation is used. Mesh cleaning operations, such as removal of degenerate triangles and duplicated vertices, are applied throughout to maintain mesh quality.
+\end{enumerate}
+
+This approach ensures that all meshes in the dataset have a comparable number of vertices while keeping their geometric features intact, which facilitates consistent feature extraction and object retrieval.
+
+%Describe algorithm%
+
+\subsection{Step 2.4: Checking the resampling}
+%Show distribution after remeshing%
+We now evaluate the effect of the remeshing algorithm on the dataset. Again, a practical way to assess this is by examining the distribution of vertex counts across all meshes. Figure \ref{Fig-Histogram-Vertices-After} shows the resulting histogram. The plot indicates that the variance in vertex counts has been substantially reduced compared to the original data. The majority of meshes now fall within the intended target range, and extreme outliers have largely been removed or adjusted.
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.6\columnwidth]{figures/shape_histogram_vertices_resampled.png}  
+\caption{  
+    \textbf{Distribution of vertex counts.}  
+    Histogram of the number of vertices per shape.  
+    The horizontal axis shows vertex count (bins of approximately 3,333 vertices), and the vertical axis shows the number of shapes in each bin.  
+    The dotted line indicates the mean vertex count.  
+}  
+{\label{Fig-Histogram-Vertices-After}}  
+\end{center}  
+\end{figure}
+
+In addition, we have generated figures illustrating both the compliance rate and the distribution of meshes across all size categories: very small, small, target range, large, and very large. These comparisons, before and after resampling, are shown in Figure \ref{Fig-AdditionalPlots-Vertices-After}. The compliance rate has improved considerably, from $14.8\%$ to $98.8\%$. While some meshes remain outside the target range, they are generally only slightly above or below the desired limits. Before resampling, the majority of meshes fell into the very small or small categories, with only a few within the target range and some extreme outliers in the very large category. The resampling step has successfully shifted most meshes into the target range, reducing the prevalence of undersized meshes and eliminating extreme outliers.
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.8\columnwidth]{figures/compliance_and_distribution.png}  
+\caption{  
+    \textbf{(A) Target compliance and (B) Size distribution.}  
+    (A) This plot shows the proportion of meshes that fall within the acceptable target range of 5,000–10,000 vertices before and after resampling. (B) This plot shows the distribution of meshes across all size categories before and after resampling: very small (0–2,000 vertices), small (2,000–5,000), acceptable (5,000–10,000), large (10,000–15,000), and very large (15,000+).  
+}  
+{\label{Fig-AdditionalPlots-Vertices-After}}  
+\end{center}  
+\end{figure}
+
+%Explain remaining outliers%
+Although the resampling pipeline substantially improved uniformity in vertex counts, a small number of meshes still fall outside of the target range of 5,000--10,000 vertices. This outcome can be explained by the nature of the subdivision and simplification algorithms used. Subdivision increases the number of vertices in large multiplicative steps (approximately by a factor of four for each pass). As a result, meshes that start well below the lower bound often overshoot into the higher range. Simplification is then applied to reduce these meshes, but the algorithm is constrained by geometry preservation: it avoids collapsing important edges or thin structures, and therefore does not always converge exactly within the target window. Similarly, meshes that were already close to the lower bound are sometimes left unchanged, as subdivision would push them unnecessarily far above the acceptable range.
+
+Further attempts to enforce exact compliance would require mesh-specific adjustments, which would be computationally expensive and risk degrading geometric fidelity. The current procedure achieves compliance for approximately 98\% of the dataset, which we consider sufficient for our purposes. The small number of outliers does not meaningfully affect downstream tasks and avoiding excessive processing helps maintain higher shape quality overall.
+
+It should also be noted that resampling occasionally introduces some surface artifacts. For instance, some meshes show a rippling effect along curved surfaces, such as the body of a bottle, or slight deformations in thin structures, such as the wings of an airplane no longer being perfectly straight (see Figures \ref{Remeshing-Artifacts1} and \ref{Remeshing-Artifacts2}). These cases illustrate the trade-off between vertex count normalization and preservation of fine-grained geometry. While not ideal, such artifacts are limited in scope and do not compromise the overall usability of the dataset.
+
+%Still have to update these%
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.5\columnwidth]{figures/remeshing_example2.png}
+\caption{
+    \textbf{Example of rippling effect after remeshing process.} 
+    (A) The original \textit{Bottle} object (\texttt{D00347.obj}), consisting of 2,426 vertices and 4,438 faces.
+    (B) The resampled \textit{Bottle} object, now consisting of 8,624 vertices and 17,184 faces. A slight rippling effect can be observed on the along the edge of the bottle as a result of the remeshing process.
+}
+{\label{Remeshing-Artifacts1}}
+\end{center}
+\end{figure}
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.5\columnwidth]{figures/remeshing_example1.png}
+\caption{
+    \textbf{Example of deformation of straight surfaces after remeshing process.} 
+    (A) The original \textit{Biplane} object (\texttt{m1131.obj}), consisting of 482 vertices and 768 faces.
+    (B) The resampled \textit{Biplane} object, now consisting of 6,530 vertices and 12,288 faces. The previously straight wings of the airplane now have a slight deformation as a result of the remeshing process.
+}
+{\label{Remeshing-Artifacts2}}
+\end{center}
+\end{figure}
+
+%Show examples of remeshing%
+
+\subsection{Step 2.5: Normalizing shapes} \label{step2.5}
+%Explain why further normalization is needed%
+Having reduced the variance in mesh resolution, we next address other characteristics of the dataset that require normalization. In this substep, we translate each object so that its barycenter is positioned at the origin $(0,0,0)$, and uniformly scale it to fit within a unit cube.
+
+To achieve this, we first calculate the mass barycenter of the mesh, which corresponds to the center of mass under the assumption that each face has uniform density. 
+Instead of simply averaging all vertices, we compute an area-weighted average of the centroids of all triangular faces.
+
+For a triangular mesh $M = (V, F)$ with vertices $V = \{v_1, \dots, v_n\}$, $v_i \in \mathbb{R}^3$, and faces 
+$F = \{f_1, \dots, f_m\}$, each face $f_j = (v_{j1}, v_{j2}, v_{j3})$ contributes as follows:
+
+\begin{equation}
+c(f_j) = \frac{1}{3}\big(v_{j1} + v_{j2} + v_{j3}\big)
+\end{equation}
+
+\begin{equation}
+A(f_j) = \frac{1}{2}\,\big\lVert (v_{j2} - v_{j1}) \times (v_{j3} - v_{j1}) \big\rVert
+\end{equation}
+
+where $c(f_j)$ is the centroid of face $f_j$ and $A(f_j)$ its area.  
+The mass barycenter of the full mesh is then given by
+
+\begin{equation}
+b(M) = \frac{\sum_{j=1}^m A(f_j)\,c(f_j)}{\sum_{j=1}^m A(f_j)}
+\end{equation}
+
+In the degenerate case where $\sum_{j=1}^m A(f_j) = 0$ (e.g., if no valid faces are present), 
+we fall back to the simple geometric centroid of the vertices:
+
+\begin{equation}
+b(M) = \frac{1}{n}\sum_{i=1}^n v_i
+\end{equation}
+
+This ensures a well-defined barycenter for all meshes in the dataset.
+
+We have calculated the offset of the barycenter to the origin of the space before applying the translation normalization. The results can be seen in Figure \ref{Fig-Histogram-Barycenter-Before}. We observe a large variance in this offset over the dataset.
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.7\columnwidth]{figures/enhanced_barycenter_before.png}  
+\caption{  
+    \textbf{Distribution of barycenter offsets before normalization.}  
+    Histogram of the Euclidean distance between each mesh barycenter and the origin.  
+    The horizontal axis shows the distance (binned), while the vertical axis shows the number of shapes.  
+    The dotted line indicates the mean offset. The red bin indicates the outliers.  
+}  
+{\label{Fig-Histogram-Barycenter-Before}}  
+\end{center}  
+\end{figure} 
+
+Using the earlier described barycenter calculation, we translate all objects such that their barycenter is located at the origin of the space. After applying this normalization step, we again analyzed the offset of the barycenter relative to the origin. The resulting histogram can be found in Figure \ref{Fig-Histogram-Barycenter-After}.  
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.6\columnwidth]{figures/enhanced_barycenter_after.png}  
+\caption{  
+    \textbf{Distribution of barycenter offsets after normalization.}  
+    Histogram of the Euclidean distance between each mesh barycenter and the origin.  
+    The horizontal axis shows the distance (binned), while the vertical axis shows the number of shapes.  
+    The dotted line indicates the mean offset, which is now centered around zero. (Note the small scale of the horizontal axis.)
+}  
+{\label{Fig-Histogram-Barycenter-After}}  
+\end{center}  
+\end{figure}
+
+We can see that the barycenters of all objects are now correctly positioned at the origin of the space, with even the outliers falling well below an offset of 1e-4.
+
+Following the translation, we normalize the scale of each mesh. Formally, we compute the axis-aligned bounding box of a mesh $M$, defined as
+
+\begin{equation}
+B(M) = [\mathbf{v}_{\min}, \mathbf{v}_{\max}]
+\end{equation}
+
+where
+
+\begin{equation}
+\mathbf{v}_{\min} = (\min_i v_i^x, \min_i v_i^y, \min_i v_i^z), \quad
+\mathbf{v}_{\max} = (\max_i v_i^x, \max_i v_i^y, \max_i v_i^z)
+\end{equation}
+
+We then determine the bounding box side lengths
+
+\begin{equation}
+\mathbf{s} = \mathbf{v}_{\max} - \mathbf{v}_{\min}
+\end{equation}
+
+and take the largest dimension 
+
+\begin{equation}
+s_{\max} = \max(s_x, s_y, s_z)
+\end{equation}
+
+To enforce uniform scaling, each vertex is scaled by the factor
+
+\begin{equation}
+\alpha = \frac{1}{s_{\max}}
+\end{equation}
+
+such that the longest side of the bounding box is mapped to length $1.0$. This guarantees that every object is contained within a unit cube $[-0.5, 0.5]^3$.
+
+In Figure \ref{Fig-BBox-Before} we show a histogram of the bounding box longest side length before this normalization step. Although a large number of objects already fit precisely within a unit cube bounding box, suggesting that they are already normalized to some degree, we can still observe quite a large variance in this characteristic over the dataset. After applying the scaling procedure, the distribution collapses to a single value of $1.0$, as illustrated in Figure \ref{Fig-BBox-After}.  
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.6\columnwidth]{figures/enhanced_bbox_before.png}  
+\caption{  
+    \textbf{Distribution of bounding box sizes before normalization.}  
+    Histogram of the longest side length of the bounding box per shape.  
+    The horizontal axis shows side length, while the vertical axis shows the number of shapes.  
+}  
+{\label{Fig-BBox-Before}}  
+\end{center}  
+\end{figure}  
+
+\begin{figure}[H]  
+\begin{center}  
+\includegraphics[width=0.6\columnwidth]{figures/enhanced_bbox_after.png}  
+\caption{  
+    \textbf{Distribution of bounding box sizes after normalization.}  
+    Histogram of the longest side length of the bounding box per shape.  
+    All objects have been normalized to fit inside the unit cube, leading to uniform scaling.  
+}  
+{\label{Fig-BBox-After}}  
+\end{center}  
+\end{figure} 
+
+Together, these two normalization steps - translating meshes to the origin and scaling them to the unit cube - ensure that all objects are centered, uniformly scaled, and thus more suitable to be compared directly. This eliminates biases due to arbitrary positioning or size differences in the raw dataset, enabling fairer and more consistent feature extraction in subsequent stages.
+
+\section{Step 3: Feature extraction} \label{step3}
+
+Feature extraction constitutes a critical component of content-based shape retrieval, transforming raw geometric data into compact, discriminative descriptors that capture essential shape characteristics. The effectiveness of any retrieval system fundamentally depends on the quality and robustness of these extracted features, which must be invariant to irrelevant transformations while remaining sensitive to meaningful geometric differences.
+
+This stage consists of two principal components: normalization and descriptor computation. Before features can be meaningfully extracted and compared, all shapes must undergo a rigorous normalization pipeline to eliminate variations in position, orientation, scale, and mesh resolution. This preprocessing ensures that extracted features reflect intrinsic shape properties rather than arbitrary differences in how the meshes were originally authored or captured.
+
+Following normalization, we compute a comprehensive set of shape descriptors spanning both global properties and distribution-based features. Global properties include surface area, volume, and eccentricity, which characterize the overall shape structure. Distribution-based features capture geometric relationships through statistical sampling: the angle between three random points, the distance from barycenter to a random point, the area of triangles formed by three random points, the volume of tetrahedra formed by four random points, and the distance between two random points. These descriptors are designed to capture complementary aspects of shape geometry, providing a rich feature space for subsequent similarity matching.
+
+The implementation of this stage required careful attention to numerical stability, computational efficiency, and compliance with established best practices. We leverage an enhanced mesh class for normalization operations and a dedicated feature extraction class for descriptor computation, with comprehensive validation at each step to ensure correctness.
+
+\subsection{Step 3.1: Full normalization}
+
+Normalization serves to eliminate extrinsic variations among shapes, ensuring that subsequent feature extraction focuses on intrinsic geometric properties. Our implementation follows a comprehensive five-step normalization pipeline executed in a specific order to maintain mathematical correctness: remeshing, translation, alignment (pose), flipping (orientation), and scaling.
+
+\subsubsection{Pipeline Overview}
+
+The normalization process builds upon the remeshing procedure described in Section \ref{step2}, which standardizes mesh resolution across the dataset to a target range of 5,000 to 10,000 vertices. This remeshing step forms the foundation of our preprocessing pipeline, ensuring that all shapes have comparable geometric complexity before applying geometric transformations. The complete pipeline processes the shapes through the following sequence:
+
+\begin{enumerate}
+    \item \textbf{Remeshing}: Standardize mesh resolution (as detailed in \ref{step2.3}, \nameref{step2.3})
+    \item \textbf{Translation}: Center the shape at the coordinate origin
+    \item \textbf{Alignment}: Rotate to align principal axes with coordinate axes
+    \item \textbf{Flipping}: Ensure consistent orientation across similar shapes
+    \item \textbf{Scaling}: Fit within a unit bounding box
+\end{enumerate}
+
+Each transformation is applied sequentially, with the output of one step serving as input to the next. This order is critical for mathematical correctness. Centering must precede alignment because PCA requires centered data to compute meaningful principal axes. Alignment must precede flipping to establish a consistent reference frame before determining orientation. Scaling must occur last to preserve the geometric relationships established by the previous transformations.
+
+\subsubsection{Mathematical Framework}
+
+Let $M = (V, F)$ represent a triangular mesh with vertices $V = \{v_1, \ldots, v_n\}$ where $v_i \in \mathbb{R}^3$ and faces $F$. After remeshing, the normalization pipeline applies a sequence of transformations:
+
+\begin{equation}
+V' = (T_4 \circ T_3 \circ T_2 \circ T_1)(V)
+\end{equation}
+
+where $T_1, T_2, T_3, T_4$ represent translation, alignment, flipping, and scaling transformations, respectively, and the composition $(T_4 \circ T_3 \circ T_2 \circ T_1)(V) = T_4(T_3(T_2(T_1(V))))$ indicates that transformations are applied sequentially from right to left.
+
+\textbf{Step 1: Remeshing.} As described in Subsection \ref{step2.3}, \nameref{step2.3}, each mesh is first evaluated against a target vertex range of 5,000 to 10,000 vertices. Meshes already within this acceptable range are identified and copied without modification, avoiding unnecessary processing that could introduce artifacts or degrade geometric quality. Only meshes falling outside this range undergo adaptive subdivision or decimation to reach the target resolution. This conditional processing ensures that all shapes are represented at comparable levels of detail while preserving the quality of already well-sampled meshes. The approach prevents high-resolution meshes from dominating feature computations and ensures low-resolution meshes have sufficient geometric information, without unnecessarily reprocessing shapes that already meet the quality criteria.
+
+\textbf{Step 2: Translation (Centering).} The remeshed shape is centered at the coordinate frame origin using the mass barycenter $\mathbf{b}(M)$, computed as an area-weighted average of triangle centroids as defined in \ref{step2.5}, \nameref{step2.5}:
+
+\begin{equation}
+\mathbf{b}(M) = \frac{\sum_{t \in T} A_t \cdot \mathbf{c}_t}{\sum_{t \in T} A_t}
+\end{equation}
+
+where $T$ denotes the set of triangular faces, $A_t$ is the area of triangle $t$, and $\mathbf{c}_t$ is its centroid. For degenerate cases where $\sum_{t \in T} A_t < \epsilon_{\text{area}}$ (we use $\epsilon_{\text{area}} = 10^{-12}$), we fall back to the simple vertex mean. The translation transformation is:
+
+\begin{equation}
+v_i^{(1)} = v_i - \mathbf{b}(M)
+\end{equation}
+
+To ensure numerical precision, we apply a two-pass recentering approach. After the initial translation, we recompute the residual barycenter $\mathbf{b}_{\text{res}} = \mathbf{b}(V^{(1)})$. If $\|\mathbf{b}_{\text{res}}\| > \epsilon_{\text{recenter}}$ (with $\epsilon_{\text{recenter}} = 10^{-9}$), we apply a correction:
+
+\begin{equation}
+v_i^{(1)} \leftarrow v_i^{(1)} - \mathbf{b}_{\text{res}}
+\end{equation}
+
+This two-pass approach addresses numerical drift and degeneracy effects that can occur with large meshes or poorly conditioned geometry, ensuring that the mesh is precisely centered even in challenging cases.
+
+\textbf{Step 3: Alignment (Pose Normalization).} We align the shape's principal axes with the coordinate frame using Principal Component Analysis (PCA) \cite{mackiewicz1993principal} on the centered vertices. We employ the PCA implementation from Scikit-learn \cite{pedregosa2011scikit}, which efficiently computes the covariance matrix of the vertex positions and performs eigenvalue decomposition to obtain three orthogonal eigenvectors. Let $\mathbf{e}_1, \mathbf{e}_2$ denote the eigenvectors corresponding to the two largest eigenvalues, representing the major and medium axes respectively. The third eigenvector, corresponding to the minor axis, is computed as:
+
+\begin{equation}
+\mathbf{e}_3 = \mathbf{e}_1 \times \mathbf{e}_2
+\end{equation}
+
+to ensure a right-handed orthonormal basis. All eigenvectors are normalized to unit length:
+
+\begin{equation}
+\mathbf{e}_i \leftarrow \frac{\mathbf{e}_i}{\|\mathbf{e}_i\|}, \quad i \in \{1, 2, 3\}
+\end{equation}
+
+The alignment transformation projects each vertex onto the new coordinate system defined by these principal axes:
+
+\begin{equation}
+v_i^{(2)} = \begin{bmatrix}
+v_i^{(1)} \cdot \mathbf{e}_1 \\
+v_i^{(1)} \cdot \mathbf{e}_2 \\
+v_i^{(1)} \cdot \mathbf{e}_3
+\end{bmatrix}
+\end{equation}
+
+This transformation ensures that the shape's principal axes align with the $x$, $y$, and $z$ coordinate axes respectively, providing a canonical orientation that eliminates rotation variations between shapes.
+
+\textbf{Step 4: Flipping (Orientation Consistency).} Although PCA alignment establishes a canonical pose, it leaves an ambiguity in the sign of each principal axis. Specifically, each eigenvector can be multiplied by $-1$ without affecting the eigenvalue decomposition, meaning that the PCA solution is invariant to axis flipping. To resolve this ambiguity and establish consistent orientation across all shapes, we apply a moment-based test.
+
+For each coordinate axis $i \in \{0, 1, 2\}$, we compute a signed moment:
+
+\begin{equation}
+f_i = \sum_{t \in T} \text{sign}(C_{t,i}) \cdot C_{t,i}^2
+\end{equation}
+
+where $C_{t,i}$ is the $i$-th coordinate of triangle $t$'s centroid. This quantity measures the distribution of mass along each axis, with positive values indicating that more mass lies on the positive side and negative values indicating the opposite. We then apply axis-wise flipping to ensure positive moments:
+
+\begin{equation}
+v_i^{(3)} = v_i^{(2)} \odot \begin{bmatrix}
+\text{sign}(f_0) \\
+\text{sign}(f_1) \\
+\text{sign}(f_2)
+\end{bmatrix}
+\end{equation}
+
+where $\odot$ denotes element-wise multiplication. If $f_i = 0$ (indicating perfect symmetry), we set $\text{sign}(f_i) = 1$ to avoid unnecessary flipping. This moment test ensures that similar shapes are oriented consistently, which is essential for rotation-invariant feature extraction.
+
+\textbf{Step 5: Scaling.} The final step scales the shape to fit within a unit bounding box while maintaining aspect ratios. We compute the extent of the aligned and flipped mesh along each axis:
+
+\begin{equation}
+d_i = \max_j v_{j,i}^{(3)} - \min_j v_{j,i}^{(3)}, \quad i \in \{0,1,2\}
+\end{equation}
+
+and identify the maximum extent:
+
+\begin{equation}
+d_{\max} = \max(d_0, d_1, d_2)
+\end{equation}
+
+Each vertex is then uniformly scaled by the reciprocal of this maximum extent:
+
+\begin{equation}
+v_i^{(4)} = \frac{v_i^{(3)}}{d_{\max}}
+\end{equation}
+
+This uniform scaling ensures that the longest dimension of the bounding box equals 1.0 while preserving the shape's aspect ratios. All normalized shapes thus fit within a unit cube centered at the origin.
+
+Following the scaling step, we apply a final safety check by recomputing the barycenter $\mathbf{b}_{\text{final}} = \mathbf{b}(V^{(4)})$. If $\|\mathbf{b}_{\text{final}}\| > \epsilon_{\text{recenter}}$, we apply a final centering correction:
+
+\begin{equation}
+v_i^{(4)} \leftarrow v_i^{(4)} - \mathbf{b}_{\text{final}}
+\end{equation}
+
+This post-scaling recenter pass ensures that the normalized mesh remains precisely centered at the origin, which is critical for rotation-invariant feature extraction and fair similarity comparisons.
+
+\subsubsection{Implementation and Validation}
+
+Our implementation processes the entire dataset through a unified preprocessing pipeline that integrates all five normalization steps. The pipeline includes several design features to ensure robustness and facilitate debugging:
+
+\begin{itemize}
+    \item \textbf{Smart skip logic}: Already-processed shapes are detected and skipped to enable efficient re-runs and iterative refinement of the pipeline
+    \item \textbf{Step-by-step output}: For validation purposes, we save intermediate OBJ files after each normalization step:
+    \begin{itemize}
+        \item \texttt{00\_original.obj}: Original mesh from the dataset
+        \item \texttt{01\_remeshed.obj}: After adaptive remeshing (only present if remeshing was applied)
+        \item \texttt{02\_translated.obj}: After barycenter translation
+        \item \texttt{03\_aligned.obj}: After PCA alignment
+        \item \texttt{04\_flipped.obj}: After moment-based flipping
+        \item \texttt{05\_scaled.obj}: Final normalized mesh
+    \end{itemize}
+    \item \textbf{Comprehensive validation}: Each processed shape undergoes extensive validation checks:
+    \begin{itemize}
+        \item Centering error analysis (distance from barycenter to origin)
+        \item PCA eigenvalue ordering verification (ensuring $\lambda_1 \geq \lambda_2 \geq \lambda_3$)
+        \item Moment test validation (confirming positive signed moments)
+        \item Bounding box verification (confirming maximum extent equals 1.0)
+        \item Cross-step consistency checks (ensuring each transformation preserves mesh topology)
+    \end{itemize}
+    \item \textbf{Enhanced numerical robustness}: The implementation uses area-weighted barycenter computation with fallback mechanisms for degenerate cases, two-pass recentering to handle numerical drift, and double-precision floating-point arithmetic throughout
+\end{itemize}
+
+The preprocessing pipeline successfully processed all 2,483 shapes in the dataset with 100\% success rate. Validation metrics confirm that our implementation achieves high mathematical precision:
+
+\begin{itemize}
+    \item Mean centering error: $9.49 \times 10^{-15}$ (effectively zero within floating-point precision)
+    \item Maximum centering error: $7.53 \times 10^{-13}$ (well within numerical tolerance)
+    \item Mean scaling error: $3.30 \times 10^{-17}$ (negligible)
+    \item Maximum scaling error: $2.22 \times 10^{-16}$ (within machine epsilon)
+    \item 100\% compliance with eigenvalue ordering ($\lambda_1 \geq \lambda_2 \geq \lambda_3$)
+    \item 100\% correct moment sign after flipping (all axes show positive moments)
+\end{itemize}
+
+These results demonstrate that our implementation achieves the mathematical precision required for robust feature extraction. The normalized shapes are stored in the \texttt{UnifiedPreprocessed} directory, organized by category, with accompanying metadata files containing processing statistics and validation results for each shape.
+
+Figure \ref{fig:normalization_steps} illustrates the normalization pipeline applied to a representative shape, showing the geometric transformation at each step. The step-by-step validation files enable visual inspection of the normalization process and facilitate debugging when extending the pipeline to new datasets.
+
+\subsubsection{Integration with Viewer Application}
+
+The normalized shapes are seamlessly integrated into our interactive viewer application through a dedicated caching system, which provides efficient access to pre-computed normalized vertices without redundant computation. Users can toggle between original and normalized views using the "Normalized" checkbox in the shape information panel, as shown in Figure \ref{fig:viewer_normalization}. This integration enables direct visual validation of the normalization pipeline and supports comparative analysis of shape features before and after normalization.
+
+The processing step slider in the viewer allows users to inspect intermediate normalization steps interactively, with intelligent fallback logic to handle missing files. Since shapes already within the acceptable vertex range skip the remeshing step, they do not have a \texttt{01\_remeshed.obj} file. In such cases, the slider automatically displays the \texttt{00\_original.obj} file when attempting to view the remeshing step, ensuring continuous visual inspection of the pipeline regardless of which processing steps were actually applied. This adaptive behavior provides transparency into the preprocessing pipeline and helps users understand which transformations were necessary for each specific shape, supporting both quality control and educational purposes.
+
+\subsection{Step 3.2: 3D shape descriptors}
+
+\section{Step 4: Querying}
+
+
+\section{Step 5: Scalability}
+
+
+\section{Step 6: Evaluation}
+
+
+\pagebreak
+\printbibliography[heading=subbibintoc,title={References}] \label{refrences}
+
+
+\end{document}
+

@@ -3,22 +3,22 @@
   "category": "Bicycle",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 2438,
-    "final_faces_count": 4885
+    "target_vertices": 7500,
+    "final_vertices_count": 9235,
+    "final_faces_count": 18261
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.005955753201406648,
-        -0.02315805315272179,
-        0.0019253638100011122
+        0.13911674035606936,
+        0.09627915091841764,
+        -0.010927086687520035
       ],
       "bounding_box": {
         "min": [
           -0.8433259725570679,
           -0.5838789939880371,
-          -0.21050600707530975
+          -0.2105109989643097
         ],
         "max": [
           1.05062997341156,
@@ -28,84 +28,105 @@
         "dimensions": [
           1.893955945968628,
           1.134775996208191,
-          0.41956500709056854
+          0.4195699989795685
         ]
       }
     },
     "after_centering": {
       "center": [
-        -8.956922342638311e-15,
-        -2.105689608640986e-16,
-        4.469581208652958e-17
+        0.08769687630519712,
+        0.07373718445591455,
+        -0.019306056084266436
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.24126236671821366,
-        0.0723150583377517,
-        0.00518088217269084
+        0.14651197764149104,
+        0.04693962333399788,
+        0.0029005520866210686
       ],
       "eigenvectors": [
         [
-          0.9822700375184759,
-          0.1874708338816114,
-          0.0005097422736067909
+          0.9713261407448702,
+          0.23769207920059227,
+          -0.005291860823575872
         ],
         [
-          -0.18747063247950613,
-          0.9822701192187647,
-          -0.00041814792640100735
+          -0.23774958148527323,
+          0.9710034608908664,
+          -0.02504826224584967
         ],
         [
-          -0.0005790951443148497,
-          0.00031517247291958463,
-          0.9999997826575394
+          -0.0008153583593327417,
+          0.02558816959571007,
+          0.9996722366693429
         ]
       ],
       "explained_variance_ratio": [
-        0.756881816871828,
-        0.2268648587278312,
-        0.016253324400340777
+        0.7461694478855369,
+        0.23905835816911042,
+        0.014772193945352705
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -59.063104553564244,
-        -12.849745806371487,
-        0.555849200277367
+        344.4785026244232,
+        71.62504689163157,
+        -14.230788244855244
       ],
       "flip_factors": [
-        -1.0,
-        -1.0,
-        1.0
+        1.0,
+        1.0,
+        -1.0
       ]
     },
     "final": {
       "center": [
-        1.727949658301951e-16,
-        3.0738332306069756e-19,
-        -4.013060051070218e-18
+        0.05687008534565925,
+        0.028339435970493883,
+        0.009671528129836258
       ],
       "bounding_box": {
         "min": [
-          -0.569046616937325,
-          -0.3668089899183609,
-          -0.11606482193838412
+          -0.4567287025422311,
+          -0.36605806161553883,
+          -0.105585586953734
         ],
         "max": [
-          0.4309533830626751,
-          0.3372022506226868,
-          0.11344110535128002
+          0.5432712974577689,
+          0.3670223918661307,
+          0.12678708424338295
         ],
         "dimensions": [
           1.0,
-          0.7040112405410477,
-          0.22950592728966412
+          0.7330804534816695,
+          0.23237267119711696
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:03:10",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.05676574494497411,
+    "bary_after_translation": 2.624551902631255e-16,
+    "bbox_before_scaling": 1.893955945968628,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 12:10:51",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bicycle\\D00974_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bicycle\\D00974_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bicycle\\D00974_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bicycle\\D00974_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bicycle\\D00974_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Bicycle\\D00974_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 2.624551902631255e-16,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

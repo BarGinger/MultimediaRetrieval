@@ -3,22 +3,22 @@
   "category": "Helicopter",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 1159,
-    "final_faces_count": 2276
+    "target_vertices": 7500,
+    "final_vertices_count": 7822,
+    "final_faces_count": 15480
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.12277436390683068,
-        0.10669684048655272,
-        0.4378793828134731
+        0.11582907258365059,
+        0.09718027956105646,
+        0.37534116829814274
       ],
       "bounding_box": {
         "min": [
           0.02500000037252903,
           0.02500000037252903,
-          0.02500000037252903
+          0.11969500035047531
         ],
         "max": [
           0.22257100045681,
@@ -28,84 +28,105 @@
         "dimensions": [
           0.19757100008428097,
           0.22632700763642788,
-          0.9500000234693289
+          0.8553050234913826
         ]
       }
     },
     "after_centering": {
       "center": [
-        8.453596369557383e-18,
-        1.4081344660905783e-17,
-        1.3650283089653564e-17
+        -0.005779628502518623,
+        -0.022181965521900233,
+        -0.12872858332269552
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.03540248168511387,
-        0.002483175121891587,
-        0.0016052790178578131
+        0.02966085957071149,
+        0.002540442338253515,
+        0.0016680100081436476
       ],
       "eigenvectors": [
         [
-          -0.016540807431827242,
-          0.11553818905887439,
-          0.9931653077703125
+          -0.024324362483491326,
+          0.16786747289510992,
+          0.9855094301596417
         ],
         [
-          -0.020042871452927217,
-          0.9930632980267545,
-          -0.11586012867310079
+          0.36840600308807375,
+          0.9179273803249492,
+          -0.14726283081092348
         ],
         [
-          0.9996622854711609,
-          0.02182230467255574,
-          0.01411035170906479
+          0.929346728771583,
+          -0.3594855156937286,
+          0.08417138307032852
         ]
       ],
       "explained_variance_ratio": [
-        0.8964710748339539,
-        0.06287962212149438,
-        0.04064930304455178
+        0.8757443801428008,
+        0.07500720252218182,
+        0.049248417335017475
       ]
     },
     "flipping": {
       "moment_test_values": [
-        15.711924493991246,
-        0.690777868401522,
-        0.01845554970517338
+        -487.9871556095937,
+        -2.6621184761594643,
+        -1.0661409910935336
       ],
       "flip_factors": [
-        1.0,
-        1.0,
-        1.0
+        -1.0,
+        -1.0,
+        -1.0
       ]
     },
     "final": {
       "center": [
-        1.3506595899236158e-17,
-        -1.604506959661033e-18,
-        5.210531579589525e-19
+        0.15097263035575084,
+        0.004089800055898665,
+        -0.009527861698892645
       ],
       "bounding_box": {
         "min": [
-          -0.42049830528395266,
-          -0.09415625772238351,
-          -0.10622625843679379
+          -0.5521818453601687,
+          -0.15538015769230495,
+          -0.10783339718264127
         ],
         "max": [
-          0.5795016947160473,
-          0.1991448853296628,
-          0.10480526686767341
+          0.44781815463983143,
+          0.12446429622272125,
+          0.11115241578264638
         ],
         "dimensions": [
           1.0,
-          0.2933011430520463,
-          0.2110315253044672
+          0.2798444539150262,
+          0.21898581296528766
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:11:03",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.5320924132424947,
+    "bary_after_translation": 1.964033709035302e-14,
+    "bbox_before_scaling": 0.8553050234913826,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 14:26:35",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Helicopter\\m1330_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Helicopter\\m1330_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Helicopter\\m1330_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Helicopter\\m1330_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Helicopter\\m1330_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Helicopter\\m1330_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 1.964033709035302e-14,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

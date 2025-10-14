@@ -3,16 +3,16 @@
   "category": "MilitaryVehicle",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 2614,
-    "final_faces_count": 5000
+    "target_vertices": 7500,
+    "final_vertices_count": 9744,
+    "final_faces_count": 19260
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.0372664636626623,
-        0.08223161213876408,
-        -0.015623147900580314
+        0.02847528411257073,
+        0.044757748863788936,
+        0.03179966892207631
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        1.2473232512315073e-15,
-        5.801701039165891e-17,
-        -6.276487023730867e-16
+        -0.008393921982000991,
+        -0.057008443488541415,
+        0.047734116079307526
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.28743969193665286,
-        0.07931798163905147,
-        0.03103560475829683
+        0.3186441693765482,
+        0.05194958924626121,
+        0.017111200254046593
       ],
       "eigenvectors": [
         [
-          0.9911887952186178,
-          -0.1311183132999587,
-          -0.01878191019142431
+          0.990887450042988,
+          -0.1333190517606384,
+          -0.019185718254711694
         ],
         [
-          0.13238272015155722,
-          0.9853636434070826,
-          0.10739322910125057
+          0.13455475787415336,
+          0.9733414028656128,
+          0.18574587640383453
         ],
         [
-          0.004425792396774455,
-          -0.1089333657282886,
-          0.9940392015372268
+          -0.006089210189582486,
+          -0.18663478750020013,
+          0.9824104934364363
         ]
       ],
       "explained_variance_ratio": [
-        0.7225855930509425,
-        0.19939497713798301,
-        0.07801942981107451
+        0.8218728238597456,
+        0.13399258393999958,
+        0.044134592200254785
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -5.565848002251897,
-        1.5053508135260216,
-        -31.361445579282467
+        -19.78192761141304,
+        -325.1169530358221,
+        132.95489933379156
       ],
       "flip_factors": [
         -1.0,
-        1.0,
-        -1.0
+        -1.0,
+        1.0
       ]
     },
     "final": {
       "center": [
-        -1.989822062115095e-16,
-        1.475908573287077e-17,
-        -3.475419603554147e-18
+        0.0011100120114524961,
+        0.03245996388843584,
+        0.03914454871885451
       ],
       "bounding_box": {
         "min": [
-          -0.4965239853200442,
-          -0.39484669806000555,
-          -0.20939371521815744
+          -0.4986270431975509,
+          -0.34345325371897034,
+          -0.4838496414625817
         ],
         "max": [
-          0.5034760146799558,
-          0.3742816964082233,
-          0.47301388628518126
+          0.5013729568024492,
+          0.4083148592098202,
+          0.1928729261428285
         ],
         "dimensions": [
           1.0,
-          0.7691283944682288,
-          0.6824076015033387
+          0.7517681129287905,
+          0.6767225676054102
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:14:29",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.10940568024624829,
+    "bary_after_translation": 3.715718812486063e-16,
+    "bbox_before_scaling": 1.5846880078315735,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 15:45:50",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\MilitaryVehicle\\D00952_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\MilitaryVehicle\\D00952_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\MilitaryVehicle\\D00952_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\MilitaryVehicle\\D00952_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\MilitaryVehicle\\D00952_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\MilitaryVehicle\\D00952_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 3.715718812486063e-16,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }
