@@ -90,8 +90,9 @@ class ValidationPlotGenerator:
         # 2. Scaling Error Distribution
         ax2 = fig.add_subplot(gs[0, 1])
         scaling_errors = self.extract_metric('cross_step_validation.final_scaling_error')
-        if scaling_errors:
-            ax2.hist(np.log10(scaling_errors), bins=30, color='forestgreen', alpha=0.7, edgecolor='black')
+        scaling_errors_pos = [e for e in scaling_errors if e > 0]
+        if scaling_errors_pos:
+            ax2.hist(np.log10(scaling_errors_pos), bins=30, color='forestgreen', alpha=0.7, edgecolor='black')
             ax2.axvline(np.log10(1e-6), color='red', linestyle='--', linewidth=2, label='Target threshold')
             ax2.set_xlabel('Log₁₀(Scaling Error)')
             ax2.set_ylabel('Frequency')
@@ -252,7 +253,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
                 labels.append(label)
         
         if displacement_data:
-            bp = ax2.boxplot(displacement_data, labels=labels, patch_artist=True, showfliers=False)
+            bp = ax2.boxplot(displacement_data, tick_labels=labels, patch_artist=True, showfliers=False)
             for patch, color in zip(bp['boxes'], ['lightblue', 'lightgreen', 'lightyellow', 'lightcoral', 'plum']):
                 patch.set_facecolor(color)
             ax2.set_ylabel('Mean Vertex Displacement')
@@ -371,7 +372,11 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
             ax1.set_xscale('log')
             ax1.set_yscale('log')
             ax1.grid(True, alpha=0.3, which='both')
-            ax1.axline((1, 1), slope=1, color='red', linestyle='--', linewidth=1, alpha=0.5, label='λ₁/λ₂ = λ₂/λ₃')
+            # Manual reference line for y=x in log-log axes
+            min_val = max(min(lambda1_over_lambda2 + lambda2_over_lambda3), 1e-3)
+            max_val = min(max(lambda1_over_lambda2 + lambda2_over_lambda3), 1e3)
+            ref_vals = np.logspace(np.log10(min_val), np.log10(max_val), 100)
+            ax1.plot(ref_vals, ref_vals, color='red', linestyle='--', linewidth=1, alpha=0.5, label='λ₁/λ₂ = λ₂/λ₃')
             ax1.legend()
         
         # 2. Condition number distribution
@@ -406,8 +411,8 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         
         if major_to_x and medium_to_y and minor_to_z:
             alignment_data = [major_to_x, medium_to_y, minor_to_z]
-            bp = ax4.boxplot(alignment_data, labels=['Major→X', 'Medium→Y', 'Minor→Z'], 
-                            patch_artist=True, showfliers=False)
+            bp = ax4.boxplot(alignment_data, tick_labels=['Major→X', 'Medium→Y', 'Minor→Z'], 
+                    patch_artist=True, showfliers=False)
             for patch, color in zip(bp['boxes'], ['lightblue', 'lightgreen', 'lightyellow']):
                 patch.set_facecolor(color)
             ax4.axhline(1.0, color='red', linestyle='--', linewidth=1.5, label='Perfect alignment')
@@ -439,7 +444,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         top_data = [category_condition[cat] for cat in top_categories]
         
         if top_data:
-            bp = ax5.boxplot(top_data, labels=top_categories, patch_artist=True, showfliers=False)
+            bp = ax5.boxplot(top_data, tick_labels=top_categories, patch_artist=True, showfliers=False)
             for patch in bp['boxes']:
                 patch.set_facecolor('lightcoral')
             ax5.set_ylabel('Condition Number κ')
@@ -632,7 +637,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
                        for sym in sym_order if sym in df_moments['Symmetry'].values]
             sym_labels = [sym for sym in sym_order if sym in df_moments['Symmetry'].values]
             
-            bp = ax6.boxplot(sym_data, labels=sym_labels, patch_artist=True, showfliers=False)
+            bp = ax6.boxplot(sym_data, tick_labels=sym_labels, patch_artist=True, showfliers=False)
             for patch, color in zip(bp['boxes'], ['gold', 'skyblue', 'lightcoral'][:len(sym_data)]):
                 patch.set_facecolor(color)
             ax6.set_ylabel('Average |Moment| Magnitude')
@@ -938,38 +943,17 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         print(f"\n📁 All figures saved to: {self.output_dir.absolute()}\n")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Generate comprehensive validation plots for normalization pipeline',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Using default paths
-  python generate_validation_plots.py
-  
-  # Custom paths
-  python generate_validation_plots.py --input path/to/validation_detailed.json --output figures/
-        """
-    )
+def main():    
+    """
+        Main function to run the validation plot generator.
+    """
+
+    BASE = Path(__file__).parent.parent.parent.parent.resolve()
+    SOURCE_ROOT = BASE / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
+
+    input_path = SOURCE_ROOT  / 'validation_detailed.json'
+    output_path = SOURCE_ROOT / 'Validation_Figures'
     
-    parser.add_argument('--input', '-i', 
-                       default='../../Datasets/UnifiedPreprocessed/validation_detailed.json',
-                       help='Path to validation_detailed.json file')
-    parser.add_argument('--output', '-o',
-                       default='validation_figures',
-                       help='Output directory for figures')
-    
-    args = parser.parse_args()
-    
-    # Resolve paths
-    script_dir = Path(__file__).parent
-    input_path = Path(args.input)
-    if not input_path.is_absolute():
-        input_path = script_dir / input_path
-    
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = script_dir / output_path
     
     # Check if input exists
     if not input_path.exists():
