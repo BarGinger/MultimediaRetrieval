@@ -269,6 +269,7 @@ The following technical prerequisites were required for the development and exec
         \item Pandas – data manipulation and analysis
         \item NumPy – numerical computations
         \item Open3D -  an open-source library that supports rapid development of software that deals with 3D data
+        \item Scikit-learn - an open source machine learning library that supports supervised and unsupervised learning
     \end{itemize}
     \item \textbf{Development Tools and Frameworks:}
     \begin{itemize}[label=$\square$]
@@ -799,7 +800,17 @@ v_i^{(1)} \leftarrow v_i^{(1)} - \mathbf{b}_{\text{res}}
 
 This two-pass approach addresses numerical drift and degeneracy effects that can occur with large meshes or poorly conditioned geometry, ensuring that the mesh is precisely centered even in challenging cases.
 
-\textbf{Step 3: Alignment (Pose Normalization).} We align the shape's principal axes with the coordinate frame using Principal Component Analysis (PCA) \cite{mackiewicz1993principal} on the centered vertices. The covariance matrix of the vertex positions is computed and decomposed to obtain three orthogonal eigenvectors. Let $\mathbf{e}_1, \mathbf{e}_2$ denote the eigenvectors corresponding to the two largest eigenvalues (major and medium axes). The third eigenvector (minor axis) is computed as $\mathbf{e}_3 = \mathbf{e}_1 \times \mathbf{e}_2$ to ensure a right-handed orthonormal basis. All eigenvectors are normalized to unit length.
+\textbf{Step 3: Alignment (Pose Normalization).} We align the shape's principal axes with the coordinate frame using Principal Component Analysis (PCA) \cite{mackiewicz1993principal} on the centered vertices. We employ the PCA implementation from Scikit-learn \cite{pedregosa2011scikit}, which efficiently computes the covariance matrix of the vertex positions and performs eigenvalue decomposition to obtain three orthogonal eigenvectors. Let $\mathbf{e}_1, \mathbf{e}_2$ denote the eigenvectors corresponding to the two largest eigenvalues, representing the major and medium axes respectively. The third eigenvector, corresponding to the minor axis, is computed as:
+
+\begin{equation}
+\mathbf{e}_3 = \mathbf{e}_1 \times \mathbf{e}_2
+\end{equation}
+
+to ensure a right-handed orthonormal basis. All eigenvectors are normalized to unit length:
+
+\begin{equation}
+\mathbf{e}_i \leftarrow \frac{\mathbf{e}_i}{\|\mathbf{e}_i\|}, \quad i \in \{1, 2, 3\}
+\end{equation}
 
 The alignment transformation projects each vertex onto the new coordinate system defined by these principal axes:
 
@@ -813,7 +824,7 @@ v_i^{(1)} \cdot \mathbf{e}_3
 
 This transformation ensures that the shape's principal axes align with the $x$, $y$, and $z$ coordinate axes respectively, providing a canonical orientation that eliminates rotation variations between shapes.
 
-\textbf{Step 4: Flipping (Orientation Consistency).} Although PCA alignment establishes a canonical pose, it leaves an ambiguity in the sign of each principal axis (each eigenvector can be multiplied by $-1$ without affecting the eigenvalue decomposition). To resolve this ambiguity and establish consistent orientation across all shapes, we apply a moment-based test.
+\textbf{Step 4: Flipping (Orientation Consistency).} Although PCA alignment establishes a canonical pose, it leaves an ambiguity in the sign of each principal axis. Specifically, each eigenvector can be multiplied by $-1$ without affecting the eigenvalue decomposition, meaning that the PCA solution is invariant to axis flipping. To resolve this ambiguity and establish consistent orientation across all shapes, we apply a moment-based test.
 
 For each coordinate axis $i \in \{0, 1, 2\}$, we compute a signed moment:
 

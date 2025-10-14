@@ -1,23 +1,23 @@
 {
   "filename": "D01055.obj",
   "category": "Train",
-  "timestamp": "2025-10-03 23:28:30",
+  "timestamp": "2025-10-13 17:51:53",
   "vertex_counts": {
     "original": 10979,
-    "resampled": 8651,
-    "translated": 8651,
-    "aligned": 8651,
-    "flipped": 8651,
-    "scaled": 8651
+    "resampled": 8614,
+    "translated": 8614,
+    "aligned": 8614,
+    "flipped": 8614,
+    "scaled": 8614
   },
   "centering_validation": {
     "original": {
       "barycenter": [
-        1.7372476938395354,
-        4.682423280809906,
-        1.423548552646065
+        1.72524352587752,
+        4.606076463545003,
+        1.4010638209673656
       ],
-      "distance_from_origin": 5.193227109626739,
+      "distance_from_origin": 5.114233612383112,
       "properly_centered": false
     },
     "resampled": {
@@ -40,51 +40,51 @@
     },
     "aligned": {
       "barycenter": [
-        -2.341182741435563e-14,
-        -5.074504324865096e-15,
-        1.4531136667068451e-15
+        -2.0075622996378574e-14,
+        -4.413537272732323e-15,
+        1.7825851860479435e-15
       ],
-      "distance_from_origin": 2.3999495752015678e-14,
+      "distance_from_origin": 2.0632197165984026e-14,
       "properly_centered": true
     },
     "flipped": {
       "barycenter": [
-        2.341182741435563e-14,
-        5.074504324865096e-15,
-        1.4531136667068451e-15
+        2.0075622996378574e-14,
+        4.413537272732323e-15,
+        1.7825851860479435e-15
       ],
-      "distance_from_origin": 2.3999495752015678e-14,
+      "distance_from_origin": 2.0632197165984026e-14,
       "properly_centered": true
     },
     "scaled": {
       "barycenter": [
-        2.0012917748510815e-15,
-        3.7453855129862675e-16,
-        1.5072008990721696e-16
+        2.562703952843263e-15,
+        3.904861860126947e-16,
+        1.7481577850301862e-16
       ],
-      "distance_from_origin": 2.0416082973962233e-15,
+      "distance_from_origin": 2.598170811898025e-15,
       "properly_centered": true
     }
   },
   "alignment_validation": {
     "eigenvalues": [
-      10.310380444121122,
-      0.398999227615572,
-      0.33262905057358716
+      10.26973992538267,
+      0.3976552772546548,
+      0.33291854126055875
     ],
     "eigenvalue_ordering_correct": true,
     "eigenvector_alignment": {
       "major_to_x": 1.0,
-      "medium_to_y": 0.9999999999999998,
+      "medium_to_y": 1.0,
       "minor_to_z": 1.0
     },
     "alignment_quality": 1.0
   },
   "flipping_validation": {
     "moment_test_values": [
-      22834.530542438064,
-      2422.0921532997836,
-      230.9176114013336
+      22806.117754261024,
+      2437.6558685689706,
+      315.17312175112363
     ],
     "all_moments_positive": true,
     "flipping_successful": true
@@ -92,19 +92,19 @@
   "scaling_validation": {
     "bounding_box": {
       "min": [
-        -0.5164481256160215,
-        -0.13275450008228998,
-        -0.07763152300318739
+        -0.5164878371110628,
+        -0.13279538490598541,
+        -0.07887783740987471
       ],
       "max": [
-        0.48355187438397845,
-        0.10880179669828155,
-        0.07262471532551076
+        0.4835121628889372,
+        0.1097829016718845,
+        0.07347845113870428
       ],
       "dimensions": [
         1.0,
-        0.24155629678057153,
-        0.15025623832869817
+        0.2425782865778699,
+        0.152356288548579
       ]
     },
     "max_dimension": 1.0,
@@ -115,8 +115,92 @@
     "centering_preserved_after_alignment": true,
     "centering_preserved_after_flipping": true,
     "centering_preserved_after_scaling": true,
-    "final_centering_error": 2.0416082973962233e-15,
+    "final_centering_error": 2.598170811898025e-15,
     "final_scaling_error": 0.0,
     "overall_normalization_success": true
+  },
+  "bbox_before_scaling": 11.381161005069078,
+  "eigenvalue_analysis": {
+    "eigenvalues": [
+      10.26973992538267,
+      0.3976552772546548,
+      0.33291854126055875
+    ],
+    "lambda1_over_lambda2": 25.82573528580641,
+    "lambda2_over_lambda3": 1.1944521796502463,
+    "condition_number": 30.847605803201738,
+    "anisotropy_score": 0.9675825732998634
+  },
+  "recentering_analysis": {
+    "residual_barycenter_norm": 2.1679667117318484e-14,
+    "second_pass_triggered": false,
+    "recenter_threshold": 1e-09
+  },
+  "vertex_displacement_analysis": {
+    "resampled_to_translated": {
+      "mean": 6.747878093540411,
+      "max": 6.747878093540414,
+      "std": 2.6644493337907234e-15,
+      "median": 6.747878093540414
+    },
+    "translated_to_aligned": {
+      "mean": 4.1771553284928435,
+      "max": 8.870619032018306,
+      "std": 2.2709063843431503,
+      "median": 4.04768251527441
+    },
+    "aligned_to_flipped": {
+      "mean": 5.8299860034367885,
+      "max": 11.774375966713778,
+      "std": 3.2130952524266188,
+      "median": 5.625535818211956
+    },
+    "flipped_to_scaled": {
+      "mean": 2.7386008566360207,
+      "max": 5.384846231070662,
+      "std": 1.4121779738705587,
+      "median": 2.6380415380389737
+    }
+  },
+  "aspect_ratio_analysis": {
+    "original_aspect_ratio": [
+      0.14720632902525055,
+      1.0,
+      0.216512271026817
+    ],
+    "scaled_aspect_ratio": [
+      1.0,
+      0.2425782865778699,
+      0.152356288548579
+    ],
+    "preservation_error": 1.1423925276828681,
+    "aspect_preserved": false
+  },
+  "compactness_analysis": {
+    "convex_hull_volume": 0.025107204534663384,
+    "convex_hull_surface_area": 0.6262164830392187,
+    "compactness": 0.2903191009285047,
+    "sphericity": 0.2903191009285047
+  },
+  "symmetry_analysis": {
+    "bounding_box_dimensions": [
+      1.0,
+      0.2425782865778699,
+      0.152356288548579
+    ],
+    "sorted_dimensions": [
+      1.0,
+      0.2425782865778699,
+      0.152356288548579
+    ],
+    "symmetry_classification": {
+      "spherical": false,
+      "cylindrical": false,
+      "asymmetric": true
+    },
+    "dimension_ratios": {
+      "max_to_medium": 4.122380506958486,
+      "medium_to_min": 1.5921777098194638
+    }
   }
 }

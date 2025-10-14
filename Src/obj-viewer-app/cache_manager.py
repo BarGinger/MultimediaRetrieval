@@ -87,4 +87,4 @@ def main(command=None):
 
 
 if __name__ == "__main__":
-    main() 
+    main("clear-all") 

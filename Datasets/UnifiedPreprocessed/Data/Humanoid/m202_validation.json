@@ -1,7 +1,7 @@
 {
   "filename": "m202.obj",
   "category": "Humanoid",
-  "timestamp": "2025-10-03 20:41:49",
+  "timestamp": "2025-10-13 14:54:57",
   "vertex_counts": {
     "original": 148,
     "resampled": 7204,
@@ -118,5 +118,89 @@
     "final_centering_error": 9.085811424285164e-15,
     "final_scaling_error": 0.0,
     "overall_normalization_success": true
+  },
+  "bbox_before_scaling": 0.9575170929501831,
+  "eigenvalue_analysis": {
+    "eigenvalues": [
+      0.0727527821451862,
+      0.0059397898899794365,
+      0.000951773674328241
+    ],
+    "lambda1_over_lambda2": 12.248376372356509,
+    "lambda2_over_lambda3": 6.240758754093217,
+    "condition_number": 76.4391620692124,
+    "anisotropy_score": 0.9869177006533046
+  },
+  "recentering_analysis": {
+    "residual_barycenter_norm": 1.3368049928535311e-14,
+    "second_pass_triggered": false,
+    "recenter_threshold": 1e-09
+  },
+  "vertex_displacement_analysis": {
+    "resampled_to_translated": {
+      "mean": 0.5513778031377974,
+      "max": 0.5513778031377973,
+      "std": 1.1102230246251565e-16,
+      "median": 0.5513778031377973
+    },
+    "translated_to_aligned": {
+      "mean": 0.3417619496222441,
+      "max": 0.8298838379946442,
+      "std": 0.21187900413895028,
+      "median": 0.3072038087813138
+    },
+    "aligned_to_flipped": {
+      "mean": 0.4490118242243162,
+      "max": 1.0228650251360099,
+      "std": 0.3068761002883879,
+      "median": 0.4752793065609344
+    },
+    "flipped_to_scaled": {
+      "mean": 0.01103805840117555,
+      "max": 0.022872740055242428,
+      "std": 0.005951057339494807,
+      "median": 0.010647738804762136
+    }
+  },
+  "aspect_ratio_analysis": {
+    "original_aspect_ratio": [
+      0.28486631302983445,
+      1.0,
+      0.21127578525544213
+    ],
+    "scaled_aspect_ratio": [
+      1.0,
+      0.2826299949616833,
+      0.18666154730681206
+    ],
+    "preservation_error": 1.0132333270663816,
+    "aspect_preserved": false
+  },
+  "compactness_analysis": {
+    "convex_hull_volume": 0.029299065733375033,
+    "convex_hull_surface_area": 0.6861375062951174,
+    "compactness": 0.3005567170512309,
+    "sphericity": 0.3005567170512309
+  },
+  "symmetry_analysis": {
+    "bounding_box_dimensions": [
+      1.0,
+      0.2826299949616833,
+      0.18666154730681206
+    ],
+    "sorted_dimensions": [
+      1.0,
+      0.2826299949616833,
+      0.18666154730681206
+    ],
+    "symmetry_classification": {
+      "spherical": false,
+      "cylindrical": false,
+      "asymmetric": true
+    },
+    "dimension_ratios": {
+      "max_to_medium": 3.538194876080198,
+      "medium_to_min": 1.514130783975179
+    }
   }
 }

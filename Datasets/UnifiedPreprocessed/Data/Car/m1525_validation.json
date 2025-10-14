@@ -1,23 +1,23 @@
 {
   "filename": "m1525.obj",
   "category": "Car",
-  "timestamp": "2025-10-03 18:51:40",
+  "timestamp": "2025-10-13 12:52:09",
   "vertex_counts": {
     "original": 10545,
-    "resampled": 8231,
-    "translated": 8231,
-    "aligned": 8231,
-    "flipped": 8231,
-    "scaled": 8231
+    "resampled": 8220,
+    "translated": 8220,
+    "aligned": 8220,
+    "flipped": 8220,
+    "scaled": 8220
   },
   "centering_validation": {
     "original": {
       "barycenter": [
-        0.26466216467782205,
-        0.4994782762164995,
-        0.16106459513518478
+        0.2680891508102159,
+        0.49249341516235795,
+        0.1568025393577024
       ],
-      "distance_from_origin": 0.5877639097717869,
+      "distance_from_origin": 0.5822444444642209,
       "properly_centered": false
     },
     "resampled": {
@@ -40,51 +40,51 @@
     },
     "aligned": {
       "barycenter": [
-        6.101721171265758e-16,
-        1.3093010879294612e-15,
-        4.5904032350635755e-16
+        9.115103856343316e-16,
+        1.312799689816413e-15,
+        4.4135128604566277e-16
       ],
-      "distance_from_origin": 1.5156837961714903e-15,
+      "distance_from_origin": 1.6580365395236253e-15,
       "properly_centered": true
     },
     "flipped": {
       "barycenter": [
-        -6.101721171265758e-16,
-        1.3093010879294612e-15,
-        4.5904032350635755e-16
+        -9.115103856343316e-16,
+        1.312799689816413e-15,
+        4.4135128604566277e-16
       ],
-      "distance_from_origin": 1.5156837961714903e-15,
+      "distance_from_origin": 1.6580365395236253e-15,
       "properly_centered": true
     },
     "scaled": {
       "barycenter": [
-        -8.782839049666838e-16,
-        1.3731356097941332e-15,
-        4.90129502077464e-16
+        -1.0578206595496152e-15,
+        1.3280770981902008e-15,
+        4.206892352872099e-16
       ],
-      "distance_from_origin": 1.702090170765032e-15,
+      "distance_from_origin": 1.749214897945311e-15,
       "properly_centered": true
     }
   },
   "alignment_validation": {
     "eigenvalues": [
-      0.09444031864803265,
-      0.02656087859088184,
-      0.0027180698158758114
+      0.09438979568860442,
+      0.02656885129590229,
+      0.0026720913649979226
     ],
     "eigenvalue_ordering_correct": true,
     "eigenvector_alignment": {
       "major_to_x": 1.0,
-      "medium_to_y": 1.0,
-      "minor_to_z": 0.9999999999999999
+      "medium_to_y": 0.9999999999999999,
+      "minor_to_z": 1.0
     },
     "alignment_quality": 1.0
   },
   "flipping_validation": {
     "moment_test_values": [
-      351.6857539842658,
-      2.259216702206274,
-      74.61988280167691
+      351.244604692731,
+      2.1714448274488447,
+      74.69913361840126
     ],
     "all_moments_positive": true,
     "flipping_successful": true
@@ -92,19 +92,19 @@
   "scaling_validation": {
     "bounding_box": {
       "min": [
-        -0.5004766938567882,
-        -0.2235052658400382,
-        -0.20646144127802724
+        -0.5004993029982311,
+        -0.22339559563117128,
+        -0.2067431783155772
       ],
       "max": [
-        0.4995233061432119,
-        0.22412340697902686,
-        0.15538868151007598
+        0.49950069700176897,
+        0.2241897408603058,
+        0.15573013695037566
       ],
       "dimensions": [
         1.0,
-        0.44762867281906504,
-        0.36185012278810325
+        0.4475853364914771,
+        0.36247331526595283
       ]
     },
     "max_dimension": 1.0,
@@ -115,8 +115,92 @@
     "centering_preserved_after_alignment": true,
     "centering_preserved_after_flipping": true,
     "centering_preserved_after_scaling": true,
-    "final_centering_error": 1.702090170765032e-15,
+    "final_centering_error": 1.749214897945311e-15,
     "final_scaling_error": 0.0,
     "overall_normalization_success": true
+  },
+  "bbox_before_scaling": 0.9509057324322641,
+  "eigenvalue_analysis": {
+    "eigenvalues": [
+      0.09438979568860442,
+      0.02656885129590229,
+      0.0026720913649979226
+    ],
+    "lambda1_over_lambda2": 3.5526487252823817,
+    "lambda2_over_lambda3": 9.943092382218355,
+    "condition_number": 35.324314477052994,
+    "anisotropy_score": 0.9716908872881423
+  },
+  "recentering_analysis": {
+    "residual_barycenter_norm": 1.5430024309325367e-15,
+    "second_pass_triggered": false,
+    "recenter_threshold": 1e-09
+  },
+  "vertex_displacement_analysis": {
+    "resampled_to_translated": {
+      "mean": 0.5781391915491823,
+      "max": 0.5781391915491824,
+      "std": 1.1102230246251565e-16,
+      "median": 0.5781391915491824
+    },
+    "translated_to_aligned": {
+      "mean": 0.46484944717544907,
+      "max": 0.8893243603255296,
+      "std": 0.227098956721405,
+      "median": 0.5339744664929531
+    },
+    "aligned_to_flipped": {
+      "mean": 0.6026600278923749,
+      "max": 0.9518553125987411,
+      "std": 0.15349449440607965,
+      "median": 0.5906873995035502
+    },
+    "flipped_to_scaled": {
+      "mean": 0.01827198838000181,
+      "max": 0.025372646382764347,
+      "std": 0.0029822201970369135,
+      "median": 0.01800287358849392
+    }
+  },
+  "aspect_ratio_analysis": {
+    "original_aspect_ratio": [
+      0.44801262914162104,
+      1.0,
+      0.34777788468489257
+    ],
+    "scaled_aspect_ratio": [
+      1.0,
+      0.4475853364914771,
+      0.36247331526595283
+    ],
+    "preservation_error": 0.7810684820976602,
+    "aspect_preserved": false
+  },
+  "compactness_analysis": {
+    "convex_hull_volume": 0.11051973344110522,
+    "convex_hull_surface_area": 1.380950712275081,
+    "compactness": 0.5245628085127397,
+    "sphericity": 0.5245628085127397
+  },
+  "symmetry_analysis": {
+    "bounding_box_dimensions": [
+      1.0,
+      0.4475853364914771,
+      0.36247331526595283
+    ],
+    "sorted_dimensions": [
+      1.0,
+      0.4475853364914771,
+      0.36247331526595283
+    ],
+    "symmetry_classification": {
+      "spherical": false,
+      "cylindrical": false,
+      "asymmetric": true
+    },
+    "dimension_ratios": {
+      "max_to_medium": 2.2342108162854033,
+      "medium_to_min": 1.2348090677049595
+    }
   }
 }
