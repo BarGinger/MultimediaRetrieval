@@ -3,16 +3,16 @@
   "category": "Chess",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 4722,
-    "final_faces_count": 9440
+    "target_vertices": 7500,
+    "final_vertices_count": 8042,
+    "final_faces_count": 16080
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.2341438083752062,
-        0.45152507033057065,
-        0.23414368371288688
+        0.2147985794722758,
+        0.32071174369169875,
+        0.21749270882220553
       ],
       "bounding_box": {
         "min": [
@@ -34,45 +34,45 @@
     },
     "after_centering": {
       "center": [
-        -2.2923918869325025e-17,
-        1.0136416154647326e-14,
-        1.4253975194387995e-17
+        -0.019345159239279153,
+        -0.01082601986057828,
+        -0.016650899251785086
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.08796060977928076,
-        0.006430487120085325,
-        0.006430486804055431
+        0.07459488791891414,
+        0.007912326354858494,
+        0.0067492633994793595
       ],
       "eigenvectors": [
         [
-          5.2020197016772025e-08,
-          0.9999999999999972,
-          4.650109291214345e-08
+          0.06187523075973338,
+          0.9966321485515801,
+          0.053812789296702294
         ],
         [
-          0.014804694261154364,
-          -4.726613971465675e-08,
-          0.9998904045083298
+          -0.6776693709508084,
+          0.0023669906213185663,
+          0.7353629179055294
         ],
         [
-          0.9998904045083296,
-          -5.132606137432492e-08,
-          -0.014804694261156787
+          0.7327589504697747,
+          -0.08196802930936012,
+          0.6755335392692018
         ]
       ],
       "explained_variance_ratio": [
-        0.8724382870043698,
-        0.06378085806508807,
-        0.06378085493054206
+        0.8357364066279799,
+        0.0886470826669158,
+        0.07561651070510426
       ]
     },
     "flipping": {
       "moment_test_values": [
-        11.914327704839707,
-        -3.3288230124162155e-05,
-        -3.124188384828752e-05
+        178.9760926444029,
+        -1.4155344785158552,
+        -32.8927127991397
       ],
       "flip_factors": [
         1.0,
@@ -82,30 +82,51 @@
     },
     "final": {
       "center": [
-        1.8871675364578184e-16,
-        -5.55978506680072e-18,
-        9.545754934303549e-18
+        -0.013366602231375372,
+        -0.0008710863242518268,
+        0.025458067853705146
       ],
       "bounding_box": {
         "min": [
-          -0.4489737467588466,
-          -0.22012673250801035,
-          -0.22012659493321735
+          -0.3346099894731105,
+          -0.2164037969142826,
+          -0.2424729778153625
         ],
         "max": [
-          0.5510262532411534,
-          0.22012709074059353,
-          0.2201272283153864
+          0.6653900105268896,
+          0.21790955423084712,
+          0.19036998209561
         ],
         "dimensions": [
           1.0,
-          0.44025382324860385,
-          0.44025382324860374
+          0.4343133511451297,
+          0.43284295991097255
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:06:25",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.4685763632973468,
+    "bary_after_translation": 8.475608669635553e-15,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 13:02:57",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Chess\\D01112_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Chess\\D01112_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Chess\\D01112_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Chess\\D01112_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Chess\\D01112_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Chess\\D01112_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 8.475608669635553e-15,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

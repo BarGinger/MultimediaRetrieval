@@ -3,7 +3,7 @@
   "category": "PlantWildNonTree",
   "processing_info": {
     "remeshing_applied": false,
-    "target_faces": 5000,
+    "target_vertices": 7500,
     "final_vertices_count": 7920,
     "final_faces_count": 5280
   },
@@ -34,45 +34,45 @@
     },
     "after_centering": {
       "center": [
-        -7.177199351112123e-18,
-        -6.305281773691861e-17,
-        -3.3950115446207913e-16
+        -0.0004987003514050092,
+        0.0029549382844911414,
+        -0.00046160866124971635
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.038670013518246754,
+        0.03867001351824676,
         0.03216369114832019,
-        0.011422306963471483
+        0.011422306963471487
       ],
       "eigenvectors": [
         [
           0.9925814872386899,
-          0.011147854950544352,
-          -0.12106905682721918
+          0.011147854950544395,
+          -0.121069056827219
         ],
         [
-          0.1203986292498031,
-          0.04842455012178586,
-          0.9915438633869262
+          0.1203986292498029,
+          0.04842455012178536,
+          0.9915438633869263
         ],
         [
-          -0.01691630177666684,
-          0.9987646310695549,
-          -0.046723125523625356
+          -0.016916301776666812,
+          0.9987646310695552,
+          -0.046723125523625224
         ]
       ],
       "explained_variance_ratio": [
         0.47011777925937215,
-        0.3910193372003291,
-        0.13886288354029871
+        0.39101933720032905,
+        0.13886288354029874
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -0.27005751433848735,
-        6.104623365612866,
-        -3.3573412690219646
+        -0.964213755644892,
+        5.508589751652047,
+        -6.265703862653719
       ],
       "flip_factors": [
         -1.0,
@@ -82,30 +82,50 @@
     },
     "final": {
       "center": [
-        -3.637662561745305e-18,
-        -1.6232806344898122e-17,
-        -2.0767618825532443e-17
+        0.0004147740726162529,
+        -0.00038259021164240394,
+        0.0030444233932395304
       ],
       "bounding_box": {
         "min": [
-          -0.4842361419834517,
-          -0.4212310933077678,
-          -0.23078486869636083
+          -0.4838213679108354,
+          -0.4216136835194102,
+          -0.22774044530312113
         ],
         "max": [
-          0.5157638580165483,
-          0.4496882334002945,
-          0.2280794336338744
+          0.5161786320891646,
+          0.44930564318865224,
+          0.23112385702711383
         ],
         "dimensions": [
           1.0,
           0.8709193267080624,
-          0.45886430233023523
+          0.45886430233023495
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:16:50",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.724107518568816,
+    "bary_after_translation": 1.0750384155473293e-15,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 16:33:53",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m966_00_original.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m966_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m966_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m966_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m966_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 1.0750384155473293e-15,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

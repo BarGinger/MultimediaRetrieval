@@ -346,17 +346,44 @@ class DatasetCache:
         if analysis_df is not None:
             # Optimize the merge operation
             file_df_copy = file_df.copy()
-            file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
             analysis_df_copy = analysis_df.copy()
-            analysis_df_copy['base_filename'] = analysis_df_copy['filename']
             
-            # Use efficient merge
-            merged = pd.merge(
-                file_df_copy, 
-                analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
-                on=['category', 'base_filename'], 
-                how='left'
-            ).drop('base_filename', axis=1)
+            # For UnifiedPreprocessed datasets, need to map processed filenames to original
+            if 'UnifiedPreprocessed' in dataset:
+                # Convert processed filenames to original base names:
+                # m1337_05_scaled.obj -> m1337.obj
+                # m1337_unified.obj -> m1337.obj
+                file_df_copy['base_filename'] = file_df_copy['filename'].str.replace(r'_(\d{2}_.*|unified)\.obj$', '.obj', regex=True)
+                
+                # Ensure analysis CSV uses correct column names 
+                if 'class' in analysis_df_copy.columns:
+                    analysis_df_copy = analysis_df_copy.rename(columns={'class': 'category'})
+                if 'shape_file' in analysis_df_copy.columns:
+                    analysis_df_copy = analysis_df_copy.rename(columns={'shape_file': 'filename'})
+                
+                analysis_df_copy['base_filename'] = analysis_df_copy['filename']
+                
+                # Merge on category and base filename
+                merged = pd.merge(
+                    file_df_copy, 
+                    analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
+                    on=['category', 'base_filename'], 
+                    how='left'
+                ).drop('base_filename', axis=1)
+                
+                print(f"[DEBUG] UnifiedPreprocessed merge: {len(file_df_copy)} files, {len(analysis_df_copy)} analysis rows, {merged['num_vertices'].notna().sum()} matches")
+            else:
+                # For other datasets, use the original conversion logic
+                file_df_copy['base_filename'] = file_df_copy['filename'].str.replace('_unified.obj', '.obj')
+                analysis_df_copy['base_filename'] = analysis_df_copy['filename']
+                
+                # Use efficient merge
+                merged = pd.merge(
+                    file_df_copy, 
+                    analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
+                    on=['category', 'base_filename'], 
+                    how='left'
+                ).drop('base_filename', axis=1)
             
             # Fill missing values with reasonable defaults
             merged['num_vertices'] = merged['num_vertices'].fillna(0).astype('int32')

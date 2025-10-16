@@ -7,7 +7,7 @@ import numpy as np
 # Compare original vs resampled files
 datasets_dir = Path('Datasets')
 original_dir = datasets_dir / 'Data'
-resampled_dir = datasets_dir / 'Data_resampled'
+resampled_dir = datasets_dir / 'UnifiedPreprocessed' / 'Data'
 TARGET_VERTEX_COUNT = 7500
 # Custom range: 5000-10000 vertices is acceptable (matching resampling.py)
 MIN_ACCEPTABLE_VERTICES = 5000
@@ -38,7 +38,13 @@ def compare_datasets():
         
         # Process each file in the category
         for obj_file in category_dir.glob('*.obj'):
-            resampled_file = resampled_category_dir / obj_file.name
+
+            filename = obj_file.name
+            if "UnifiedPreprocessed" in str(resampled_dir):
+                filename = filename.replace(".obj", "_unified.obj")
+
+            resampled_file = resampled_category_dir / filename
+
             if not resampled_file.exists():
                 continue
                 

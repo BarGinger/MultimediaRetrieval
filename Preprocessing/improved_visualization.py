@@ -44,8 +44,9 @@ plt.rcParams.update({
 
 # Configuration
 BASE = Path(__file__).parent.parent.resolve()
-DATA_DIR = BASE / "Preprocessing/figures"
-OUTPUT_DIR = BASE / "Preprocessing/figures/improved_plots"
+# DATA_DIR = BASE / "Preprocessing/figures"
+DATA_DIR = Path("Datasets/UnifiedPreprocessed/Data")
+OUTPUT_DIR = BASE / "Preprocessing/figures/improved_plots_new"
 
 def load_and_clean_data(csv_path):
     """Load CSV data and clean it for analysis."""
@@ -336,7 +337,7 @@ def main(show_plots=True):
     # Create output directory
     OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
     
-    # Load data
+    # Load data    
     csv_path = DATA_DIR / "normalization_statistics.csv"
     if not csv_path.exists():
         print(f"Error: CSV file not found at {csv_path}")

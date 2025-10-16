@@ -3,16 +3,16 @@
   "category": "Insect",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 1024,
-    "final_faces_count": 1984
+    "target_vertices": 7500,
+    "final_vertices_count": 8676,
+    "final_faces_count": 17190
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.4959078406136541,
-        0.1744877126402571,
-        0.3254086066990567
+        0.43281020573334317,
+        0.15813530567867604,
+        0.3182744817225751
       ],
       "bounding_box": {
         "min": [
@@ -34,78 +34,99 @@
     },
     "after_centering": {
       "center": [
-        0.0,
-        0.0,
-        0.0
+        -0.06492032733608138,
+        -0.032777375426067866,
+        -0.0034679235113479466
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.044873497802973054,
-        0.01751832889698964,
-        0.005863996338496924
+        0.02936521845315404,
+        0.019317650667448172,
+        0.003349464389988151
       ],
       "eigenvectors": [
         [
-          0.9994953778408358,
-          0.031723230884606664,
-          0.0016205854025580673
+          0.9736427775831956,
+          -0.13600788474780484,
+          0.18308904103333873
         ],
         [
-          -0.00725136075163892,
-          0.17820058323779206,
-          0.9839674638426621
+          -0.17781994445759697,
+          0.05003400279694016,
+          0.9827902451272156
         ],
         [
-          -0.03092583777449914,
-          0.9834826835058929,
-          -0.17834069586606616
+          0.14282789998168058,
+          0.989443507154675,
+          -0.024530330945168304
         ]
       ],
       "explained_variance_ratio": [
-        0.6574310557751023,
-        0.2566569139034293,
-        0.0859120303214684
+        0.5643648184100222,
+        0.37126243172461926,
+        0.06437274986535862
       ]
     },
     "flipping": {
       "moment_test_values": [
-        3.143762793307239,
-        -5.276714597008949,
-        -1.801941316830562
+        -333.09899095565896,
+        -35.89274216615066,
+        60.63390492434114
       ],
       "flip_factors": [
-        1.0,
         -1.0,
-        -1.0
+        -1.0,
+        1.0
       ]
     },
     "final": {
       "center": [
-        4.802337997752981e-17,
-        9.324138683375338e-18,
-        6.844026213814747e-18
+        0.06313336298066409,
+        -0.006905788306635281,
+        0.0442448191487273
       ],
       "bounding_box": {
         "min": [
-          -0.49004575776431214,
-          -0.2665476480358298,
-          -0.1536126889492488
+          -0.47914659468592785,
+          -0.2826601374654549,
+          -0.26764294607451133
         ],
         "max": [
-          0.5099542422356879,
-          0.3161577337093467,
-          0.2155111482971181
+          0.5208534053140721,
+          0.34547473683929,
+          0.1742943472417504
         ],
         "dimensions": [
           1.0,
-          0.5827053817451765,
-          0.3691238372463669
+          0.6281348743047448,
+          0.44193729331626175
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:13:19",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.6226568161370123,
+    "bary_after_translation": 1.1140819477836993e-14,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 15:12:29",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Insect\\m12_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Insect\\m12_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Insect\\m12_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Insect\\m12_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Insect\\m12_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\Insect\\m12_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 1.1140819477836993e-14,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

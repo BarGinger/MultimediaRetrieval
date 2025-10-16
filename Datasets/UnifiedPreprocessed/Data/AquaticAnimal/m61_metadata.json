@@ -3,16 +3,16 @@
   "category": "AquaticAnimal",
   "processing_info": {
     "remeshing_applied": true,
-    "target_faces": 5000,
-    "final_vertices_count": 760,
-    "final_faces_count": 1348
+    "target_vertices": 7500,
+    "final_vertices_count": 8725,
+    "final_faces_count": 16822
   },
   "normalization_info": {
     "original": {
       "center": [
-        0.1077476122722912,
-        0.20756322766874769,
-        0.5929518469535795
+        0.10690304519603014,
+        0.19883691823601674,
+        0.5390116721371191
       ],
       "bounding_box": {
         "min": [
@@ -34,45 +34,45 @@
     },
     "after_centering": {
       "center": [
-        -1.0956148269327203e-19,
-        -5.843279076974508e-18,
-        -2.313938514481905e-16
+        -0.0010063743556124316,
+        -0.008511949129152752,
+        -0.06862190129265532
       ]
     },
     "pca": {
       "eigenvalues": [
-        0.06281677057563384,
-        0.004452419231278478,
-        0.0017641137709740106
+        0.05707716295518824,
+        0.004030797225957674,
+        0.0015814655328080767
       ],
       "eigenvectors": [
         [
-          -0.014815705407060535,
-          0.0018849743701340612,
-          0.9998884646523906
+          -0.018597603102442784,
+          -0.01907165234806084,
+          0.999645137654137
         ],
         [
-          -0.04949545790232864,
-          0.9987709221003438,
-          -0.0026162595184775726
+          -0.1106385603635765,
+          0.9937170079277963,
+          0.016900210522438237
         ],
         [
-          0.9986644554205031,
-          0.04952869913952061,
-          0.014704198081392958
+          0.9936866901189323,
+          0.11028499549685898,
+          0.020590814669132235
         ]
       ],
       "explained_variance_ratio": [
-        0.909948782977788,
-        0.06449668494069777,
-        0.02555453208151428
+        0.9104751288618598,
+        0.06429788086351,
+        0.025226990274630313
       ]
     },
     "flipping": {
       "moment_test_values": [
-        -9.121135474444412,
-        -0.06538001634588866,
-        0.037421009605425305
+        -476.44962317614477,
+        -14.674458943278848,
+        2.550331470650382
       ],
       "flip_factors": [
         -1.0,
@@ -82,30 +82,51 @@
     },
     "final": {
       "center": [
-        9.670626872392811e-17,
-        -1.2763912733766192e-17,
-        -5.515735894339413e-18
+        0.07167733724018134,
+        0.00995996113238813,
+        0.003511491340598361
       ],
       "bounding_box": {
         "min": [
-          -0.4015384559779706,
-          -0.2474604346572274,
-          -0.085831401386603
+          -0.38487204854330226,
+          -0.24696374693591652,
+          -0.08983285203483882
         ],
         "max": [
-          0.5984615440220294,
-          0.19422418060531185,
-          0.08750248190147834
+          0.6151279514566979,
+          0.20937291230279642,
+          0.08989141775049303
         ],
         "dimensions": [
           1.0,
-          0.4416846152625392,
-          0.17333388328808136
+          0.4563366592387129,
+          0.17972426978533185
         ]
       },
       "max_dimension": 1.0
     }
   },
-  "processing_timestamp": "2025-09-29 15:02:37",
-  "pipeline_version": "unified_v1.0"
+  "enhanced_normalization_stats": {
+    "bary_before_translation": 0.6510426677143557,
+    "bary_after_translation": 2.408886388867882e-15,
+    "bbox_before_scaling": 0.9500000234693289,
+    "bbox_after_scaling": 1.0
+  },
+  "processing_timestamp": "2025-10-13 11:59:57",
+  "pipeline_version": "unified_enhanced_v1.2_with_validation",
+  "step_files": {
+    "00_original": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AquaticAnimal\\m61_00_original.obj",
+    "01_remeshed": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AquaticAnimal\\m61_01_remeshed.obj",
+    "02_translated": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AquaticAnimal\\m61_02_translated.obj",
+    "03_aligned": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AquaticAnimal\\m61_03_aligned.obj",
+    "04_flipped": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AquaticAnimal\\m61_04_flipped.obj",
+    "05_scaled": "C:\\Users\\bar24\\OneDrive - Universiteit Utrecht\\Documents\\School\\UU Data Sceince MSc\\2nd Year\\Period 1\\Multimedia Retrieval - INFOMR\\Assignments\\MultimediaRetrieval\\Datasets\\UnifiedPreprocessed\\Data\\AquaticAnimal\\m61_05_scaled.obj"
+  },
+  "validation_summary": {
+    "overall_success": true,
+    "centering_error": 2.408886388867882e-15,
+    "scaling_error": 0.0,
+    "alignment_quality": 1.0,
+    "flipping_success": true
+  }
 }

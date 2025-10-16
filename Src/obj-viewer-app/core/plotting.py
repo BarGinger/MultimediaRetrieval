@@ -103,6 +103,16 @@ def create_3d_plot(vertices: np.ndarray,
         ),
         height=350,
         margin=dict(l=0, r=0, t=0, b=0),
-        showlegend=True
+        showlegend=True,
+        legend=dict(
+            x=0,  # Position at left edge (0 = left, 1 = right)
+            y=1,  # Position at top edge (0 = bottom, 1 = top)
+            xanchor="left",  # Anchor point for x position
+            yanchor="top",   # Anchor point for y position
+            bgcolor="rgba(255, 255, 255, 0.9)",  # Semi-transparent white background
+            bordercolor="gray",
+            borderwidth=1,
+            font=dict(size=11)
+        )
     )
     return fig
