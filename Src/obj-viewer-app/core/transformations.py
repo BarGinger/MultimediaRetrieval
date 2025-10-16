@@ -69,20 +69,29 @@ class MeshTransformations:
 
             # find all edges until you reach the starting edge
             while target_vertex != finish_vertex:
+                found = False
                 for i in range(0, len(boundary_edges)):
                     if boundary_edges[i][0] == target_vertex:
                         group.append(boundary_edges[i])
                         target_vertex = boundary_edges[i][1]
                         del boundary_edges[i]
+                        found = True
                         break
                     if boundary_edges[i][1] == target_vertex:
                         group.append(boundary_edges[i])
                         target_vertex = boundary_edges[i][0]
                         del boundary_edges[i]
+                        found = True
                         break
+                if not found:
+                    print(f"Error: no connecting edge found, stopping hole filling with shape {mesh.filename}")
+                    group = []
+                    break
+                    
 
             # add hole to result
-            boundary_edges_grouped.append(group)
+            if group != []:
+                boundary_edges_grouped.append(group)
 
         # for eacht hole calculate the barycenter and add new faces to the mesh
         for group in boundary_edges_grouped:
@@ -254,7 +263,7 @@ class MeshTransformations:
             base_mesh=mesh.base_mesh,
         )
 
-        tmp = MeshTransformations.__fill_holes(tmp)
-        tmp = MeshTransformations.__cleanup(tmp)
-        tmp = MeshTransformations.__orient_faces_consistently(tmp)
-        return tmp
+        res = MeshTransformations.__fill_holes(tmp)
+        res = MeshTransformations.__cleanup(res)
+        res = MeshTransformations.__orient_faces_consistently(res)
+        return res
