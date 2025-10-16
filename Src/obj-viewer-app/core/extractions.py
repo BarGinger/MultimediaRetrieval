@@ -31,6 +31,7 @@ class MeshExtractions:
         # A3 descriptor and histogram
         A3_hist, A3_bins = MeshExtractions.A3(shapetest)
         plt.bar(A3_bins[:-1], A3_hist, width=(A3_bins[1] - A3_bins[0]), align='edge', edgecolor='black')
+        plt.plot(A3_bins[:-1], A3_hist, color='red', marker='o')  # Line connecting the tops of the bars
         plt.xlabel('Angle (radians)')
         plt.ylabel('Frequency')
         plt.title('A3 Angle Histogram')
@@ -39,6 +40,7 @@ class MeshExtractions:
         # D1 descriptor and histogram
         D1_hist, D1_bins = MeshExtractions.D1(shapetest)
         plt.bar(D1_bins[:-1], D1_hist, width=(D1_bins[1] - D1_bins[0]), align='edge', edgecolor='black')
+        plt.plot(D1_bins[:-1], D1_hist, color='red', marker='o')  # Line connecting the tops of the bars
         plt.xlabel('Distance from barycenter')
         plt.ylabel('Frequency')
         plt.title('D1 Distance Histogram')
@@ -47,9 +49,27 @@ class MeshExtractions:
         # D2 descriptor and histogram
         D2_hist, D2_bins = MeshExtractions.D2(shapetest)
         plt.bar(D2_bins[:-1], D2_hist, width=(D2_bins[1] - D2_bins[0]), align='edge', edgecolor='black')
+        plt.plot(D2_bins[:-1], D2_hist, color='red', marker='o')  # Line connecting the tops of the bars
         plt.xlabel('Distance between vertices')
         plt.ylabel('Frequency')
         plt.title('D2 Distance Histogram')
+        plt.show()
+        # D3 descriptor and histogram
+        D3_hist, D3_bins = MeshExtractions.D3(shapetest)
+        plt.bar(D3_bins[:-1], D3_hist, width=(D3_bins[1] - D3_bins[0]), align='edge', edgecolor='black')
+        plt.plot(D3_bins[:-1], D3_hist, color='red', marker='o')
+        plt.xlabel('Triangle Area')
+        plt.ylabel('Frequency')
+        plt.title('D3 Triangle Area Histogram')
+        plt.show()
+
+        # D4 descriptor and histogram
+        D4_hist, D4_bins = MeshExtractions.D4(shapetest)
+        plt.bar(D4_bins[:-1], D4_hist, width=(D4_bins[1] - D4_bins[0]), align='edge', edgecolor='black')
+        plt.plot(D4_bins[:-1], D4_hist, color='red', marker='o')
+        plt.xlabel('Tetrahedron Volume')
+        plt.ylabel('Frequency')
+        plt.title('D4 Tetrahedron Volume Histogram')
         plt.show()
 
         pass
@@ -186,10 +206,10 @@ class MeshExtractions:
         num_vertices = len(mesh.vertices)
 
         # Number of histogram bins (change here to adjust resolution)
-        bins = 10
+        bins = 30
 
         # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
-        n_samples = max(100, min(5000, num_vertices // 2))
+        n_samples = 100000
 
         verts = mesh.vertices
 
@@ -243,12 +263,12 @@ class MeshExtractions:
         num_vertices = len(mesh.vertices)
 
         # Number of histogram bins (fixed across shapes)
-        bins = 10
+        bins = 30
 
         max_radius = math.sqrt(3.0) / 2.0
 
         # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
-        n_samples = max(100, min(5000, num_vertices // 2))
+        n_samples = num_vertices
 
         # Compute mass barycenter (area-weighted) using helper from shapeMesh
         bary = calculate_mass_barycenter(mesh.vertices, mesh.faces)
@@ -284,13 +304,13 @@ class MeshExtractions:
         """
         num_vertices = len(mesh.vertices)
 
-        bins = 10
+        bins = 30
 
         # Maximum possible distance inside a unit box is between opposite corners
         max_dist = math.sqrt(3.0)
 
         # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
-        n_samples = max(100, min(5000, num_vertices // 2))
+        n_samples = 100000
 
         verts = mesh.vertices
 
@@ -308,4 +328,73 @@ class MeshExtractions:
         else:
             hist = np.zeros_like(hist_counts, dtype=float)
 
+        return hist, bin_edges
+
+    @staticmethod
+    def D3(mesh: ShapeMesh) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute the D3 descriptor: distribution of triangle areas from 3 random vertices.
+
+        - Vertex sampling with replacement.
+        - Sample count heuristic identical to A3/D1/D2.
+        - 10 fixed bins across all shapes, normalized frequencies returned.
+
+        Notes:
+        - Because shapes are normalized into a unit box, a conservative fixed upper bound for
+          triangle area is 1.0 (area of the unit square). This guarantees consistent bin edges.
+        """
+        num_vertices = len(mesh.vertices)
+        bins = 30
+
+        max_area = 1.0
+
+        n_samples = 100000
+        verts = mesh.vertices
+        idx = np.random.randint(0, num_vertices, size=(n_samples, 3))
+
+        areas = []
+        for trip in idx:
+            v1 = verts[trip[0]]
+            v2 = verts[trip[1]]
+            v3 = verts[trip[2]]
+            area = 0.5 * np.linalg.norm(np.cross(v2 - v1, v3 - v1))
+            areas.append(area)
+
+        hist_counts, bin_edges = np.histogram(areas, bins=bins, range=(0.0, max_area))
+        total = float(hist_counts.sum())
+        hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
+        return hist, bin_edges
+
+    @staticmethod
+    def D4(mesh: ShapeMesh) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute the D4 descriptor: distribution of tetrahedron volumes from 4 random vertices.
+
+        - Vertex sampling with replacement.
+        - Sample count heuristic identical to other descriptors.
+        - 10 fixed bins across all shapes, normalized frequencies returned.
+
+        Notes:
+        - Max tetrahedron volume in a unit cube is 1/6 (one canonical simplex that partitions the cube).
+        """
+        num_vertices = len(mesh.vertices)
+        bins = 30
+
+        max_vol = 1.0 / 6.0
+
+        n_samples = 100000
+        verts = mesh.vertices
+        idx = np.random.randint(0, num_vertices, size=(n_samples, 4))
+
+        vols = []
+        for quad in idx:
+            v0 = verts[quad[0]]
+            v1 = verts[quad[1]]
+            v2 = verts[quad[2]]
+            v3 = verts[quad[3]]
+            # Volume of tetrahedron = |dot((v1-v0), cross(v2-v0, v3-v0))| / 6
+            vol = abs(np.dot(v1 - v0, np.cross(v2 - v0, v3 - v0))) / 6.0
+            vols.append(vol)
+
+        hist_counts, bin_edges = np.histogram(vols, bins=bins, range=(0.0, max_vol))
+        total = float(hist_counts.sum())
+        hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
         return hist, bin_edges
