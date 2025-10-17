@@ -1,12 +1,10 @@
 from pathlib import Path
 import pandas as pd
-import numpy as np
 import traceback
 from tqdm import tqdm
 
 from core.shapeMesh import ShapeMesh
 from core.extractions import MeshExtractions
-from core.transformations import MeshTransformations
 
 MESH_EXTS = {".obj"} 
 
@@ -75,79 +73,56 @@ def compute_values(mesh: ShapeMesh) -> dict:
     return out
 
 
-def prepare_copy(mesh: ShapeMesh) -> ShapeMesh:
-    """Make a lightweight copy to avoid mutating the original when prepping."""
-    return ShapeMesh(
-        vertices=mesh.vertices.copy(),
-        faces=mesh.faces.copy(),
-        category=mesh.category,
-        filename=mesh.filename,
-        face_types=mesh.face_types,
-        bounding_box=mesh.bounding_box,
-        size=mesh.size,
-        filepath=mesh.filepath,
-        base_mesh=mesh.base_mesh,
-    )
-
-
 def scan_mesh_files(root_dir: Path):
     """Yield Path objects for all mesh files under root_dir recursively"""
     for p in root_dir.rglob("*"):
         if p.is_file() and p.suffix.lower() in MESH_EXTS:
-            if p.stem.lower().endswith("_prepared"):
-                continue  # skip already prepared meshes
-            yield p
-
+            name = p.stem.lower()
+            if "_unified_prepared" in name:
+                yield p
 
 
 def run(main_folder: str, output_csv: str):
     root = Path(main_folder).resolve()
-
     if not root.exists():
         raise FileNotFoundError(f"Main folder not found: {root}")
 
-    # Ensure output folder exists; if you want a fresh run each time, uncomment the next two lines:
     Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
-    # if Path(output_csv).exists():
-    #     Path(output_csv).unlink()
+    ordered_cols = ["name"] + FEATURES
 
-    # Fixed column order
-    ordered_cols = ["name"] + [f"{f}_before" for f in FEATURES] + [f"{f}_after" for f in FEATURES]
 
-    # If file doesn't exist yet, create it with header only
     if not Path(output_csv).exists():
         pd.DataFrame(columns=ordered_cols).to_csv(output_csv, index=False)
 
-    mesh_files = list(scan_mesh_files(root))   # so tqdm knows total
-    for mesh_path in tqdm(mesh_files, desc="Processing meshes", unit="mesh"):
+    mesh_files = list(scan_mesh_files(root))
+    for mesh_path in tqdm(mesh_files, desc="Processing unified_prepared meshes", unit="mesh"):
         rel_name = str(mesh_path.relative_to(root))
         try:
-            mesh_raw = ShapeMesh.from_file(str(mesh_path))
-
-            feats_before = compute_values(mesh_raw)
-
+            mesh = ShapeMesh.from_file(str(mesh_path))
+            feats = compute_values(mesh)
+            row = {"name": rel_name, **feats}
         except Exception:
+            print(f"❌ Error processing mesh: {rel_name}")
             traceback.print_exc()
             row = {"name": rel_name}
             for f in FEATURES:
-                row[f"{f}_before"] = 0.0
-                row[f"{f}_after"]  = 0.0
+                row[f] = 0.0
 
-        # Align to ordered columns (fills missing with NaN; we coerce to 0.0 for safety)
+        # Append één rij in de vaste kolomvolgorde
         df_row = pd.DataFrame([row], columns=ordered_cols).fillna(0.0)
-
-        # Append without header (already written once above)
         df_row.to_csv(output_csv, mode="a", header=False, index=False, float_format="%.6f")
 
     print(f"✅ Wrote: {output_csv}")
-
 
 
 if __name__ == "__main__":
     # Example usage:
     #   python tools/run_extractions_before_after.py "/path/to/main/folder" "output/features_before_after.csv"
     import sys
-    if len(sys.argv) != 3:
-        print("Usage: python run_extractions_before_after.py <main_folder> <output_csv>")
+    if len(sys.argv) != 2 and len(sys.argv) != 3:
+        print("Usage: python run_unified_prepared_to_csv.py <main_folder> [output_csv]")
         sys.exit(1)
-    run(sys.argv[1], sys.argv[2])
+
+    main_folder = sys.argv[1]
+    output_csv = sys.argv[2] if len(sys.argv) == 3 else "features_unified_prepared.csv"
+    run(main_folder, output_csv)
