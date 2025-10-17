@@ -124,18 +124,7 @@ def run(main_folder: str, output_csv: str):
         try:
             mesh_raw = ShapeMesh.from_file(str(mesh_path))
 
-            feats_before = compute_scalar_features(mesh_raw)
-            mesh_prepped = MeshTransformations.prepare_for_extraction(prepare_copy(mesh_raw))
-            feats_after  = compute_scalar_features(mesh_prepped)
-
-            prepared_path = mesh_path.with_name(mesh_path.stem + "_prepared" + mesh_path.suffix)
-            mesh_prepped.save_as_obj(str(prepared_path))
-
-
-            row = {"name": rel_name}
-            for f in FEATURES:
-                row[f"{f}_before"] = feats_before.get(f, 0.0)
-                row[f"{f}_after"]  = feats_after.get(f, 0.0)
+            feats_before = compute_values(mesh_raw)
 
         except Exception:
             traceback.print_exc()
