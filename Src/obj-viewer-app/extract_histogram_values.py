@@ -4,7 +4,7 @@ import traceback
 from tqdm import tqdm
 
 from core.shapeMesh import ShapeMesh
-from core.extractions import MeshExtractions
+from core.extractions_minmax import MeshExtractionsMinMax
 
 MESH_EXTS = {".obj"} 
 
@@ -27,31 +27,31 @@ def compute_values(mesh: ShapeMesh) -> dict:
     try:
         # A3
         try:
-            out["min_A3"], out["max_A3"] = MeshExtractions.A3(mesh)
+            out["min_A3"], out["max_A3"] = MeshExtractionsMinMax.A3(mesh)
         except Exception:
             out["min_A3"], out["max_A3"] = (0.0, 0.0)
 
         # D1
         try:
-            out["min_D1"], out["max_D1"] = MeshExtractions.D1(mesh)
+            out["min_D1"], out["max_D1"] = MeshExtractionsMinMax.D1(mesh)
         except Exception:
             out["min_D1"], out["max_D1"] = (0.0, 0.0)
 
         # D2
         try:
-            out["min_D2"], out["max_D2"] = MeshExtractions.D2(mesh)
+            out["min_D2"], out["max_D2"] = MeshExtractionsMinMax.D2(mesh)
         except Exception:
             out["min_D2"], out["max_D2"] = (0.0, 0.0)
         
         # D3
         try:
-            out["min_D3"], out["max_D3"] = MeshExtractions.D3(mesh)
+            out["min_D3"], out["max_D3"] = MeshExtractionsMinMax.D3(mesh)
         except Exception:
             out["min_D3"], out["max_D3"] = (0.0, 0.0)
         
         # D4
         try:
-            out["min_D4"], out["max_D4"] = MeshExtractions.D4(mesh)
+            out["min_D4"], out["max_D4"] = MeshExtractionsMinMax.D4(mesh)
         except Exception:
             out["min_D4"], out["max_D4"] = (0.0, 0.0)
 
