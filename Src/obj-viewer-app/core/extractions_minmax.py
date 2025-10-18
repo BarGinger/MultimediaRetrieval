@@ -38,6 +38,12 @@ class MeshExtractionsMinMax:
         print(f"A3 min: {A3_min}, A3 max: {A3_max}")
         D1_min, D1_max = MeshExtractionsMinMax.D1(shapetest)
         print(f"D1 min: {D1_min}, D1 max: {D1_max}")
+        D2_min, D2_max = MeshExtractionsMinMax.D2(shapetest)
+        print(f"D2 min: {D2_min}, D2 max: {D2_max}")
+        D3_min, D3_max = MeshExtractionsMinMax.D3(shapetest)
+        print(f"D3 min: {D3_min}, D3 max: {D3_max}")
+        D4_min, D4_max = MeshExtractionsMinMax.D4(shapetest)
+        print(f"D4 min: {D4_min}, D4 max: {D4_max}")
 
         pass
 
@@ -97,11 +103,6 @@ class MeshExtractionsMinMax:
     def D2(mesh: ShapeMesh) -> Tuple[np.ndarray, np.ndarray]:
         num_vertices = len(mesh.vertices)
 
-        bins = 30
-
-        # Maximum possible distance inside a unit box is between opposite corners
-        max_dist = math.sqrt(3.0)
-
         # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
         n_samples = 100000
 
@@ -114,21 +115,11 @@ class MeshExtractionsMinMax:
 
         dists = np.linalg.norm(p1 - p2, axis=1)
 
-        hist_counts, bin_edges = np.histogram(dists, bins=bins, range=(0.0, max_dist))
-        total = float(hist_counts.sum())
-        if total > 0.0:
-            hist = hist_counts.astype(float) / total
-        else:
-            hist = np.zeros_like(hist_counts, dtype=float)
-
-        return hist, bin_edges
+        return min(dists), max(dists)
 
     @staticmethod
     def D3(mesh: ShapeMesh) -> Tuple[np.ndarray, np.ndarray]:
         num_vertices = len(mesh.vertices)
-        bins = 30
-
-        max_area = 1.0
 
         n_samples = 100000
         verts = mesh.vertices
@@ -142,17 +133,11 @@ class MeshExtractionsMinMax:
             area = 0.5 * np.linalg.norm(np.cross(v2 - v1, v3 - v1))
             areas.append(area)
 
-        hist_counts, bin_edges = np.histogram(areas, bins=bins, range=(0.0, max_area))
-        total = float(hist_counts.sum())
-        hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
-        return hist, bin_edges
+        return min(areas), max(areas)
 
     @staticmethod
     def D4(mesh: ShapeMesh) -> Tuple[np.ndarray, np.ndarray]:
         num_vertices = len(mesh.vertices)
-        bins = 30
-
-        max_vol = 1.0 / 6.0
 
         n_samples = 100000
         verts = mesh.vertices
@@ -168,7 +153,4 @@ class MeshExtractionsMinMax:
             vol = abs(np.dot(v1 - v0, np.cross(v2 - v0, v3 - v0))) / 6.0
             vols.append(vol)
 
-        hist_counts, bin_edges = np.histogram(vols, bins=bins, range=(0.0, max_vol))
-        total = float(hist_counts.sum())
-        hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
-        return hist, bin_edges
+        return min(vols), max(vols)

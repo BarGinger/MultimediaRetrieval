@@ -6,6 +6,16 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist
 from core.transformations import MeshTransformations
 from typing import Tuple, List
+import csv
+from pathlib import Path
+
+# tqdm for progress bars (optional)
+try:
+    from tqdm import tqdm
+except Exception:
+    # Fallback - identity function
+    def tqdm(iterable, **kwargs):
+        return iterable
 
 class MeshExtractions:
     """
@@ -21,63 +31,156 @@ class MeshExtractions:
         # area2 = MeshExtractions.eccentricity(shape2)
         # area3 = MeshExtractions.eccentricity(shape3)
 
-        shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
+        # shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
         
-        shapetest.save_as_obj('before.obj')
-        vol1 = MeshExtractions.volume(shapetest)
-        shapetest = MeshTransformations.fill_holes(shapetest)
-        vol2 = MeshExtractions.volume(shapetest)
-        shapetest = MeshTransformations.orient_faces_consistently(shapetest)
-        vol3 = MeshExtractions.volume(shapetest)
-        print(f"Volume before: {vol1}, after: {vol2}, vol {vol3}")
-        shapetest.save_as_obj('after.obj')
+        # shapetest.save_as_obj('before.obj')
+        # vol1 = MeshExtractions.volume(shapetest)
+        # shapetest = MeshTransformations.fill_holes(shapetest)
+        # vol2 = MeshExtractions.volume(shapetest)
+        # shapetest = MeshTransformations.orient_faces_consistently(shapetest)
+        # vol3 = MeshExtractions.volume(shapetest)
+        # print(f"Volume before: {vol1}, after: {vol2}, vol {vol3}")
+        # shapetest.save_as_obj('after.obj')
 
-        shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Bed\\D00031_unified.obj")
-        # A3 descriptor and histogram
-        A3_hist, A3_bins = MeshExtractions.A3(shapetest)
-        plt.bar(A3_bins[:-1], A3_hist, width=(A3_bins[1] - A3_bins[0]), align='edge', edgecolor='black')
-        plt.plot(A3_bins[:-1], A3_hist, color='red', marker='o')  # Line connecting the tops of the bars
-        plt.xlabel('Angle (radians)')
-        plt.ylabel('Frequency')
-        plt.title('A3 Angle Histogram')
-        plt.show()
+        # shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Bed\\D00031_unified.obj")
+        # # A3 descriptor and histogram
+        # A3_hist, A3_bins = MeshExtractions.A3(shapetest)
+        # plt.bar(A3_bins[:-1], A3_hist, width=(A3_bins[1] - A3_bins[0]), align='edge', edgecolor='black')
+        # plt.xlabel('Angle (radians)')
+        # plt.ylabel('Frequency')
+        # plt.title('A3 Angle Histogram')
+        # plt.show()
 
-        # D1 descriptor and histogram
-        D1_hist, D1_bins = MeshExtractions.D1(shapetest)
-        plt.bar(D1_bins[:-1], D1_hist, width=(D1_bins[1] - D1_bins[0]), align='edge', edgecolor='black')
-        plt.plot(D1_bins[:-1], D1_hist, color='red', marker='o')  # Line connecting the tops of the bars
-        plt.xlabel('Distance from barycenter')
-        plt.ylabel('Frequency')
-        plt.title('D1 Distance Histogram')
-        plt.show()
+        # # D1 descriptor and histogram
+        # D1_hist, D1_bins = MeshExtractions.D1(shapetest)
+        # plt.bar(D1_bins[:-1], D1_hist, width=(D1_bins[1] - D1_bins[0]), align='edge', edgecolor='black')
+        # plt.xlabel('Distance from barycenter')
+        # plt.ylabel('Frequency')
+        # plt.title('D1 Distance Histogram')
+        # plt.show()
 
-        # D2 descriptor and histogram
-        D2_hist, D2_bins = MeshExtractions.D2(shapetest)
-        plt.bar(D2_bins[:-1], D2_hist, width=(D2_bins[1] - D2_bins[0]), align='edge', edgecolor='black')
-        plt.plot(D2_bins[:-1], D2_hist, color='red', marker='o')  # Line connecting the tops of the bars
-        plt.xlabel('Distance between vertices')
-        plt.ylabel('Frequency')
-        plt.title('D2 Distance Histogram')
-        plt.show()
-        # D3 descriptor and histogram
-        D3_hist, D3_bins = MeshExtractions.D3(shapetest)
-        plt.bar(D3_bins[:-1], D3_hist, width=(D3_bins[1] - D3_bins[0]), align='edge', edgecolor='black')
-        plt.plot(D3_bins[:-1], D3_hist, color='red', marker='o')
-        plt.xlabel('Triangle Area')
-        plt.ylabel('Frequency')
-        plt.title('D3 Triangle Area Histogram')
-        plt.show()
+        # # D2 descriptor and histogram
+        # D2_hist, D2_bins = MeshExtractions.D2(shapetest)
+        # plt.bar(D2_bins[:-1], D2_hist, width=(D2_bins[1] - D2_bins[0]), align='edge', edgecolor='black')
+        # plt.xlabel('Distance between vertices')
+        # plt.ylabel('Frequency')
+        # plt.title('D2 Distance Histogram')
+        # plt.show()
+        # # D3 descriptor and histogram
+        # D3_hist, D3_bins = MeshExtractions.D3(shapetest)
+        # plt.bar(D3_bins[:-1], D3_hist, width=(D3_bins[1] - D3_bins[0]), align='edge', edgecolor='black')
+        # plt.plot(D3_bins[:-1], D3_hist, color='red', marker='o')
+        # plt.xlabel('Triangle Area')
+        # plt.ylabel('Frequency')
+        # plt.title('D3 Triangle Area Histogram')
+        # plt.show()
 
-        # D4 descriptor and histogram
-        D4_hist, D4_bins = MeshExtractions.D4(shapetest)
-        plt.bar(D4_bins[:-1], D4_hist, width=(D4_bins[1] - D4_bins[0]), align='edge', edgecolor='black')
-        plt.plot(D4_bins[:-1], D4_hist, color='red', marker='o')
-        plt.xlabel('Tetrahedron Volume')
-        plt.ylabel('Frequency')
-        plt.title('D4 Tetrahedron Volume Histogram')
-        plt.show()
+        # # D4 descriptor and histogram
+        # D4_hist, D4_bins = MeshExtractions.D4(shapetest)
+        # plt.bar(D4_bins[:-1], D4_hist, width=(D4_bins[1] - D4_bins[0]), align='edge', edgecolor='black')
+        # plt.plot(D4_bins[:-1], D4_hist, color='red', marker='o')
+        # plt.xlabel('Tetrahedron Volume')
+        # plt.ylabel('Frequency')
+        # plt.title('D4 Tetrahedron Volume Histogram')
+        # plt.show()
+
+        # Run full dataset extraction and save histograms to CSV
+        MeshExtractions.compute_and_save_all_descriptors()
 
         pass
+
+    @staticmethod
+    def compute_and_save_all_descriptors(output_csv: str = None, data_root: str = None):
+        """Compute descriptors (A3, D1, D2, D3, D4) for all shapes in the dataset and save histograms.
+
+        The output CSV will have columns:
+          name, A3_hist, A3_bins, D1_hist, D1_bins, D2_hist, D2_bins, D3_hist, D3_bins, D4_hist, D4_bins
+
+        Histograms and bins are stored as semicolon-separated floats.
+        """
+        repo_root = Path(__file__).resolve().parents[3]
+
+        # Prefer the unified prepared dataset folder
+        preferred = repo_root / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
+        if data_root:
+            data_root_path = Path(data_root)
+        elif preferred.exists() and preferred.is_dir():
+            data_root_path = preferred
+        else:
+            # Fallbacks
+            for p in [repo_root / 'Data_sampled', repo_root / 'Data', repo_root / 'Data_resampled', repo_root / 'Data_sampled_resampled']:
+                if p.exists() and p.is_dir():
+                    data_root_path = p
+                    break
+            else:
+                raise FileNotFoundError('Could not find dataset root. Provide data_root or ensure Datasets/UnifiedPreprocessed/Data exists.')
+
+        # Gather all *_unified_prepared.obj files recursively
+        files = sorted(data_root_path.rglob('*_unified_prepared.obj'))
+        if not files:
+            raise FileNotFoundError(f'No *_unified_prepared.obj files found under {data_root_path}')
+
+        if output_csv is None:
+            output_csv_path = repo_root / 'output' / 'descriptors_all_histograms.csv'
+        else:
+            output_csv_path = Path(output_csv)
+
+        output_csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+        fieldnames = [
+            'name',
+            'A3_hist', 'A3_bins',
+            'D1_hist', 'D1_bins',
+            'D2_hist', 'D2_bins',
+            'D3_hist', 'D3_bins',
+            'D4_hist', 'D4_bins'
+        ]
+
+        total = 0
+        failed = 0
+
+        with output_csv_path.open('w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            # Iterate files with progress bar
+            for obj_file in tqdm(files, desc='Computing descriptors', unit='file'):
+                total += 1
+                rel_name = str(obj_file.relative_to(repo_root))
+                try:
+                    mesh = ShapeMesh.from_file(str(obj_file))
+
+                    # Compute descriptors
+                    A3_hist, A3_bins = MeshExtractions.A3(mesh)
+                    D1_hist, D1_bins = MeshExtractions.D1(mesh)
+                    D2_hist, D2_bins = MeshExtractions.D2(mesh)
+                    D3_hist, D3_bins = MeshExtractions.D3(mesh)
+                    D4_hist, D4_bins = MeshExtractions.D4(mesh)
+
+                    # Convert arrays to semicolon-separated strings
+                    def arr_to_str(arr):
+                        return ';'.join([f"{float(x):.6f}" for x in np.asarray(arr).tolist()])
+
+                    row = {
+                        'name': rel_name,
+                        'A3_hist': arr_to_str(A3_hist),
+                        'A3_bins': arr_to_str(A3_bins),
+                        'D1_hist': arr_to_str(D1_hist),
+                        'D1_bins': arr_to_str(D1_bins),
+                        'D2_hist': arr_to_str(D2_hist),
+                        'D2_bins': arr_to_str(D2_bins),
+                        'D3_hist': arr_to_str(D3_hist),
+                        'D3_bins': arr_to_str(D3_bins),
+                        'D4_hist': arr_to_str(D4_hist),
+                        'D4_bins': arr_to_str(D4_bins),
+                    }
+
+                    writer.writerow(row)
+                except Exception as e:
+                    print(f"Failed to process {rel_name}: {e}")
+                    failed += 1
+
+        print(f"Finished. Processed: {total - failed}, Failed: {failed}, Output: {output_csv_path}")
 
     @staticmethod
     def sample_vertices(mesh: ShapeMesh, n: int) -> np.ndarray:
@@ -211,7 +314,7 @@ class MeshExtractions:
         num_vertices = len(mesh.vertices)
 
         # Number of histogram bins (change here to adjust resolution)
-        bins = 30
+        bins = 20
 
         # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
         n_samples = 100000
@@ -241,10 +344,12 @@ class MeshExtractions:
             angles.append(theta)
 
         if len(angles) == 0:
-            return np.zeros(bins, dtype=float), np.linspace(0.0, math.pi, bins + 1)
+            max_a3 = _GLOBAL_MAXES.get('A3', math.pi) * 1.05
+            return np.zeros(bins, dtype=float), np.linspace(0.0, max_a3, bins + 1)
 
         # Build a bins-bin histogram over [0, pi] and normalize to frequencies (sum == 1)
-        hist_counts, bin_edges = np.histogram(angles, bins=bins, range=(0.0, math.pi))
+        max_a3 = _GLOBAL_MAXES.get('A3', math.pi) * 1.05
+        hist_counts, bin_edges = np.histogram(angles, bins=bins, range=(0.0, max_a3))
         total = float(hist_counts.sum())
         if total > 0.0:
             hist = hist_counts.astype(float) / total
@@ -268,7 +373,7 @@ class MeshExtractions:
         num_vertices = len(mesh.vertices)
 
         # Number of histogram bins (fixed across shapes)
-        bins = 30
+        bins = 20
 
         max_radius = math.sqrt(3.0) / 2.0
 
@@ -286,7 +391,8 @@ class MeshExtractions:
         dists = np.linalg.norm(sampled - bary, axis=1)
 
         # Histogram with fixed common edges and normalize to frequencies
-        hist_counts, bin_edges = np.histogram(dists, bins=bins, range=(0.0, max_radius))
+        max_d1 = _GLOBAL_MAXES.get('D1', max_radius) * 1.05
+        hist_counts, bin_edges = np.histogram(dists, bins=bins, range=(0.0, max_d1))
         total = float(hist_counts.sum())
         if total > 0.0:
             hist = hist_counts.astype(float) / total
@@ -309,7 +415,7 @@ class MeshExtractions:
         """
         num_vertices = len(mesh.vertices)
 
-        bins = 30
+        bins = 20
 
         # Maximum possible distance inside a unit box is between opposite corners
         max_dist = math.sqrt(3.0)
@@ -326,7 +432,8 @@ class MeshExtractions:
 
         dists = np.linalg.norm(p1 - p2, axis=1)
 
-        hist_counts, bin_edges = np.histogram(dists, bins=bins, range=(0.0, max_dist))
+        max_d2 = _GLOBAL_MAXES.get('D2', max_dist) * 1.05
+        hist_counts, bin_edges = np.histogram(dists, bins=bins, range=(0.0, max_d2))
         total = float(hist_counts.sum())
         if total > 0.0:
             hist = hist_counts.astype(float) / total
@@ -348,7 +455,7 @@ class MeshExtractions:
           triangle area is 1.0 (area of the unit square). This guarantees consistent bin edges.
         """
         num_vertices = len(mesh.vertices)
-        bins = 30
+        bins = 20
 
         max_area = 1.0
 
@@ -364,7 +471,8 @@ class MeshExtractions:
             area = 0.5 * np.linalg.norm(np.cross(v2 - v1, v3 - v1))
             areas.append(area)
 
-        hist_counts, bin_edges = np.histogram(areas, bins=bins, range=(0.0, max_area))
+        max_d3 = _GLOBAL_MAXES.get('D3', max_area) * 1.05
+        hist_counts, bin_edges = np.histogram(areas, bins=bins, range=(0.0, max_d3))
         total = float(hist_counts.sum())
         hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
         return hist, bin_edges
@@ -381,7 +489,7 @@ class MeshExtractions:
         - Max tetrahedron volume in a unit cube is 1/6 (one canonical simplex that partitions the cube).
         """
         num_vertices = len(mesh.vertices)
-        bins = 30
+        bins = 20
 
         max_vol = 1.0 / 6.0
 
@@ -399,7 +507,53 @@ class MeshExtractions:
             vol = abs(np.dot(v1 - v0, np.cross(v2 - v0, v3 - v0))) / 6.0
             vols.append(vol)
 
-        hist_counts, bin_edges = np.histogram(vols, bins=bins, range=(0.0, max_vol))
+        max_d4 = _GLOBAL_MAXES.get('D4', max_vol) * 1.05
+        hist_counts, bin_edges = np.histogram(vols, bins=bins, range=(0.0, max_d4))
         total = float(hist_counts.sum())
         hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
         return hist, bin_edges
+
+# Load global maxima for descriptors (with fallback defaults)
+def _load_global_maxes():
+    # Determine repository root (4 levels up from core folder -> MMR)
+    repo_root = Path(__file__).resolve().parents[3]
+    global_csv = repo_root / "output" / "descriptors_global_minmax.csv"
+
+    # Defaults (previous hard-coded assumptions)
+    defaults = {
+        'A3': math.pi,
+        'D1': math.sqrt(3.0) / 2.0,
+        'D2': math.sqrt(3.0),
+        'D3': 1.0,
+        'D4': 1.0 / 6.0
+    }
+
+    if not global_csv.exists():
+        return defaults
+
+    try:
+        with global_csv.open('r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            row = next(reader, None)
+            if row is None:
+                return defaults
+
+            # Read max_* fields
+            out = {}
+            for key in ['A3', 'D1', 'D2', 'D3', 'D4']:
+                field_name = f"max_{key}"
+                v = row.get(field_name, '')
+                try:
+                    fv = float(v)
+                    if fv <= 0:
+                        out[key] = defaults[key]
+                    else:
+                        out[key] = fv
+                except Exception:
+                    out[key] = defaults[key]
+            return out
+    except Exception:
+        return defaults
+
+# Load once at import time
+_GLOBAL_MAXES = _load_global_maxes()
