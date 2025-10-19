@@ -344,12 +344,17 @@ class MeshExtractions:
             angles.append(theta)
 
         if len(angles) == 0:
-            max_a3 = _GLOBAL_MAXES.get('A3', math.pi) * 1.05
+            max_a3 = _GLOBAL_MAXES.get('A3', math.pi) * 1.10
             return np.zeros(bins, dtype=float), np.linspace(0.0, max_a3, bins + 1)
 
-        # Build a bins-bin histogram over [0, pi] and normalize to frequencies (sum == 1)
-        max_a3 = _GLOBAL_MAXES.get('A3', math.pi) * 1.05
+        # Build a bins-bin histogram over [0, pi] but fold any angles > upper bound into the last bin
+        max_a3 = _GLOBAL_MAXES.get('A3', math.pi)  # already includes buffer when loaded
+        # compute histogram up to max_a3
         hist_counts, bin_edges = np.histogram(angles, bins=bins, range=(0.0, max_a3))
+        # count outliers > max_a3 and add to last bin
+        outliers = np.sum(np.asarray(angles) > max_a3)
+        if outliers > 0:
+            hist_counts[-1] += outliers
         total = float(hist_counts.sum())
         if total > 0.0:
             hist = hist_counts.astype(float) / total
@@ -391,8 +396,11 @@ class MeshExtractions:
         dists = np.linalg.norm(sampled - bary, axis=1)
 
         # Histogram with fixed common edges and normalize to frequencies
-        max_d1 = _GLOBAL_MAXES.get('D1', max_radius) * 1.05
+        max_d1 = _GLOBAL_MAXES.get('D1', max_radius)
         hist_counts, bin_edges = np.histogram(dists, bins=bins, range=(0.0, max_d1))
+        outliers = np.sum(dists > max_d1)
+        if outliers > 0:
+            hist_counts[-1] += outliers
         total = float(hist_counts.sum())
         if total > 0.0:
             hist = hist_counts.astype(float) / total
@@ -432,8 +440,11 @@ class MeshExtractions:
 
         dists = np.linalg.norm(p1 - p2, axis=1)
 
-        max_d2 = _GLOBAL_MAXES.get('D2', max_dist) * 1.05
+        max_d2 = _GLOBAL_MAXES.get('D2', max_dist)
         hist_counts, bin_edges = np.histogram(dists, bins=bins, range=(0.0, max_d2))
+        outliers = np.sum(dists > max_d2)
+        if outliers > 0:
+            hist_counts[-1] += outliers
         total = float(hist_counts.sum())
         if total > 0.0:
             hist = hist_counts.astype(float) / total
@@ -471,8 +482,11 @@ class MeshExtractions:
             area = 0.5 * np.linalg.norm(np.cross(v2 - v1, v3 - v1))
             areas.append(area)
 
-        max_d3 = _GLOBAL_MAXES.get('D3', max_area) * 1.05
+        max_d3 = _GLOBAL_MAXES.get('D3', max_area)
         hist_counts, bin_edges = np.histogram(areas, bins=bins, range=(0.0, max_d3))
+        outliers = np.sum(np.asarray(areas) > max_d3)
+        if outliers > 0:
+            hist_counts[-1] += outliers
         total = float(hist_counts.sum())
         hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
         return hist, bin_edges
@@ -507,8 +521,11 @@ class MeshExtractions:
             vol = abs(np.dot(v1 - v0, np.cross(v2 - v0, v3 - v0))) / 6.0
             vols.append(vol)
 
-        max_d4 = _GLOBAL_MAXES.get('D4', max_vol) * 1.05
+        max_d4 = _GLOBAL_MAXES.get('D4', max_vol)
         hist_counts, bin_edges = np.histogram(vols, bins=bins, range=(0.0, max_d4))
+        outliers = np.sum(np.asarray(vols) > max_d4)
+        if outliers > 0:
+            hist_counts[-1] += outliers
         total = float(hist_counts.sum())
         hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
         return hist, bin_edges
@@ -517,6 +534,8 @@ class MeshExtractions:
 def _load_global_maxes():
     # Determine repository root (4 levels up from core folder -> MMR)
     repo_root = Path(__file__).resolve().parents[3]
+    # Prefer percentile-based cutoffs (99th) if available
+    percentile_csv = repo_root / "output" / "descriptors_global_percentiles_99.csv"
     global_csv = repo_root / "output" / "descriptors_global_minmax.csv"
 
     # Defaults (previous hard-coded assumptions)
@@ -528,6 +547,30 @@ def _load_global_maxes():
         'D4': 1.0 / 6.0
     }
 
+    # If a percentile CSV for p99 exists, prefer those values and add 10% buffer
+    try:
+        if percentile_csv.exists():
+            with percentile_csv.open('r', newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                row = next(reader, None)
+                if row is not None:
+                    out = {}
+                    for key in ['A3', 'D1', 'D2', 'D3', 'D4']:
+                        field_name = f"percentile_{key}"
+                        v = row.get(field_name, '')
+                        try:
+                            fv = float(v)
+                            # apply 10% buffer
+                            fv_buf = fv * 1.10 if fv > 0 else defaults[key]
+                            out[key] = fv_buf
+                        except Exception:
+                            out[key] = defaults[key]
+                    return out
+    except Exception:
+        # fallback to global minmax if percentile read fails
+        pass
+
+    # Fallback: read the original global min/max CSV (older behavior)
     if not global_csv.exists():
         return defaults
 
@@ -538,7 +581,6 @@ def _load_global_maxes():
             if row is None:
                 return defaults
 
-            # Read max_* fields
             out = {}
             for key in ['A3', 'D1', 'D2', 'D3', 'D4']:
                 field_name = f"max_{key}"
