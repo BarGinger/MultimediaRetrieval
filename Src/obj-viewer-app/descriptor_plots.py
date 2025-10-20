@@ -40,7 +40,15 @@ except Exception:
 
 CSV_DEFAULT = Path("output/descriptors_all_histograms.csv")
 OUT_DIR_DEFAULT = Path("output/descriptor_histogram_comparisons")
-DESCRIPTORS = ["A3", "D1", "D2", "D3", "D4"]
+# DESCRIPTORS = ["A3", "D1", "D2", "D3", "D4"]
+DESCRIPTORS = ["D3", "D4"]
+
+# Human-readable note for descriptors that were transformed to length-like units
+# D3: sqrt(area) -> length, D4: cbrt(volume) -> length
+TRANSFORMS = {
+    "D3": "sqrt(area)",
+    "D4": "cbrt(volume)",
+}
 
 
 def load_percentile_99(csv_path: Path):
@@ -143,6 +151,7 @@ def plot_descriptor_grid(descriptor: str, class_map: dict, out_dir: Path, per_ro
     # Attempt to load global percentile (99) and compute 10% buffered upper bound
     repo_root = Path(__file__).resolve().parents[2]
     perc_csv = repo_root / "output" / "descriptors_global_percentiles_99.csv"
+    # perc_csv = repo_root / "output" / "descriptors_custom_range.csv"
     percentiles = load_percentile_99(perc_csv)
     buffered_upper = {}
     for d in DESCRIPTORS:
@@ -189,7 +198,11 @@ def plot_descriptor_grid(descriptor: str, class_map: dict, out_dir: Path, per_ro
             ax.axvline(x=rep_upper, color='k', linestyle='--', linewidth=0.7, alpha=0.7)
             # annotate in axes coords (upper-right)
             try:
-                label = f"last bin = overflow ≥ {rep_upper:.6g}"
+                transform_note = TRANSFORMS.get(descriptor, None)
+                if transform_note:
+                    label = f"last bin = overflow ≥ {rep_upper:.6g} ({transform_note})"
+                else:
+                    label = f"last bin = overflow ≥ {rep_upper:.6g}"
             except Exception:
                 label = "last bin = overflow"
             ax.text(0.98, 0.95, label, transform=ax.transAxes, ha='right', va='top', fontsize=6, color='k', alpha=0.8)
@@ -202,7 +215,11 @@ def plot_descriptor_grid(descriptor: str, class_map: dict, out_dir: Path, per_ro
         c = k % ncols
         axes[r][c].axis('off')
 
-    fig.suptitle(f"Descriptor {descriptor} — per-class distributions (each line = shape)")
+    transform_note = TRANSFORMS.get(descriptor)
+    title = f"Descriptor {descriptor} — per-class distributions (each line = shape)"
+    if transform_note:
+        title = f"{title} — values: {transform_note}"
+    fig.suptitle(title)
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{descriptor}_class_comparison.png"

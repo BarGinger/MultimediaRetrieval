@@ -102,6 +102,7 @@ class MeshExtractions:
 
         # Prefer the unified prepared dataset folder
         preferred = repo_root / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
+        # preferred = repo_root / 'Datasets' / 'Histogram_testing'
         if data_root:
             data_root_path = Path(data_root)
         elif preferred.exists() and preferred.is_dir():
@@ -121,7 +122,8 @@ class MeshExtractions:
             raise FileNotFoundError(f'No *_unified_prepared.obj files found under {data_root_path}')
 
         if output_csv is None:
-            output_csv_path = repo_root / 'output' / 'descriptors_all_histograms.csv'
+            # output_csv_path = repo_root / 'output' / 'descriptors_all_histograms.csv'
+            output_csv_path = repo_root / 'output' / 'descriptors_histograms_D3_D4.csv' #change to D3/D4 specific file
         else:
             output_csv_path = Path(output_csv)
 
@@ -129,9 +131,9 @@ class MeshExtractions:
 
         fieldnames = [
             'name',
-            'A3_hist', 'A3_bins',
-            'D1_hist', 'D1_bins',
-            'D2_hist', 'D2_bins',
+            # 'A3_hist', 'A3_bins',
+            # 'D1_hist', 'D1_bins',
+            # 'D2_hist', 'D2_bins',
             'D3_hist', 'D3_bins',
             'D4_hist', 'D4_bins'
         ]
@@ -151,9 +153,9 @@ class MeshExtractions:
                     mesh = ShapeMesh.from_file(str(obj_file))
 
                     # Compute descriptors
-                    A3_hist, A3_bins = MeshExtractions.A3(mesh)
-                    D1_hist, D1_bins = MeshExtractions.D1(mesh)
-                    D2_hist, D2_bins = MeshExtractions.D2(mesh)
+                    # A3_hist, A3_bins = MeshExtractions.A3(mesh)
+                    # D1_hist, D1_bins = MeshExtractions.D1(mesh)
+                    # D2_hist, D2_bins = MeshExtractions.D2(mesh)
                     D3_hist, D3_bins = MeshExtractions.D3(mesh)
                     D4_hist, D4_bins = MeshExtractions.D4(mesh)
 
@@ -163,12 +165,12 @@ class MeshExtractions:
 
                     row = {
                         'name': rel_name,
-                        'A3_hist': arr_to_str(A3_hist),
-                        'A3_bins': arr_to_str(A3_bins),
-                        'D1_hist': arr_to_str(D1_hist),
-                        'D1_bins': arr_to_str(D1_bins),
-                        'D2_hist': arr_to_str(D2_hist),
-                        'D2_bins': arr_to_str(D2_bins),
+                        # 'A3_hist': arr_to_str(A3_hist),
+                        # 'A3_bins': arr_to_str(A3_bins),
+                        # 'D1_hist': arr_to_str(D1_hist),
+                        # 'D1_bins': arr_to_str(D1_bins),
+                        # 'D2_hist': arr_to_str(D2_hist),
+                        # 'D2_bins': arr_to_str(D2_bins),
                         'D3_hist': arr_to_str(D3_hist),
                         'D3_bins': arr_to_str(D3_bins),
                         'D4_hist': arr_to_str(D4_hist),
@@ -482,11 +484,15 @@ class MeshExtractions:
             area = 0.5 * np.linalg.norm(np.cross(v2 - v1, v3 - v1))
             areas.append(area)
 
+        # Transform areas to length-units (sqrt) before histogramming
         max_d3 = _GLOBAL_MAXES.get('D3', max_area)
-        hist_counts, bin_edges = np.histogram(areas, bins=bins, range=(0.0, max_d3))
-        outliers = np.sum(np.asarray(areas) > max_d3)
+        vals = np.sqrt(np.asarray(areas, dtype=float))
+        # _GLOBAL_MAXES['D3'] is expected to already be sqrt(max_area) when provided
+        max_edge = float(max_d3)
+        hist_counts, bin_edges = np.histogram(vals, bins=bins, range=(0.0, max_edge))
+        outliers = np.sum(vals > max_edge)
         if outliers > 0:
-            hist_counts[-1] += outliers
+            hist_counts[-1] += int(outliers)
         total = float(hist_counts.sum())
         hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
         return hist, bin_edges
@@ -521,11 +527,15 @@ class MeshExtractions:
             vol = abs(np.dot(v1 - v0, np.cross(v2 - v0, v3 - v0))) / 6.0
             vols.append(vol)
 
+        # Transform volumes to length-units (cube root) before histogramming
         max_d4 = _GLOBAL_MAXES.get('D4', max_vol)
-        hist_counts, bin_edges = np.histogram(vols, bins=bins, range=(0.0, max_d4))
-        outliers = np.sum(np.asarray(vols) > max_d4)
+        vals = np.asarray(vols, dtype=float) ** (1.0 / 3.0)
+        # _GLOBAL_MAXES['D4'] is expected to already be cbrt(max_vol) when provided
+        max_edge = float(max_d4)
+        hist_counts, bin_edges = np.histogram(vals, bins=bins, range=(0.0, max_edge))
+        outliers = np.sum(vals > max_edge)
         if outliers > 0:
-            hist_counts[-1] += outliers
+            hist_counts[-1] += int(outliers)
         total = float(hist_counts.sum())
         hist = hist_counts.astype(float) / total if total > 0 else np.zeros_like(hist_counts, dtype=float)
         return hist, bin_edges
@@ -536,6 +546,7 @@ def _load_global_maxes():
     repo_root = Path(__file__).resolve().parents[3]
     # Prefer percentile-based cutoffs (99th) if available
     percentile_csv = repo_root / "output" / "descriptors_global_percentiles_99.csv"
+    # percentile_csv = repo_root / "output" / "descriptors_custom_range.csv"
     global_csv = repo_root / "output" / "descriptors_global_minmax.csv"
 
     # Defaults (previous hard-coded assumptions)
