@@ -8,6 +8,9 @@ from core.transformations import MeshTransformations
 from typing import Tuple, List
 import csv
 from pathlib import Path
+from collections import defaultdict, deque
+from typing import Tuple, List
+
 
 # tqdm for progress bars (optional)
 try:
@@ -299,21 +302,45 @@ class MeshExtractions:
         w, h, d = mesh.dimensions
         return 2 * (w * h + h * d + w * d)
 
-    
-    @staticmethod
-    def volume(mesh: ShapeMesh) -> float:
-        """
-        Enclosed volume of a mesh.
-        Uses: V = (1/6) * Σ ((v0 x v1) · v2)
-        """
 
-        vol = 0.0
-        for f in mesh.faces:
-            if len(f) != 3:
-                raise ValueError("Non-triangular face detected.")
-            v1, v2, v3 = mesh.vertices[f[:3]]
-            vol += np.dot(np.cross(v1, v2), v3)
-        return abs(vol) / 6.0
+    def volume(mesh: ShapeMesh) -> float:
+        """Enclosed volume as sum of |signed volume| per connected face-component."""
+        v = mesh.vertices
+        f = mesh.faces[:, :3]  # triangles
+
+        # vertex -> incident faces
+        v2f = defaultdict(list)
+        for fi, (i, j, k) in enumerate(f):
+            v2f[i].append(fi); v2f[j].append(fi); v2f[k].append(fi)
+
+        n = len(f)
+        seen = np.zeros(n, dtype=bool)
+        total = 0.0
+
+        for start in range(n):
+            if seen[start]:
+                continue
+
+            # BFS over the connected component, accumulating signed triple products
+            stack = [start]
+            seen[start] = True
+            signed_sum = 0.0
+
+            while stack:
+                fi = stack.pop()
+                i, j, k = f[fi]
+                v1, v2, v3 = v[i], v[j], v[k]
+                signed_sum += float(np.dot(np.cross(v1, v2), v3))
+
+                for vv in (i, j, k):
+                    for fj in v2f[vv]:
+                        if not seen[fj]:
+                            seen[fj] = True
+                            stack.append(fj)
+
+            total += abs(signed_sum) / 6.0
+
+        return float(total)
     
     @staticmethod
     def compactness(mesh: ShapeMesh, S: float = None, V: float = None) -> float:
@@ -352,8 +379,12 @@ class MeshExtractions:
         if V_mesh is None:
             V_mesh = MeshExtractions.volume(mesh)
         if V_hull is None:
-            V_hull = MeshExtractions.volume(MeshTransformations.create_convex_hull(mesh))
-        
+            V_hull = MeshExtractions.volume(
+                MeshTransformations.prepare_for_extraction(
+                    MeshTransformations.create_convex_hull(mesh)
+                )
+            )
+
         if V_hull == 0:
             return 0
         return V_mesh / V_hull
