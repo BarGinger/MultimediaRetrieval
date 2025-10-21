@@ -138,11 +138,11 @@ def run(main_folder: str, output_csv: str):
 if __name__ == "__main__":
     # Example usage:
     #   python tools/run_extractions_before_after.py "/path/to/main/folder" "output/features_before_after.csv"
-    import sys
-    if len(sys.argv) != 2 and len(sys.argv) != 3:
-        print("Usage: python run_unified_prepared_to_csv.py <main_folder> [output_csv]")
-        sys.exit(1)
+    # import sys
+    # if len(sys.argv) != 2 and len(sys.argv) != 3:
+    #     print("Usage: python run_unified_prepared_to_csv.py <main_folder> [output_csv]")
+    #     sys.exit(1)
 
-    main_folder = sys.argv[1]
-    output_csv = sys.argv[2] if len(sys.argv) == 3 else "features_unified_prepared.csv"
+    main_folder = "Datasets/UnifiedPreprocessed/Data"  # sys.argv[1]
+    output_csv = "outputfeatures_unified_prepared.csv"  # sys.argv[2] if len(sys.argv) == 3 else "features_unified_prepared.csv"
     run(main_folder, output_csv)
