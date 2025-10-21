@@ -294,13 +294,14 @@ class MeshExtractions:
         return area
     
     @staticmethod
-    def surface_area_obb(mesh: ShapeMesh) -> float:
+    def volume_obb(mesh: ShapeMesh) -> float:
         """
-        Compute surface area of the oriented bounding box of a shapeMesh object.
-        Uses: A = 2(w*h + h*d + w*d)
+        Compute volume of the oriented bounding box of a ShapeMesh object.
+        Uses: V = w * h * d
         """
         w, h, d = mesh.dimensions
-        return 2 * (w * h + h * d + w * d)
+        return w * h * d
+
 
 
     def volume(mesh: ShapeMesh) -> float:
@@ -357,16 +358,19 @@ class MeshExtractions:
         return float((S ** 3) / (36.0 * math.pi * (V ** 2)))
 
     @staticmethod
-    def rectangularity(mesh: ShapeMesh, surface_area_mesh: float = None, surface_area_obb: float = None) -> float:
-        """Returns the 3D rectangularity (shape volume divided by OBB volume)."""
-        if surface_area_obb is None:
-            surface_area_obb = MeshExtractions.surface_area_obb(mesh)
-        if surface_area_mesh is None:
-            surface_area_mesh = MeshExtractions.surface_area(mesh)
-        if surface_area_obb == 0:
+    def rectangularity(mesh: ShapeMesh, volume_mesh: float = None, volume_obb: float = None) -> float:
+        """
+        Returns the 3D rectangularity (mesh volume divided by OBB volume).
+        Rectangularity is a measure of how well the shape fills its oriented bounding box.
+        """
+        if volume_obb is None:
+            volume_obb = MeshExtractions.volume_obb(mesh)  # assumes you defined this earlier
+        if volume_mesh is None:
+            volume_mesh = MeshExtractions.volume(mesh)    # your own function to compute mesh volume
+        if volume_obb == 0:
             return 0
         
-        return surface_area_mesh / surface_area_obb
+        return volume_mesh / volume_obb
 
     @staticmethod
     def diameter(mesh: ShapeMesh) -> float:
