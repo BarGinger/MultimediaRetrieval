@@ -101,8 +101,8 @@ class MeshExtractions:
         repo_root = Path(__file__).resolve().parents[3]
 
         # Prefer the unified prepared dataset folder
-        preferred = repo_root / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
-        # preferred = repo_root / 'Datasets' / 'Histogram_testing'
+        # preferred = repo_root / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
+        preferred = repo_root / 'Datasets' / 'Histogram_testing'
         if data_root:
             data_root_path = Path(data_root)
         elif preferred.exists() and preferred.is_dir():
@@ -123,7 +123,7 @@ class MeshExtractions:
 
         if output_csv is None:
             # output_csv_path = repo_root / 'output' / 'descriptors_all_histograms.csv'
-            output_csv_path = repo_root / 'output' / 'descriptors_histograms_D3_D4.csv' #change to D3/D4 specific file
+            output_csv_path = repo_root / 'output' / 'descriptors_histograms_D1.csv' #change to D3/D4 specific file
         else:
             output_csv_path = Path(output_csv)
 
@@ -132,10 +132,10 @@ class MeshExtractions:
         fieldnames = [
             'name',
             # 'A3_hist', 'A3_bins',
-            # 'D1_hist', 'D1_bins',
+            'D1_hist', 'D1_bins',
             # 'D2_hist', 'D2_bins',
-            'D3_hist', 'D3_bins',
-            'D4_hist', 'D4_bins'
+            # 'D3_hist', 'D3_bins',
+            # 'D4_hist', 'D4_bins'
         ]
 
         total = 0
@@ -154,10 +154,10 @@ class MeshExtractions:
 
                     # Compute descriptors
                     # A3_hist, A3_bins = MeshExtractions.A3(mesh)
-                    # D1_hist, D1_bins = MeshExtractions.D1(mesh)
+                    D1_hist, D1_bins = MeshExtractions.D1(mesh)
                     # D2_hist, D2_bins = MeshExtractions.D2(mesh)
-                    D3_hist, D3_bins = MeshExtractions.D3(mesh)
-                    D4_hist, D4_bins = MeshExtractions.D4(mesh)
+                    # D3_hist, D3_bins = MeshExtractions.D3(mesh)
+                    # D4_hist, D4_bins = MeshExtractions.D4(mesh)
 
                     # Convert arrays to semicolon-separated strings
                     def arr_to_str(arr):
@@ -167,14 +167,14 @@ class MeshExtractions:
                         'name': rel_name,
                         # 'A3_hist': arr_to_str(A3_hist),
                         # 'A3_bins': arr_to_str(A3_bins),
-                        # 'D1_hist': arr_to_str(D1_hist),
-                        # 'D1_bins': arr_to_str(D1_bins),
+                        'D1_hist': arr_to_str(D1_hist),
+                        'D1_bins': arr_to_str(D1_bins),
                         # 'D2_hist': arr_to_str(D2_hist),
                         # 'D2_bins': arr_to_str(D2_bins),
-                        'D3_hist': arr_to_str(D3_hist),
-                        'D3_bins': arr_to_str(D3_bins),
-                        'D4_hist': arr_to_str(D4_hist),
-                        'D4_bins': arr_to_str(D4_bins),
+                        # 'D3_hist': arr_to_str(D3_hist),
+                        # 'D3_bins': arr_to_str(D3_bins),
+                        # 'D4_hist': arr_to_str(D4_hist),
+                        # 'D4_bins': arr_to_str(D4_bins),
                     }
 
                     writer.writerow(row)
@@ -391,7 +391,7 @@ class MeshExtractions:
         bary = calculate_mass_barycenter(mesh.vertices, mesh.faces)
 
         # Sample vertex indices with replacement
-        idx = np.random.randint(0, num_vertices, size=n_samples)
+        idx = np.random.choice(num_vertices, size=n_samples, replace=False)
         sampled = mesh.vertices[idx]
 
         # Distances from barycenter
