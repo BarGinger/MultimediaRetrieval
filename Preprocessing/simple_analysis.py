@@ -291,8 +291,17 @@ def create_analysis_plots(original_vertex_counts, resampled_vertex_counts, compa
     for i, cat in enumerate(categories):
         ax = [ax1, ax2][i]
         values = [within_range[i], outside_range[i]]
-        total = sum(values)
-        autopct = lambda pct: f'{pct:.1f}%\n({int(pct/100*total)})'
+        # Use the correct total for this pie (original vs resampled). This prevents counts from
+        # being computed against an incorrect total when original/resampled arrays have different lengths.
+        pie_total = sum(values)
+        # autopct should show percentage and absolute count derived from the pie_total.
+        def make_autopct(pie_total):
+            def autopct(pct):
+                # Compute the absolute count from the percentage; round to nearest int for display
+                count = int(round(pct / 100.0 * pie_total))
+                return f'{pct:.1f}%\n({count})'
+            return autopct
+        autopct = make_autopct(pie_total)
         wedges, texts, autotexts = ax.pie(values, labels=pie_labels, colors=pie_colors, autopct=autopct, startangle=90, counterclock=False, textprops={'fontsize': 12, 'fontweight': 'bold'})
         ax.set_title(f'{cat} Compliance', fontsize=13)
         ax.axis('equal')
