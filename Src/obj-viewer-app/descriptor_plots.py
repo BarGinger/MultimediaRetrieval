@@ -41,7 +41,7 @@ except Exception:
 CSV_DEFAULT = Path("output/descriptors_all_histograms.csv")
 OUT_DIR_DEFAULT = Path("output/descriptor_histogram_comparisons")
 # DESCRIPTORS = ["A3", "D1", "D2", "D3", "D4"]
-DESCRIPTORS = ["D3", "D4"]
+DESCRIPTORS = ["D1"]
 
 # Human-readable note for descriptors that were transformed to length-like units
 # D3: sqrt(area) -> length, D4: cbrt(volume) -> length

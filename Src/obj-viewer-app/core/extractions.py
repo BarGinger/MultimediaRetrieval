@@ -384,15 +384,11 @@ class MeshExtractions:
 
         max_radius = math.sqrt(3.0) / 2.0
 
-        # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
-        n_samples = num_vertices
-
         # Compute mass barycenter (area-weighted) using helper from shapeMesh
         bary = calculate_mass_barycenter(mesh.vertices, mesh.faces)
 
-        # Sample vertex indices with replacement
-        idx = np.random.choice(num_vertices, size=n_samples, replace=False)
-        sampled = mesh.vertices[idx]
+        # Use all vertices (order doesn't matter)
+        sampled = mesh.vertices
 
         # Distances from barycenter
         dists = np.linalg.norm(sampled - bary, axis=1)
