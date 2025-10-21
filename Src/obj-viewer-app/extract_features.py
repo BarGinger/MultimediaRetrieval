@@ -10,13 +10,7 @@ from core.transformations import MeshTransformations
 MESH_EXTS = {".obj"} 
 
 FEATURES = [
-    "surface_area",
-    "volume",
-    "compactness",
     "rectangularity",
-    "diameter",
-    "convexity",
-    "eccentricity",
 ]
 
 
@@ -32,51 +26,12 @@ def compute_scalar_features(mesh: ShapeMesh) -> dict:
         S = None
         V = None
 
-        # surface_area
-        try:
-            S = MeshExtractions.surface_area(mesh)
-            out["surface_area"] = float(S)
-        except Exception:
-            out["surface_area"] = 0.0
-            S = None
-
-        # volume
-        try:
-            V = MeshExtractions.volume(mesh)
-            out["volume"] = float(V)
-        except Exception:
-            out["volume"] = 0.0
-            V = None
-
-        # compactness (uses S and V if available)
-        try:
-            out["compactness"] = float(MeshExtractions.compactness(mesh, S=S, V=V))
-        except Exception:
-            out["compactness"] = 0.0
-
+        
         # rectangularity (uses surface areas; robust to internal fallback)
         try:
             out["rectangularity"] = float(MeshExtractions.rectangularity(mesh))
         except Exception:
             out["rectangularity"] = 0.0
-
-        # diameter
-        try:
-            out["diameter"] = float(MeshExtractions.diameter(mesh))
-        except Exception:
-            out["diameter"] = 0.0
-
-        # convexity (V_mesh / V_hull)
-        try:
-            out["convexity"] = float(MeshExtractions.convexity(mesh, V_mesh=V))
-        except Exception:
-            out["convexity"] = 0.0
-
-        # eccentricity (eigenvalue ratio)
-        try:
-            out["eccentricity"] = float(MeshExtractions.eccentricity(mesh))
-        except Exception:
-            out["eccentricity"] = 0.0
 
     except Exception:
         # catastrophic failure: set all zeros
