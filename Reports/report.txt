@@ -18,6 +18,12 @@
 \usepackage{enumitem}
 \usepackage{booktabs}
 
+\setcounter{secnumdepth}{4}
+\titleformat{\paragraph}
+{\normalfont\normalsize\bfseries}{\theparagraph}{1em}{}
+\titlespacing*{\paragraph}
+{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+
 
 \usepackage[linesnumbered,ruled,vlined]{algorithm2e}
 
@@ -566,14 +572,17 @@ We now evaluate the effect of the remeshing algorithm on the dataset. Again, a p
 \end{center}  
 \end{figure}
 
-In addition, we have generated figures illustrating both the compliance rate and the distribution of meshes across all size categories: very small, small, target range, large, and very large. These comparisons, before and after resampling, are shown in Figure \ref{Fig-AdditionalPlots-Vertices-After}. The compliance rate has improved considerably, from $14.8\%$ to $98.8\%$. While some meshes remain outside the target range, they are generally only slightly above or below the desired limits. Before resampling, the majority of meshes fell into the very small or small categories, with only a few within the target range and some extreme outliers in the very large category. The resampling step has successfully shifted most meshes into the target range, reducing the prevalence of undersized meshes and eliminating extreme outliers.
+In addition, we have generated figures illustrating both the compliance rate and the distribution of meshes across all size categories: very small, small, target range, large, and very large. These comparisons, before and after resampling, are shown in Figure \ref{Fig-AdditionalPlots-Vertices-After}. The compliance rate has improved considerably, from $14.8\%$ to $97.5\%$, leading to only 63 out of the 2,483 objects not falling within the target vertex count range. While some meshes remain outside the target range, they are generally only slightly above or below the desired limits. Before resampling, the majority of meshes fell into the very small or small categories, with only a few within the target range and some extreme outliers in the very large category. The resampling step has successfully shifted most meshes into the target range, reducing the prevalence of undersized meshes and eliminating extreme outliers.
 
 \begin{figure}[H]  
 \begin{center}  
 \includegraphics[width=0.8\columnwidth]{figures/compliance_and_distribution.png}  
 \caption{  
-    \textbf{(A) Target compliance and (B) Size distribution.}  
-    (A) This plot shows the proportion of meshes that fall within the acceptable target range of 5,000–10,000 vertices before and after resampling. (B) This plot shows the distribution of meshes across all size categories before and after resampling: very small (0–2,000 vertices), small (2,000–5,000), acceptable (5,000–10,000), large (10,000–15,000), and very large (15,000+).  
+    \textbf{Target compliance and size distribution.}
+(A) Pie chart showing the proportion of meshes that fall within the acceptable target range of 5,000–10,000 vertices before resampling.
+(B) Pie chart showing the proportion of meshes within the acceptable target range after resampling.
+(C) Bar chart showing the percentage distribution of meshes across all size categories before and after resampling: very small (0–2,000 vertices), small (2,000–5,000), acceptable (5,000–10,000), large (10,000–15,000), and very large (15,000+).
+(D) Bar chart showing the count distribution of meshes across all size categories before and after resampling. 
 }  
 {\label{Fig-AdditionalPlots-Vertices-After}}  
 \end{center}  
@@ -582,11 +591,10 @@ In addition, we have generated figures illustrating both the compliance rate and
 %Explain remaining outliers%
 Although the resampling pipeline substantially improved uniformity in vertex counts, a small number of meshes still fall outside of the target range of 5,000--10,000 vertices. This outcome can be explained by the nature of the subdivision and simplification algorithms used. Subdivision increases the number of vertices in large multiplicative steps (approximately by a factor of four for each pass). As a result, meshes that start well below the lower bound often overshoot into the higher range. Simplification is then applied to reduce these meshes, but the algorithm is constrained by geometry preservation: it avoids collapsing important edges or thin structures, and therefore does not always converge exactly within the target window. Similarly, meshes that were already close to the lower bound are sometimes left unchanged, as subdivision would push them unnecessarily far above the acceptable range.
 
-Further attempts to enforce exact compliance would require mesh-specific adjustments, which would be computationally expensive and risk degrading geometric fidelity. The current procedure achieves compliance for approximately 98\% of the dataset, which we consider sufficient for our purposes. The small number of outliers does not meaningfully affect downstream tasks and avoiding excessive processing helps maintain higher shape quality overall.
+Further attempts to enforce exact compliance would require mesh-specific adjustments, which would be computationally expensive and risk degrading geometric fidelity. The current procedure achieves compliance for approximately 97\% of the dataset, which we consider sufficient for our purposes. The small number of outliers (63) does not meaningfully affect downstream tasks, and avoiding excessive processing helps maintain higher shape quality overall. We will further explore the outliers mentioned above in Sub-Section \ref{removing-outliers}.
 
 It should also be noted that resampling occasionally introduces some surface artifacts. For instance, some meshes show a rippling effect along curved surfaces, such as the body of a bottle, or slight deformations in thin structures, such as the wings of an airplane no longer being perfectly straight (see Figures \ref{Remeshing-Artifacts1} and \ref{Remeshing-Artifacts2}). These cases illustrate the trade-off between vertex count normalization and preservation of fine-grained geometry. While not ideal, such artifacts are limited in scope and do not compromise the overall usability of the dataset.
 
-%Still have to update these%
 \begin{figure}[H]
 \begin{center}
 \includegraphics[width=0.5\columnwidth]{figures/remeshing_example2.png}
@@ -611,14 +619,149 @@ It should also be noted that resampling occasionally introduces some surface art
 \end{center}
 \end{figure}
 
-%Show examples of remeshing%
+\subsection{Removing outliers} \label{removing-outliers}
+
+To further check our meshing approach, we zoomed in on a few cases from the 63 shapes that were outside the compiled vertices range. Upon closer inspection, we found that most outliers shared a common characteristic: they were poorly sampled in their original form. The meshing process - which for these low-vertex-count cases involved cleaning followed by upscaling - created holes and detached parts in these problematic cases. For instance, in the jet example (Figure \ref{Remeshing-outlier-jet}), the meshing process both introduced structural defects and overshot the target vertex range (5,000--10,000), reaching 15,794 vertices. In contrast, the bird example (Figure \ref{Remeshing-outlier-bird}) demonstrates a case where the approach implemented an early stop at 1,693 vertices to prevent further distortion of the shape. Interestingly, both the jet and the bird exhibit the most severe problems in their wing structures, which were poorly sampled to begin with. Closer debugging revealed that the cleaning step caused the detachment of these wing parts from the main body, leading to the observed artifacts. Similarly, while the humanoid example (Figure \ref{Remeshing-outlier-humaniod}) only moderately overshot the target range (11,304 vertices), it illustrates how the meshing process introduced numerous holes throughout the body structure.
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.5\columnwidth]{figures/bad meshing - jet.png}
+\caption{
+    \textbf{Jet example: outlier meshed shape.}
+    (A) The original object (\texttt{m1176.obj}), consisting of 213 vertices and 642 faces.
+    (B) The same object after the meshing step, now consisting of 15,794 vertices and 53,248 faces.
+}
+{\label{Remeshing-outlier-jet}}
+\end{center}
+\end{figure}
+
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.5\columnwidth]{figures/bad meshing - bird.png}
+\caption{
+    \textbf{Bird example: outlier meshed shape.}
+    (A) The original object (\texttt{m42.obj}), consisting of 116 vertices and 265 faces.
+    (B) The same object after the meshing step, now consisting of 1,693 vertices and 3,360 faces.
+}
+{\label{Remeshing-outlier-bird}}
+\end{center}
+\end{figure}
+
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.5\columnwidth]{figures/bad meshing - human.png}
+\caption{
+    \textbf{Humanoid example: outlier meshed shape.}
+    (A) The original object (\texttt{m165.obj}), consisting of 506 vertices and 1,748 faces.
+    (B) The same object after the meshing step, now consisting of 11,304 vertices and 33,024 faces.
+}
+{\label{Remeshing-outlier-humaniod}}
+\end{center}
+\end{figure}
+
+Based on these observations, we established a systematic criterion for handling outliers. As shown in Table~\ref{table:files_outside_range}, we applied a 15\% tolerance threshold around the target vertex range (5,000--10,000). Shapes whose resampled vertex counts fell within this tolerance—between 4,250 and 11,500 vertices—were retained in the dataset, as minor deviations likely reflected the inherent variability of the meshing process rather than fundamental structural problems. This allowed us to keep 18 shapes that were close to the target range. Notably, of the three examples discussed above, only the humanoid (Figure \ref{Remeshing-outlier-humaniod}) met this criterion with 11,304 vertices, falling just above the target range. While it exhibited structural holes, we retained it with the expectation that subsequent hole-filling step in our pipeline would address these defects. In contrast, the jet and bird examples were excluded, as they exceeded the tolerance threshold. More broadly, the 45 excluded shapes typically exhibited the same underlying issues we identified in our detailed inspection: poor original sampling that led to holes, detached components, or excessive distortion during remeshing. Ultimately, this process yielded a cleaner, more reliable dataset of 2,438 shapes for subsequent analysis.
+
+
+% LaTeX table (Overleaf-ready) generated from files_outside_range.csv
+% Columns: file, category, original_vertices, resampled_vertices, original_faces, resampled_faces, to_exclude
+% Note: to enable colored cells/text, include in your document preamble:
+% \usepackage[table]{xcolor}
+% You can customize the colors below by changing the \textcolor arguments.
+\begin{table}[H]
+    \centering
+    \label{table-outliers}
+    \caption{\textbf{Shapes outside the target vertex range.} Among the 63 shapes identified, 18 were retained while 45 were excluded based on a 15\% tolerance criterion.}
+    \footnotesize  % Smaller font size
+    \renewcommand{\arraystretch}{1.2}  % Increase row spacing
+    \resizebox{\columnwidth}{!}{%
+    \begin{tabular}{|l|l|r|r|r|r|r|c|}
+        \hline
+        	extbf{File} & \textbf{Category} & \textbf{Original Vertices} & \textbf{Resampled Vertices} & \textbf{Original Faces} & \textbf{Resampled Faces} & \textbf{Percent diff (\%)} & \textbf{To Exclude} \\
+        \hline
+    m51.obj & Bird & 309 & 4794 & 598 & 9568 & -4.12\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m396.obj & BuildingNonResidential & 445 & 4585 & 470 & 7520 & -8.30\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    D00802.obj & Gun & 300 & 4530 & 564 & 9024 & -9.40\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m439.obj & House & 356 & 4346 & 532 & 8512 & -13.08\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m359.obj & HumanHead & 314 & 4868 & 615 & 9616 & -2.64\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m361.obj & HumanHead & 295 & 4487 & 557 & 8816 & -10.26\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m165.obj & Humanoid & 506 & 11304 & 1748 & 33024 & 13.04\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m166.obj & Humanoid & 476 & 11239 & 1698 & 32896 & 12.39\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m198.obj & Humanoid & 4657 & 10620 & 19582 & 18680 & 6.20\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m22.obj & Insect & 333 & 4983 & 620 & 9920 & -0.34\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m1249.obj & Jet & 310 & 4930 & 616 & 9856 & -1.40\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m1298.obj & Jet & 301 & 4402 & 542 & 8672 & -11.96\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m633.obj & Musical\_Instrument & 524 & 4757 & 1728 & 10064 & -4.86\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m1029.obj & PlantIndoors & 316 & 4408 & 548 & 8704 & -11.84\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    D00842.obj & Spoon & 291 & 4443 & 1647 & 8784 & -11.14\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m720.obj & Sword & 318 & 4837 & 620 & 9664 & -3.26\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m721.obj & Sword & 275 & 4250 & 530 & 8480 & -15.00\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m1112.obj & Tool & 316 & 4875 & 621 & 9648 & -2.50\% & \textcolor{green!50!black}{\textbf{FALSE}} \\
+    m74.obj & AquaticAnimal & 162 & 2548 & 336 & 4992 & -49.04\% & \textcolor{red}{\textbf{TRUE}} \\
+    m42.obj & Bird & 116 & 1693 & 265 & 3360 & -66.14\% & \textcolor{red}{\textbf{TRUE}} \\
+    m487.obj & Bottle & 133 & 1969 & 290 & 3776 & -60.62\% & \textcolor{red}{\textbf{TRUE}} \\
+    m471.obj & BuildingNonResidential & 118 & 1903 & 248 & 3744 & -61.94\% & \textcolor{red}{\textbf{TRUE}} \\
+    m475.obj & BuildingNonResidential & 112 & 1492 & 178 & 2816 & -70.16\% & \textcolor{red}{\textbf{TRUE}} \\
+    D01139.obj & Door & 31 & 289 & 29 & 464 & -94.22\% & \textcolor{red}{\textbf{TRUE}} \\
+    D01143.obj & Door & 48 & 588 & 72 & 1152 & -88.24\% & \textcolor{red}{\textbf{TRUE}} \\
+    m622.obj & FloorLamp & 54 & 732 & 88 & 1408 & -85.36\% & \textcolor{red}{\textbf{TRUE}} \\
+    m623.obj & FloorLamp & 78 & 967 & 120 & 1920 & -80.66\% & \textcolor{red}{\textbf{TRUE}} \\
+    m624.obj & FloorLamp & 46 & 610 & 76 & 1216 & -87.80\% & \textcolor{red}{\textbf{TRUE}} \\
+    D00937.obj & Glasses & 140 & 2210 & 280 & 4416 & -55.80\% & \textcolor{red}{\textbf{TRUE}} \\
+    m7.obj & Insect & 265 & 4059 & 506 & 8048 & -18.82\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1176.obj & Jet & 213 & 15794 & 642 & 53248 & 57.94\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1213.obj & Jet & 254 & 4012 & 504 & 8000 & -19.76\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1270.obj & Jet & 295 & 3883 & 452 & 7232 & -22.34\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1294.obj & Jet & 257 & 3131 & 352 & 5632 & -37.38\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1295.obj & Jet & 204 & 2274 & 244 & 3904 & -54.52\% & \textcolor{red}{\textbf{TRUE}} \\
+    D01120.obj & Knife & 132 & 2102 & 798 & 4192 & -57.96\% & \textcolor{red}{\textbf{TRUE}} \\
+    D01160.obj & Knife & 270 & 4169 & 1686 & 8096 & -16.62\% & \textcolor{red}{\textbf{TRUE}} \\
+    D01175.obj & Knife & 87 & 1332 & 498 & 2656 & -73.36\% & \textcolor{red}{\textbf{TRUE}} \\
+    m998.obj & PlantIndoors & 318 & 4125 & 478 & 7648 & -17.50\% & \textcolor{red}{\textbf{TRUE}} \\
+    m975.obj & PlantWildNonTree & 241 & 3616 & 450 & 7200 & -27.68\% & \textcolor{red}{\textbf{TRUE}} \\
+    D00188.obj & RectangleTable & 80 & 980 & 120 & 1920 & -80.40\% & \textcolor{red}{\textbf{TRUE}} \\
+    m877.obj & RectangleTable & 56 & 686 & 84 & 1344 & -86.28\% & \textcolor{red}{\textbf{TRUE}} \\
+    m892.obj & RectangleTable & 174 & 1885 & 288 & 3280 & -62.30\% & \textcolor{red}{\textbf{TRUE}} \\
+    m893.obj & RectangleTable & 184 & 2458 & 292 & 4672 & -50.84\% & \textcolor{red}{\textbf{TRUE}} \\
+    m910.obj & RectangleTable & 352 & 3171 & 1136 & 6512 & -36.58\% & \textcolor{red}{\textbf{TRUE}} \\
+    D00764.obj & Rocket & 218 & 3218 & 400 & 6400 & -35.64\% & \textcolor{red}{\textbf{TRUE}} \\
+    m931.obj & RoundTable & 54 & 714 & 88 & 1408 & -85.72\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1448.obj & Ship & 182 & 2683 & 328 & 5248 & -46.34\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1670.obj & Sign & 221 & 2147 & 217 & 3472 & -57.06\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1671.obj & Sign & 119 & 1145 & 113 & 1808 & -77.10\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1672.obj & Sign & 231 & 2652 & 299 & 4720 & -46.96\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1673.obj & Sign & 80 & 812 & 86 & 1376 & -83.76\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1674.obj & Sign & 50 & 641 & 78 & 1248 & -87.18\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1675.obj & Sign & 40 & 442 & 52 & 832 & -91.16\% & \textcolor{red}{\textbf{TRUE}} \\
+    D00674.obj & Spoon & 173 & 2561 & 966 & 4960 & -48.78\% & \textcolor{red}{\textbf{TRUE}} \\
+    D00149.obj & Sword & 186 & 2796 & 344 & 5504 & -44.08\% & \textcolor{red}{\textbf{TRUE}} \\
+    D00807.obj & Sword & 176 & 2523 & 648 & 4720 & -49.54\% & \textcolor{red}{\textbf{TRUE}} \\
+    m689.obj & Sword & 178 & 2824 & 360 & 5600 & -43.52\% & \textcolor{red}{\textbf{TRUE}} \\
+    m690.obj & Sword & 180 & 2820 & 368 & 5600 & -43.60\% & \textcolor{red}{\textbf{TRUE}} \\
+    m693.obj & Sword & 196 & 2428 & 259 & 4144 & -51.44\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1101.obj & Tool & 135 & 2100 & 262 & 4192 & -58.00\% & \textcolor{red}{\textbf{TRUE}} \\
+    m1097.obj & Tree & 35 & 320 & 31 & 496 & -93.60\% & \textcolor{red}{\textbf{TRUE}} \\
+    m541.obj & Vase & 312 & 2450 & 1196 & 5760 & -51.00\% & \textcolor{red}{\textbf{TRUE}} \\
+    \hline
+    \end{tabular}%
+    }
+    \label{table:files_outside_range}
+\end{table}
+
+
+
+
 
 \subsection{Step 2.5: Normalizing shapes} \label{step2.5}
 %Explain why further normalization is needed%
 Having reduced the variance in mesh resolution, we next address other characteristics of the dataset that require normalization. In this substep, we translate each object so that its barycenter is positioned at the origin $(0,0,0)$, and uniformly scale it to fit within a unit cube.
 
-To achieve this, we first calculate the mass barycenter of the mesh, which corresponds to the center of mass under the assumption that each face has uniform density. 
-Instead of simply averaging all vertices, we compute an area-weighted average of the centroids of all triangular faces.
+Before performing normalization, we first clean each mesh to remove potential geometric inconsistencies that could interfere with the process. This cleaning step ensures that all meshes are topologically valid and free of redundant or ill-defined elements. Specifically, we remove degenerate triangles, duplicated vertices and faces, non-manifold edges, and unreferenced vertices. By doing so, we prevent numerical instabilities during translation and scaling, and ensure that the subsequent computation of the barycenter and bounding box reflects the true geometry of the object.
+
+Once the meshes have been cleaned, we proceed to compute their mass barycenter, which represents the center of mass under the assumption of uniform surface density. In practice, this means that each face contributes to the barycenter in proportion to its area. Rather than simply averaging all vertex coordinates, we therefore compute an area-weighted average of the centroids of all triangular faces, providing a more accurate and robust estimate of the object’s geometric center.
+
+
 
 For a triangular mesh $M = (V, F)$ with vertices $V = \{v_1, \dots, v_n\}$, $v_i \in \mathbb{R}^3$, and faces 
 $F = \{f_1, \dots, f_m\}$, each face $f_j = (v_{j1}, v_{j2}, v_{j3})$ contributes as follows:
@@ -638,14 +781,7 @@ The mass barycenter of the full mesh is then given by
 b(M) = \frac{\sum_{j=1}^m A(f_j)\,c(f_j)}{\sum_{j=1}^m A(f_j)}
 \end{equation}
 
-In the degenerate case where $\sum_{j=1}^m A(f_j) = 0$ (e.g., if no valid faces are present), 
-we fall back to the simple geometric centroid of the vertices:
-
-\begin{equation}
-b(M) = \frac{1}{n}\sum_{i=1}^n v_i
-\end{equation}
-
-This ensures a well-defined barycenter for all meshes in the dataset.
+Before performing this calculation, we remove faces with an area of zero, to ensure a well-defined barycenter for all meshes in the dataset.
 
 We have calculated the offset of the barycenter to the origin of the space before applying the translation normalization. The results can be seen in Figure \ref{Fig-Histogram-Barycenter-Before}. We observe a large variance in this offset over the dataset.
 
@@ -679,26 +815,27 @@ Using the earlier described barycenter calculation, we translate all objects suc
 
 We can see that the barycenters of all objects are now correctly positioned at the origin of the space, with even the outliers falling well below an offset of 1e-4.
 
-Following the translation, we normalize the scale of each mesh. Formally, we compute the axis-aligned bounding box of a mesh $M$, defined as
+Following the translation, we normalize the scale of each mesh. Formally, we compute the axis-aligned bounding box of a mesh $\mathbf{M}$, defined as
 
 \begin{equation}
-B(M) = [\mathbf{v}_{\min}, \mathbf{v}_{\max}]
+B(\mathbf{M}) = [\mathbf{v}_{\min}, \mathbf{v}_{\max}]
+\label{eq:bounding_box}
 \end{equation}
 
 where
 
 \begin{equation}
-\mathbf{v}_{\min} = (\min_i v_i^x, \min_i v_i^y, \min_i v_i^z), \quad
-\mathbf{v}_{\max} = (\max_i v_i^x, \max_i v_i^y, \max_i v_i^z)
+\mathbf{v}_{\min} = (\min_i \mathbf{v}_i^x, \min_i \mathbf{v}_i^y, \min_i \mathbf{v}_i^z), \quad
+\mathbf{v}_{\max} = (\max_i \mathbf{v}_i^x, \max_i \mathbf{v}_i^y, \max_i \mathbf{v}_i^z)
 \end{equation}
 
-We then determine the bounding box side lengths
+We then determine the bounding box side lengths as
 
 \begin{equation}
 \mathbf{s} = \mathbf{v}_{\max} - \mathbf{v}_{\min}
 \end{equation}
 
-and take the largest dimension 
+and take the largest dimension
 
 \begin{equation}
 s_{\max} = \max(s_x, s_y, s_z)
@@ -711,6 +848,7 @@ To enforce uniform scaling, each vertex is scaled by the factor
 \end{equation}
 
 such that the longest side of the bounding box is mapped to length $1.0$. This guarantees that every object is contained within a unit cube $[-0.5, 0.5]^3$.
+
 
 In Figure \ref{Fig-BBox-Before} we show a histogram of the bounding box longest side length before this normalization step. Although a large number of objects already fit precisely within a unit cube bounding box, suggesting that they are already normalized to some degree, we can still observe quite a large variance in this characteristic over the dataset. After applying the scaling procedure, the distribution collapses to a single value of $1.0$, as illustrated in Figure \ref{Fig-BBox-After}.  
 
@@ -778,7 +916,7 @@ V' = (T_4 \circ T_3 \circ T_2 \circ T_1)(V)
 
 where $T_1, T_2, T_3, T_4$ represent translation, alignment, flipping, and scaling transformations, respectively, and the composition $(T_4 \circ T_3 \circ T_2 \circ T_1)(V) = T_4(T_3(T_2(T_1(V))))$ indicates that transformations are applied sequentially from right to left.
 
-\textbf{Step 1: Remeshing.} As described in Subsection \ref{step2.3}, \nameref{step2.3}, each mesh is first evaluated against a target vertex range of 5,000 to 10,000 vertices. Meshes already within this acceptable range are identified and copied without modification, avoiding unnecessary processing that could introduce artifacts or degrade geometric quality. Only meshes falling outside this range undergo adaptive subdivision or decimation to reach the target resolution. This conditional processing ensures that all shapes are represented at comparable levels of detail while preserving the quality of already well-sampled meshes. The approach prevents high-resolution meshes from dominating feature computations and ensures low-resolution meshes have sufficient geometric information, without unnecessarily reprocessing shapes that already meet the quality criteria.
+\textbf{Step 1: Remeshing.} As described in Subsection \ref{step2.3}, \nameref{step2.3}, each mesh is first evaluated against a target vertex range of 5,000 to 10,000 vertices. Meshes already within this acceptable range are identified and move on to the next step without modification, avoiding unnecessary processing that could introduce artifacts or degrade geometric quality. Only meshes falling outside this range undergo adaptive subdivision or decimation to reach the target resolution. This conditional processing ensures that all shapes are represented at comparable levels of detail while preserving the quality of already well-sampled meshes. The approach prevents high-resolution meshes from dominating feature computations and ensures low-resolution meshes have sufficient geometric information, without unnecessarily reprocessing shapes that already meet the quality criteria.
 
 \textbf{Step 2: Translation (Centering).} The remeshed shape is centered at the coordinate frame origin using the mass barycenter $\mathbf{b}(M)$, computed as an area-weighted average of triangle centroids as defined in \ref{step2.5}, \nameref{step2.5}:
 
@@ -824,7 +962,7 @@ v_i^{(1)} \cdot \mathbf{e}_3
 
 This transformation ensures that the shape's principal axes align with the $x$, $y$, and $z$ coordinate axes respectively, providing a canonical orientation that eliminates rotation variations between shapes.
 
-\textbf{Step 4: Flipping (Orientation Consistency).} Although PCA alignment establishes a canonical pose, it leaves an ambiguity in the sign of each principal axis. Specifically, each eigenvector can be multiplied by $-1$ without affecting the eigenvalue decomposition, meaning that the PCA solution is invariant to axis flipping. To resolve this ambiguity and establish consistent orientation across all shapes, we apply a moment-based test.
+\textbf{Step 4: Flipping (Orientation Consistency).} Although PCA alignment establishes a canonical pose, it leaves an ambiguity in the sign of each principal axis. Specifically, each eigenvector can be multiplied by $-1$ without affecting the eigenvalue decomposition, meaning that the PCA solution is invariant to axis flipping. To resolve this ambiguity and establish a consistent orientation across all shapes, we apply a moment-based test.
 
 For each coordinate axis $i \in \{0, 1, 2\}$, we compute a signed moment:
 
@@ -901,25 +1039,136 @@ Our implementation processes the entire dataset through a unified preprocessing 
 The preprocessing pipeline successfully processed all 2,483 shapes in the dataset with 100\% success rate. Validation metrics confirm that our implementation achieves high mathematical precision:
 
 \begin{itemize}
-    \item Mean centering error: $9.49 \times 10^{-15}$ (effectively zero within floating-point precision)
-    \item Maximum centering error: $7.53 \times 10^{-13}$ (well within numerical tolerance)
-    \item Mean scaling error: $3.30 \times 10^{-17}$ (negligible)
+    \item Mean centering error: $1.04 \times 10^{-14}$ (effectively zero within floating-point precision)
+    \item Maximum centering error: $9.22 \times 10^{-13}$ (well within numerical tolerance)
+    \item Mean scaling error: $3.18 \times 10^{-17}$ (negligible)
     \item Maximum scaling error: $2.22 \times 10^{-16}$ (within machine epsilon)
     \item 100\% compliance with eigenvalue ordering ($\lambda_1 \geq \lambda_2 \geq \lambda_3$)
-    \item 100\% correct moment sign after flipping (all axes show positive moments)
+    \item 100\% correct moment sign after flipping (all axes show positive moments)  
 \end{itemize}
 
 These results demonstrate that our implementation achieves the mathematical precision required for robust feature extraction. The normalized shapes are stored in the \texttt{UnifiedPreprocessed} directory, organized by category, with accompanying metadata files containing processing statistics and validation results for each shape.
 
-Figure \ref{fig:normalization_steps} illustrates the normalization pipeline applied to a representative shape, showing the geometric transformation at each step. The step-by-step validation files enable visual inspection of the normalization process and facilitate debugging when extending the pipeline to new datasets.
+
+Figure \ref{Fig-pca_explained_variance_pie} illustrates the average proportion of variance explained by each principal component across all normalized shapes. The dominance of PC1 ($73.2\%$) and the much smaller contributions of PC2 ($20.0\%$) and PC3 ($6.8\%$) confirm that the normalization pipeline consistently aligns the major axis of variation and reduces residual variance in minor directions. This validates that the preprocessing steps - especially PCA based alignment - effectively standardize shape orientation and scale, ensuring robust and interpretable feature extraction for downstream analysis.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/fig3_pca_explained_variance_pie.png}
+    \caption{Average variance explained by each principal component across all validated shapes ($N = 2483$). PC1 accounts for $73.2\%$, PC2 for $20.0\%$, and PC3 for $6.8\%$ of the total variance.}
+    \label{Fig-pca_explained_variance_pie}
+\end{figure}
+
+
+\textbf{Interpretation and evidence for numerical precision.} The plot in Figure \ref{Fig-centering_error_cdf} was produced by extracting every shape's final centering error from the validation metadata and plotting the empirical cumulative distribution (CDF) of those errors on a logarithmic $x$-axis. The red dashed line indicates our target centering tolerance ($10^{-10}$), while the orange dashed line indicates a conservative numerical-noise region near machine precision (an operational marker chosen here at $10^{-13}$ to show where floating-point rounding and cancellation may begin to dominate). The CDF rises to $100\%$ well before the target line, which shows that essentially all shapes have centering errors below the target tolerance. Because the bulk of the distribution lies many orders of magnitude above the machine-noise marker but below the target, the result demonstrates that centering is numerically accurate and robust (the orange marker simply highlights the scale at which numerical rounding would become relevant).
+
+\begin{figure}[H]
+\centering
+ \includegraphics[width=0.48\textwidth]{figures/fig5_numerical_precision.png}
+\caption{Centering error CDF. Empirical cumulative distribution (percentage) of final centering errors ($x$-axis, log scale). The red dashed line marks the target threshold ($10^{-10}$); the orange dashed line marks a conservative numerical-noise region associated with machine precision effects.}
+\label{Fig-centering_error_cdf}
+\end{figure}
+
+\textbf{Interpretation and evidence for successful scaling.} The multi-panel scatter figure (Figure \ref{Fig-bbox_dimensions_by_category}) was generated by reading each shape's metadata (which was saved during the normalization process) and plotting the three final bounding-box side lengths ($X$, $Y$ and $Z$) for every shape, grouped by category; within each small subplot every marker corresponds to one shape and the unit-cube target corresponds to a maximum side length of $1.0$. The figure shows that, for all categories, the per-shape maxima of $\{X, Y, Z\}$ are at or below $1.0$, i.e., the colored points lie within the $0$--$1$ range and no category exhibits a systematic pattern of values exceeding the unit scale. This visual pattern provides direct evidence that the scaling step produced consistent unit-cube normalization across the dataset.
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.58\textwidth]{figures/fig6_bbox_dimensions_by_category.png}
+    \caption{\textbf{Final bounding-box side lengths by category.} For each category, a small subplot shows all shapes (shape index on the x-axis) with the three final bounding-box side lengths plotted as colored points (X = red, Y = green, Z = blue). Showing that the normalization goal, which was that the largest side of each bounding box equals 1 (unit-cube scaling), is met.}
+    \label{Fig-bbox_dimensions_by_category}
+\end{figure}
 
 \subsubsection{Integration with Viewer Application}
 
-The normalized shapes are seamlessly integrated into our interactive viewer application through a dedicated caching system, which provides efficient access to pre-computed normalized vertices without redundant computation. Users can toggle between original and normalized views using the "Normalized" checkbox in the shape information panel, as shown in Figure \ref{fig:viewer_normalization}. This integration enables direct visual validation of the normalization pipeline and supports comparative analysis of shape features before and after normalization.
+Normalized shapes are seamlessly integrated into our interactive viewer application via a dedicated caching system, enabling efficient access to pre-computed normalized vertices and eliminating redundant computation. In the shape information panel, a "Normalized" checkbox indicates whether the currently viewed shape has undergone normalization. Users interactively explore the normalization pipeline using the processing step slider, which allows inspection of each intermediate step (see Figures \ref{Fig-normalization-example-plant} and \ref{Fig-normalization-example-pig}). This integration enables direct visual validation of the normalization process and supports comparative analysis of shape features before and after normalization.
 
-The processing step slider in the viewer allows users to inspect intermediate normalization steps interactively, with intelligent fallback logic to handle missing files. Since shapes already within the acceptable vertex range skip the remeshing step, they do not have a \texttt{01\_remeshed.obj} file. In such cases, the slider automatically displays the \texttt{00\_original.obj} file when attempting to view the remeshing step, ensuring continuous visual inspection of the pipeline regardless of which processing steps were actually applied. This adaptive behavior provides transparency into the preprocessing pipeline and helps users understand which transformations were necessary for each specific shape, supporting both quality control and educational purposes.
+The two examples in Figures \ref{Fig-normalization-example-plant} and \ref{Fig-normalization-example-pig} illustrate the impact of each normalization step on different shapes. For the plant mesh, the initial cleaning and meshing steps remove most of the fine leaf structures, resulting in a simplified mesh that primarily represents the main stem and pot. Subsequent steps - translation, alignment, flipping, and scaling - further standardize the orientation and size, but the most dramatic change occurs during cleaning and meshing. In contrast, the pig mesh starts with 3,666 vertices, already close to the target range, so the remeshing step makes only minor adjustments. The following normalization steps (translation to the origin, PCA alignment, flipping for consistent orientation, and scaling to a unit bounding box) are applied similarly, but the overall shape and details of the pig are largely preserved throughout the pipeline. These examples demonstrate how the normalization process adapts to the characteristics of each object, either simplifying geometry when necessary or maintaining detail when possible, while ensuring consistent orientation and scale across the dataset.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/steps example 2 - plant.png}
+    \caption{
+        \textbf{Normalization steps for a plant mesh (D00080.obj).} 
+         Each panel shows the mesh at a different stage of the normalization pipeline as visualized in the viewer application.
+        (A) Original shape. 
+        (B) Remeshed to target vertex count. 
+        (C) Translated the barycenter to origin. 
+        (D) PCA aligned to axes. 
+        (E) Flipped for consistent orientation. 
+        (F) Scaled to unit bounding box.       
+    }
+    \label{Fig-normalization-example-plant}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/steps example 3 - pig.png}
+    \caption{
+        \textbf{Normalization steps for a pig mesh (D00218.obj).} Each panel shows the mesh at a different stage of the normalization pipeline as visualized in the viewer application.
+        (A) Original shape. 
+        (B) Remeshed to target vertex count. 
+        (C) Translated the barycenter to origin. 
+        (D) PCA aligned to axes. 
+        (E) Flipped for consistent orientation. 
+        (F) Scaled to unit bounding box.
+    }
+    \label{Fig-normalization-example-pig}
+\end{figure}
+
+To further enhance usability, the viewer incorporates intelligent fallback logic for missing files. Shapes already within the acceptable vertex range skip the remeshing step and do not have a \texttt{01\_remeshed.obj} file. In these cases, the slider automatically displays the \texttt{00\_original.obj} file when the remeshing step is selected, ensuring uninterrupted visual inspection of the pipeline. This adaptive behavior provides transparency into the preprocessing workflow and helps users understand which transformations were necessary for each shape, supporting both quality control and informative purposes.
 
 \subsection{Step 3.2: 3D shape descriptors}
+The purpose of this step is to transform normalized 3D meshes into discriminative descriptors that capture essential geometric characteristics. Each descriptor is designed to be invariant to translation, rotation, and scale, while still reflecting intrinsic shape differences. The following subsections present the mathematical foundations of the descriptors we implemented.
+
+\subsubsection{Mesh preparation for feature extraction}
+
+Before computing descriptors, it is crucial to ensure that the normals of the faces are consistent and free of geometric defects. In particular, incomplete meshes with holes or inconsistent face windings can produce invalid volumes or surface areas. To address these issues, we apply a preprocessing routine consisting of two main steps: (1) filling holes and (2) orienting faces consistently.
+
+\paragraph{Filling holes.}
+We want to fill holes because properties like volume and surface area are calculated using the faces. If some faces are missing, you do not want these descriptors to be incorrect. Boundary edges of a mesh are identified by counting the number of times each edge occurs in the face list. Edges that appear exactly once belong to the boundary of a hole. By traversing these edges, we group them into closed loops that represent the perimeters of the holes. For each hole loop, we compute its barycenter,
+\begin{equation}
+c_{\text{hole}} = \frac{1}{|E|} \sum_{(i,j) \in E} \frac{v_i + v_j}{2},
+\end{equation}
+where $E$ is the set of edges in the loop. This barycenter is added as a new vertex, and each boundary edge is connected to it to form a new triangular face. The process closes the hole while maintaining manifold connectivity. Although this procedure may simplify fine geometry, it is mostly good enough for the descriptors (volume, surface area) we want to compute.
+
+\paragraph{Filling holes (limitations).}
+The barycentric triangulation approach for closing boundary loops is a pragmatic heuristic rather than a guaranteed, topology-preserving repair. Several failure modes can occur in practice:
+\begin{itemize}[leftmargin=1.2em]
+    \item \textbf{Non-manifold edges:} edges incident to three or more faces break the assumption that each interior edge is shared by exactly two faces; loop detection and subsequent triangulation will fail and holes using these edges will not be repaired.
+    \item \textbf{Dangling/isolated edges:} multiple single (boundary) edges meeting at a vertex may not form a simple cycle, preventing a well-defined hole loop, or creating holes in a weird way. for example: two holes connecting at a single vertex can be repaired with a single 'plaster'.
+    \item \textbf{Open or branching boundaries:} when boundary tracing encounters forks or dead-ends, no closed loop exists and triangulation will not complete.
+    \item \textbf{Severe non-planarity:} highly warped boundary rims can yield skinny or inverted triangles when all edges are connected to a single barycenter in $\mathbb{R}^3$.
+\end{itemize}
+In our implementation, we treat loop construction as best-effort: if a consistent cycle cannot be recovered, the routine aborts for that component and leaves the boundary unchanged, logging a warning. After any successful fill, we run a cleanup pass that removes duplicate/degenerate faces and drops unreferenced vertices to mitigate newly introduced artifacts. Consequently, hole filling \emph{does not guarantee} watertightness; rather, it increases the likelihood of obtaining a closed, consistently oriented surface suitable for downstream feature extraction while acknowledging the above limitations.
+
+\paragraph{Consistent face orientation.}
+Meshes may contain inconsistently oriented faces, meaning that adjacent triangles along a shared edge traverse that edge in the same direction rather than opposite directions. This creates local inconsistencies in surface normal orientation. This is a problem for several descriptors such as the volume. To correct this, we perform a breadth-first traversal over faces: starting from an arbitrary seed face, all neighbors are visited through their shared edges. Whenever two faces share an edge with the same orientation, one is flipped by swapping two of its vertex indices:
+\begin{equation}
+(i, j, k) \;\;\mapsto\;\; (i, k, j).
+\end{equation}
+This ensures that the mesh forms a consistently oriented surface, suitable for all calculations of the descriptors. 
+
+\paragraph{Combined preparation.}
+The overall preparation pipeline can thus be summarized as:
+\begin{enumerate}
+    \item Detect boundary edges and close holes by barycentric triangulation.
+    \item Remove degenerate and duplicate faces, and drop unused vertices.
+    \item Traverse the mesh to enforce consistent face winding.
+\end{enumerate}
+This process produces meshes, which are then used as a more reliable input for feature extraction.
+
+\subsubsection{Elementary descriptors}
+For unified meshes, we define a set of elementary descriptors that consistently characterize intrinsic shape properties, independent of scale, orientation, or position. The surface area and volume quantify the extent to which the mesh covers and fills space. Derived quantities compare these measures against canonical references: compactness relates area and volume to a sphere, rectangularity evaluates the relation to the oriented bounding box, diameter D(M) captures the maximal Euclidean extent of the vertex set, and convexity compares the enclosed volume with that of the convex hull. Together, these descriptors return a single real value which provide a unified framework for analysing mesh properties.
+
+\paragraph{Surface area.}
+The surface area of a triangular mesh $M = (V,F)$ is defined as the sum of the areas of its faces:
+\begin{equation}
+A(M) = \frac{1}{2} \sum_{(i,j,k) \in F} \left\lVert (v_j - v_i) \times (v_k - v_i) \right\rVert ,
+\end{equation}
+where $v_i, v_j, v_k \in V$ are the vertices of face $(i,j,k)$.
+
+\subsubsection{Property descriptors}
 
 \section{Step 4: Querying}
 

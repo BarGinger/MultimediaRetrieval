@@ -15,6 +15,8 @@ import pandas as pd
 from matplotlib.gridspec import GridSpec
 import argparse
 from scipy import stats as scipy_stats
+import os
+import glob
 
 # Set publication-quality style
 plt.style.use('seaborn-v0_8-paper')
@@ -32,6 +34,70 @@ plt.rcParams['figure.titlesize'] = 13
 
 
 class ValidationPlotGenerator:
+    def plot_pca_axis_angle_boxplot(self):
+        print("📈 Generating PCA axis-to-world angle histograms...")
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import glob
+        import os
+        import json
+        # World axes
+        world_axes = np.eye(3)
+        colors = ['red', 'green', 'blue']
+        axis_labels = ['X-axis', 'Y-axis', 'Z-axis']
+        axis_angles = [[], [], []]  # For each world axis
+        # Find metadata files
+        base_dir = os.path.join(str(self.output_dir.parent), '*', '*_metadata.json')
+        metadata_files = glob.glob(base_dir)
+        print(f"[INFO] Scanning {len(metadata_files)} metadata files for eigenvectors...")
+        for meta_path in metadata_files:
+            try:
+                with open(meta_path, 'r') as f:
+                    meta = json.load(f)
+                pca_block = meta.get('normalization_info', {}).get('pca')
+                eigvecs = None
+                eigvals = None
+                if pca_block and 'eigenvectors' in pca_block and 'eigenvalues' in pca_block:
+                    eigvecs = np.array(pca_block['eigenvectors'])
+                    eigvals = np.array(pca_block['eigenvalues'])
+                if eigvecs is None or eigvals is None or eigvecs.shape != (3, 3) or eigvals.shape[0] != 3:
+                    continue
+                # Sort PCA axes by eigenvalue magnitude (descending)
+                sort_idx = np.argsort(-eigvals)
+                eigvecs_sorted = eigvecs[sort_idx]
+                # For each world axis, find the angle to the corresponding sorted PCA axis
+                for j in range(3):
+                    angle = np.arccos(np.clip(abs(np.dot(eigvecs_sorted[j], world_axes[j])), -1.0, 1.0)) * 180.0 / np.pi
+                    axis_angles[j].append(angle)
+            except Exception as e:
+                print(f"[ERROR] Failed to process {meta_path}: {e}")
+                continue
+        print(f"[DEBUG] axis_angles population: {[len(a) for a in axis_angles]}")
+        for idx, arr in enumerate(axis_angles):
+            print(f"[DEBUG] axis_angles[{idx}] first 10: {arr[:10]}")
+            if arr:
+                print(f"[DEBUG] axis_angles[{idx}] min: {min(arr)}, max: {max(arr)}")
+        # Prepare data for histogram
+        data = []
+        for i in range(3):
+            vals = [float(v) for v in axis_angles[i] if v is not None and not (isinstance(v, float) and (np.isnan(v) or np.isinf(v)))]
+            vals = [v for v in vals if v >= 0.01]
+            data.append(vals)
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
+        bins = np.linspace(0, 180, 40)
+        for i in range(3):
+            axes[i].hist(data[i], bins=bins, color=colors[i], alpha=0.7, edgecolor='black')
+            axes[i].set_title(f'Histogram: {axis_labels[i]}')
+            axes[i].set_xlabel('Angle (degrees)')
+            axes[i].set_xlim(0, 180)
+            axes[i].grid(True, alpha=0.3, axis='y')
+        axes[0].set_ylabel('Frequency')
+        fig.suptitle('Histogram: Angle between sorted PCA axes and world axes (corresponding axes)')
+        output_path = self.output_dir / 'fig_pca_axis_angle_histogram.png'
+        plt.tight_layout()
+        fig.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        print(f"   ✅ Saved: {output_path}")
     def __init__(self, validation_data_path, output_dir):
         """
         Initialize plot generator
@@ -90,8 +156,9 @@ class ValidationPlotGenerator:
         # 2. Scaling Error Distribution
         ax2 = fig.add_subplot(gs[0, 1])
         scaling_errors = self.extract_metric('cross_step_validation.final_scaling_error')
-        if scaling_errors:
-            ax2.hist(np.log10(scaling_errors), bins=30, color='forestgreen', alpha=0.7, edgecolor='black')
+        scaling_errors_pos = [e for e in scaling_errors if e > 0]
+        if scaling_errors_pos:
+            ax2.hist(np.log10(scaling_errors_pos), bins=30, color='forestgreen', alpha=0.7, edgecolor='black')
             ax2.axvline(np.log10(1e-6), color='red', linestyle='--', linewidth=2, label='Target threshold')
             ax2.set_xlabel('Log₁₀(Scaling Error)')
             ax2.set_ylabel('Frequency')
@@ -252,7 +319,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
                 labels.append(label)
         
         if displacement_data:
-            bp = ax2.boxplot(displacement_data, labels=labels, patch_artist=True, showfliers=False)
+            bp = ax2.boxplot(displacement_data, tick_labels=labels, patch_artist=True, showfliers=False)
             for patch, color in zip(bp['boxes'], ['lightblue', 'lightgreen', 'lightyellow', 'lightcoral', 'plum']):
                 patch.set_facecolor(color)
             ax2.set_ylabel('Mean Vertex Displacement')
@@ -371,7 +438,11 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
             ax1.set_xscale('log')
             ax1.set_yscale('log')
             ax1.grid(True, alpha=0.3, which='both')
-            ax1.axline((1, 1), slope=1, color='red', linestyle='--', linewidth=1, alpha=0.5, label='λ₁/λ₂ = λ₂/λ₃')
+            # Manual reference line for y=x in log-log axes
+            min_val = max(min(lambda1_over_lambda2 + lambda2_over_lambda3), 1e-3)
+            max_val = min(max(lambda1_over_lambda2 + lambda2_over_lambda3), 1e3)
+            ref_vals = np.logspace(np.log10(min_val), np.log10(max_val), 100)
+            ax1.plot(ref_vals, ref_vals, color='red', linestyle='--', linewidth=1, alpha=0.5, label='λ₁/λ₂ = λ₂/λ₃')
             ax1.legend()
         
         # 2. Condition number distribution
@@ -406,8 +477,8 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         
         if major_to_x and medium_to_y and minor_to_z:
             alignment_data = [major_to_x, medium_to_y, minor_to_z]
-            bp = ax4.boxplot(alignment_data, labels=['Major→X', 'Medium→Y', 'Minor→Z'], 
-                            patch_artist=True, showfliers=False)
+            bp = ax4.boxplot(alignment_data, tick_labels=['Major→X', 'Medium→Y', 'Minor→Z'], 
+                    patch_artist=True, showfliers=False)
             for patch, color in zip(bp['boxes'], ['lightblue', 'lightgreen', 'lightyellow']):
                 patch.set_facecolor(color)
             ax4.axhline(1.0, color='red', linestyle='--', linewidth=1.5, label='Perfect alignment')
@@ -439,7 +510,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         top_data = [category_condition[cat] for cat in top_categories]
         
         if top_data:
-            bp = ax5.boxplot(top_data, labels=top_categories, patch_artist=True, showfliers=False)
+            bp = ax5.boxplot(top_data, tick_labels=top_categories, patch_artist=True, showfliers=False)
             for patch in bp['boxes']:
                 patch.set_facecolor('lightcoral')
             ax5.set_ylabel('Condition Number κ')
@@ -477,83 +548,141 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         print(f"   ✅ Saved: {output_path}")
         plt.close()
+
+        # --- Additional figure: Average explained variance (pie chart) ---
+        # Robustly extract explained variance ratios from various possible locations in each validation record.
+        explained_lists = []
+        for v in self.validations:
+            vals = None
+            # Try common locations in order of preference
+            # 1) pca.explained_variance_ratio
+            pca_block = v.get('pca') or v.get('normalization_info', {}).get('pca') or v.get('normalization', {}).get('pca')
+            if pca_block:
+                vals = pca_block.get('explained_variance_ratio')
+
+            # 2) alignment_validation.eigenvalues -> convert to explained ratio if present
+            if vals is None:
+                eigs = v.get('alignment_validation', {}).get('eigenvalues') or v.get('eigenvalue_analysis', {}).get('eigenvalues')
+                if eigs and len(eigs) >= 3:
+                    try:
+                        eigs = np.array(eigs, dtype=float)
+                        if eigs.sum() > 0:
+                            vals = (eigs / eigs.sum()).tolist()
+                    except Exception:
+                        vals = None
+
+            # 3) eigenvalue_analysis -> sometimes stores explained ratios directly
+            if vals is None:
+                vals = v.get('eigenvalue_analysis', {}).get('explained_variance_ratio')
+
+            # 4) final fallback: look for any top-level 'explained_variance_ratio'
+            if vals is None:
+                vals = v.get('explained_variance_ratio')
+
+            if vals and isinstance(vals, (list, tuple)) and len(vals) >= 1:
+                # Ensure numeric and finite
+                try:
+                    arr_vals = [float(x) for x in vals]
+                    # normalize if not summing to ~1.0
+                    s = sum(arr_vals)
+                    if s > 0:
+                        arr_vals = [x / s for x in arr_vals]
+                        explained_lists.append(arr_vals)
+                except Exception:
+                    continue
+
+        # Filter out very short entries (require at least 3 components for stable PC1..PC3 aggregation when possible)
+        if not explained_lists:
+            return
+
+        # Pad all arrays to the same length (up to max 10 components) by appending zeros
+        max_len = max(len(x) for x in explained_lists)
+        max_len = min(max_len, 10)
+        padded = []
+        for arr in explained_lists:
+            a = list(arr[:max_len])
+            if len(a) < max_len:
+                a += [0.0] * (max_len - len(a))
+            padded.append(a)
+
+        arr = np.array(padded, dtype=float)
+        mean_explained = np.mean(arr, axis=0)
+
+        # Aggregate into PC1, PC2, PC3, Other (if more components)
+        if mean_explained.size > 3:
+            first3 = mean_explained[:3].tolist()
+            other = mean_explained[3:].sum()
+            labels = ['PC1', 'PC2', 'PC3', 'Other']
+            sizes = first3 + [other]
+        else:
+            labels = [f'PC{i+1}' for i in range(mean_explained.size)]
+            sizes = mean_explained.tolist()
+
+        # Convert to percentages for display (sums to ~100)
+        sizes_pct = [s * 100 for s in sizes]
+
+        fig_pie, ax_pie = plt.subplots(figsize=(6, 6))
+        N = len(explained_lists)
+        # autopct that shows percent on first line and estimated count on second line
+        wedges, texts, autotexts = ax_pie.pie(
+            sizes_pct,
+            labels=labels,
+            autopct=lambda pct: f"{pct:.1f}%",
+            startangle=90,
+            colors=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+        )
+        ax_pie.set_title(f'Average Variance Explained by Each Principal Component (N = {N})')
+        # Add a small annotation below the pie with the exact mean percentages for reproducibility
+        pct_text = ', '.join([f'{lab}: {val:.1f}%' for lab, val in zip(labels, [s*100 for s in sizes])])
+        ax_pie.text(0, -1.15, pct_text, ha='center', va='top', fontsize=8, wrap=True)
+        pie_out = self.output_dir / 'fig3_pca_explained_variance_pie.png'
+        plt.savefig(pie_out, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"   ✅ Saved PCA explained-variance pie: {pie_out}")
     
     def plot_moment_and_symmetry(self):
         """Figure 4: Moment test and symmetry analysis"""
         print("📈 Generating Figure 4: Moment Test and Symmetry Analysis...")
-        
-        fig, axes = plt.subplots(2, 3, figsize=(14, 8))
-        
+
+        # Create a single row with three subplots
+        fig, axes = plt.subplots(1, 3, figsize=(14, 5), constrained_layout=True)
+
         # Extract moment values
         moment_x = []
         moment_y = []
         moment_z = []
-        
+
         for validation in self.validations:
             moments = validation.get('flipping_validation', {}).get('moment_test_values')
             if moments and len(moments) == 3:
                 moment_x.append(moments[0])
                 moment_y.append(moments[1])
                 moment_z.append(moments[2])
-        
-        # 1. Moment value distributions (after flipping)
-        ax1 = axes[0, 0]
-        if moment_x:
-            ax1.hist(moment_x, bins=40, alpha=0.6, color='red', edgecolor='black', label='X-axis')
-            ax1.hist(moment_y, bins=40, alpha=0.6, color='green', edgecolor='black', label='Y-axis')
-            ax1.hist(moment_z, bins=40, alpha=0.6, color='blue', edgecolor='black', label='Z-axis')
-            ax1.axvline(0, color='black', linestyle='--', linewidth=2, label='Zero moment')
-            ax1.set_xlabel('Moment Value')
-            ax1.set_ylabel('Frequency')
-            ax1.set_title('(a) Moment Value Distribution (After Flipping)')
-            ax1.legend()
-            ax1.grid(True, alpha=0.3)
-        
-        # 2. Moment sign consistency
-        ax2 = axes[0, 1]
-        
-        all_positive = sum(1 for x, y, z in zip(moment_x, moment_y, moment_z) if x >= -1e-10 and y >= -1e-10 and z >= -1e-10)
+
+        # 2. Moment sign consistency (left)
+        ax2 = axes[0]
+
+        all_positive = sum(1 for x, y, z in zip(moment_x, moment_y, moment_z)
+                           if x >= -1e-10 and y >= -1e-10 and z >= -1e-10)
         has_negative = len(moment_x) - all_positive
-        
-        ax2.bar(['All Positive', 'Has Negative'], [all_positive, has_negative], 
-               color=['darkgreen', 'crimson'], alpha=0.7, edgecolor='black', linewidth=1.5)
+
+        ax2.bar(['All Positive', 'Has Negative'], [all_positive, has_negative],
+                color=['darkgreen', 'crimson'], alpha=0.7, edgecolor='black', linewidth=1.5)
         ax2.set_ylabel('Number of Shapes')
-        ax2.set_title('(b) Moment Sign Consistency')
+        ax2.set_title('(a) Moment Sign Consistency')
         ax2.grid(True, alpha=0.3, axis='y')
-        
-        # Add percentage labels
+
+        # Add percentage labels (guard against division by zero)
         total = len(moment_x)
-        for i, (label, value) in enumerate(zip(['All Positive', 'Has Negative'], [all_positive, has_negative])):
-            ax2.text(i, value + 10, f'{100*value/total:.1f}%', ha='center', fontweight='bold')
-        
-        # 3. Flipping frequency by axis
-        ax3 = axes[0, 2]
-        
-        # Count shapes that required flipping on each axis
-        flipped_x = sum(1 for x in moment_x if x < -1e-10)  # Was negative before flipping
-        flipped_y = sum(1 for y in moment_y if y < -1e-10)
-        flipped_z = sum(1 for z in moment_z if z < -1e-10)
-        
-        axes_labels = ['X-axis', 'Y-axis', 'Z-axis']
-        flip_counts = [flipped_x, flipped_y, flipped_z]
-        colors_flip = ['lightcoral', 'lightgreen', 'lightblue']
-        
-        bars = ax3.bar(axes_labels, flip_counts, color=colors_flip, alpha=0.7, edgecolor='black', linewidth=1.5)
-        ax3.set_ylabel('Number of Shapes Flipped')
-        ax3.set_title('(c) Flipping Frequency by Axis')
-        ax3.grid(True, alpha=0.3, axis='y')
-        
-        # Add percentage labels
-        for bar, count in zip(bars, flip_counts):
-            height = bar.get_height()
-            ax3.text(bar.get_x() + bar.get_width()/2., height + 5,
-                    f'{100*count/total:.1f}%', ha='center', va='bottom', fontweight='bold')
-        
-        # 4. Symmetry classification
-        ax4 = axes[1, 0]
-        
+        if total > 0:
+            for i, (label, value) in enumerate(zip(['All Positive', 'Has Negative'], [all_positive, has_negative])):
+                ax2.text(i, value + max(1, total * 0.02), f'{100*value/total:.1f}%', ha='center', fontweight='bold')
+
+        # 4. Symmetry classification (middle)
+        ax4 = axes[1]
+
         symmetry_counts = {'Spherical': 0, 'Cylindrical': 0, 'Asymmetric': 0}
-        
+
         for validation in self.validations:
             sym_class = validation.get('symmetry_analysis', {}).get('symmetry_classification', {})
             if sym_class.get('spherical', False):
@@ -562,89 +691,63 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
                 symmetry_counts['Cylindrical'] += 1
             elif sym_class.get('asymmetric', False):
                 symmetry_counts['Asymmetric'] += 1
-        
+
         if sum(symmetry_counts.values()) > 0:
             labels = list(symmetry_counts.keys())
             values = list(symmetry_counts.values())
             colors_sym = ['gold', 'skyblue', 'lightcoral']
-            
+
             wedges, texts, autotexts = ax4.pie(values, labels=labels, colors=colors_sym, autopct='%1.1f%%',
-                                                startangle=90, explode=(0.05, 0.02, 0))
+                                              startangle=90, explode=(0.05, 0.02, 0))
             for autotext in autotexts:
                 autotext.set_color('black')
                 autotext.set_fontweight('bold')
-            ax4.set_title('(d) Shape Symmetry Classification')
-        
-        # 5. Dimension ratios scatter
-        ax5 = axes[1, 1]
-        
-        max_to_med = []
-        med_to_min = []
-        
-        for validation in self.validations:
-            ratios = validation.get('symmetry_analysis', {}).get('dimension_ratios', {})
-            max_med = ratios.get('max_to_medium')
-            med_min = ratios.get('medium_to_min')
-            if max_med is not None and med_min is not None and not np.isinf(max_med) and not np.isinf(med_min):
-                max_to_med.append(max_med)
-                med_to_min.append(med_min)
-        
-        if max_to_med and med_to_min:
-            ax5.scatter(max_to_med, med_to_min, alpha=0.5, s=20, c='purple', edgecolors='black', linewidth=0.5)
-            ax5.axhline(1.0, color='red', linestyle='--', linewidth=1, alpha=0.5)
-            ax5.axvline(1.0, color='red', linestyle='--', linewidth=1, alpha=0.5)
-            ax5.set_xlabel('Max / Medium Dimension')
-            ax5.set_ylabel('Medium / Min Dimension')
-            ax5.set_title('(e) Bounding Box Dimension Ratios')
-            ax5.set_xlim([0.9, max(3, np.percentile(max_to_med, 95))])
-            ax5.set_ylim([0.9, max(3, np.percentile(med_to_min, 95))])
-            ax5.grid(True, alpha=0.3)
-        
-        # 6. Moment magnitude vs symmetry
-        ax6 = axes[1, 2]
-        
+            ax4.set_title('(b) Shape Symmetry Classification')
+
+        # 6. Moment magnitude vs symmetry (right)
+        ax6 = axes[2]
+
         avg_moment_magnitudes = []
         symmetry_types = []
-        
+
         for validation in self.validations:
             moments = validation.get('flipping_validation', {}).get('moment_test_values')
             sym_class = validation.get('symmetry_analysis', {}).get('symmetry_classification', {})
-            
+
             if moments and len(moments) == 3:
                 avg_mag = np.mean(np.abs(moments))
                 avg_moment_magnitudes.append(avg_mag)
-                
+
                 if sym_class.get('spherical', False):
                     symmetry_types.append('Spherical')
                 elif sym_class.get('cylindrical', False):
                     symmetry_types.append('Cylindrical')
                 else:
                     symmetry_types.append('Asymmetric')
-        
+
         if avg_moment_magnitudes and symmetry_types:
             df_moments = pd.DataFrame({
                 'Moment Magnitude': avg_moment_magnitudes,
                 'Symmetry': symmetry_types
             })
-            
+
             sym_order = ['Spherical', 'Cylindrical', 'Asymmetric']
-            sym_data = [df_moments[df_moments['Symmetry'] == sym]['Moment Magnitude'].values 
-                       for sym in sym_order if sym in df_moments['Symmetry'].values]
+            sym_data = [df_moments[df_moments['Symmetry'] == sym]['Moment Magnitude'].values
+                        for sym in sym_order if sym in df_moments['Symmetry'].values]
             sym_labels = [sym for sym in sym_order if sym in df_moments['Symmetry'].values]
-            
+
             bp = ax6.boxplot(sym_data, labels=sym_labels, patch_artist=True, showfliers=False)
             for patch, color in zip(bp['boxes'], ['gold', 'skyblue', 'lightcoral'][:len(sym_data)]):
                 patch.set_facecolor(color)
             ax6.set_ylabel('Average |Moment| Magnitude')
-            ax6.set_title('(f) Moment Magnitude by Symmetry Type')
+            ax6.set_title('(c) Moment Magnitude by Symmetry Type')
             ax6.set_yscale('log')
             ax6.grid(True, alpha=0.3, axis='y', which='both')
-        
-        plt.suptitle('Moment Test and Symmetry Analysis', fontsize=14, fontweight='bold')
+
+        plt.suptitle('Moment Test and Symmetry Analysis', fontsize=16, fontweight='bold', y=1)
         plt.tight_layout()
-        
         output_path = self.output_dir / 'fig4_moment_symmetry.png'
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.savefig(output_path, dpi=300)
         print(f"   ✅ Saved: {output_path}")
         plt.close()
     
@@ -652,157 +755,156 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         """Figure 5: Numerical precision and robustness"""
         print("📈 Generating Figure 5: Numerical Precision Analysis...")
         
-        fig, axes = plt.subplots(2, 3, figsize=(14, 8))
-        
+        fig, ax = plt.subplots(figsize=(14, 8))
+
         centering_errors = self.extract_metric('cross_step_validation.final_centering_error')
         scaling_errors = self.extract_metric('cross_step_validation.final_scaling_error')
-        
-        # 1. Centering error CDF
-        ax1 = axes[0, 0]
+
+        # Centering error CDF (single panel)
         if centering_errors:
             sorted_errors = np.sort(centering_errors)
             cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-            
-            ax1.plot(sorted_errors, cdf * 100, linewidth=2, color='steelblue')
-            ax1.axvline(1e-10, color='red', linestyle='--', linewidth=2, label='Target (10⁻¹⁰)')
-            ax1.axvline(1e-13, color='orange', linestyle='--', linewidth=1.5, label='Machine ε region')
-            ax1.set_xscale('log')
-            ax1.set_xlabel('Centering Error')
-            ax1.set_ylabel('Cumulative Percentage (%)')
-            ax1.set_title('(a) Centering Error CDF')
-            ax1.grid(True, alpha=0.3, which='both')
-            ax1.legend()
-            
+
+            ax.plot(sorted_errors, cdf * 100, linewidth=2, color='steelblue')
+            ax.axvline(1e-10, color='red', linestyle='--', linewidth=2, label='Target (10⁻¹⁰)')
+            ax.axvline(1e-13, color='orange', linestyle='--', linewidth=1.5, label='Machine ε region')
+            ax.set_xscale('log')
+            ax.set_xlabel('Centering Error')
+            ax.set_ylabel('Cumulative Percentage (%)')
+            ax.set_title('Centering Error CDF')
+            ax.grid(True, alpha=0.3, which='both')
+            ax.legend()
+
             # Add annotation for percentage below threshold
             pct_below = 100 * np.mean(np.array(centering_errors) < 1e-10)
-            ax1.text(0.6, 0.3, f'{pct_below:.1f}% below\ntarget threshold',
-                    transform=ax1.transAxes, fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            ax.text(0.6, 0.3, f'{pct_below:.1f}% below\ntarget threshold',
+                    transform=ax.transAxes, fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
         
-        # 2. Scaling error CDF
-        ax2 = axes[0, 1]
-        if scaling_errors:
-            sorted_errors = np.sort(scaling_errors)
-            cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
+        # # 2. Scaling error CDF
+        # ax2 = axes[0, 1]
+        # if scaling_errors:
+        #     sorted_errors = np.sort(scaling_errors)
+        #     cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
             
-            ax2.plot(sorted_errors, cdf * 100, linewidth=2, color='forestgreen')
-            ax2.axvline(1e-6, color='red', linestyle='--', linewidth=2, label='Target (10⁻⁶)')
-            ax2.axvline(1e-10, color='orange', linestyle='--', linewidth=1.5, label='Machine ε region')
-            ax2.set_xscale('log')
-            ax2.set_xlabel('Scaling Error')
-            ax2.set_ylabel('Cumulative Percentage (%)')
-            ax2.set_title('(b) Scaling Error CDF')
-            ax2.grid(True, alpha=0.3, which='both')
-            ax2.legend()
+        #     ax2.plot(sorted_errors, cdf * 100, linewidth=2, color='forestgreen')
+        #     ax2.axvline(1e-6, color='red', linestyle='--', linewidth=2, label='Target (10⁻⁶)')
+        #     ax2.axvline(1e-10, color='orange', linestyle='--', linewidth=1.5, label='Machine ε region')
+        #     ax2.set_xscale('log')
+        #     ax2.set_xlabel('Scaling Error')
+        #     ax2.set_ylabel('Cumulative Percentage (%)')
+        #     ax2.set_title('(b) Scaling Error CDF')
+        #     ax2.grid(True, alpha=0.3, which='both')
+        #     ax2.legend()
             
-            pct_below = 100 * np.mean(np.array(scaling_errors) < 1e-6)
-            ax2.text(0.6, 0.3, f'{pct_below:.1f}% below\ntarget threshold',
-                    transform=ax2.transAxes, fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        #     pct_below = 100 * np.mean(np.array(scaling_errors) < 1e-6)
+        #     ax2.text(0.6, 0.3, f'{pct_below:.1f}% below\ntarget threshold',
+        #             transform=ax2.transAxes, fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
         
         # 3. Two-pass recentering analysis
-        ax3 = axes[0, 2]
+        # ax3 = axes[0, 2]
         
-        recentered_count = 0
-        not_recentered_count = 0
+        # recentered_count = 0
+        # not_recentered_count = 0
         
-        for validation in self.validations:
-            triggered = validation.get('recentering_analysis', {}).get('second_pass_triggered', False)
-            if triggered:
-                recentered_count += 1
-            else:
-                not_recentered_count += 1
+        # for validation in self.validations:
+        #     triggered = validation.get('recentering_analysis', {}).get('second_pass_triggered', False)
+        #     if triggered:
+        #         recentered_count += 1
+        #     else:
+        #         not_recentered_count += 1
         
-        if recentered_count + not_recentered_count > 0:
-            labels = ['Two-Pass\nRecentering', 'Single Pass']
-            sizes = [recentered_count, not_recentered_count]
-            colors = ['lightcoral', 'lightgreen']
-            explode = (0.1, 0)
+        # if recentered_count + not_recentered_count > 0:
+        #     labels = ['Two-Pass\nRecentering', 'Single Pass']
+        #     sizes = [recentered_count, not_recentered_count]
+        #     colors = ['lightcoral', 'lightgreen']
+        #     explode = (0.1, 0)
             
-            wedges, texts, autotexts = ax3.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%',
-                                                startangle=90, explode=explode)
-            for autotext in autotexts:
-                autotext.set_color('black')
-                autotext.set_fontweight('bold')
-            ax3.set_title(f'(c) Recentering Pass Requirements\n(Total: {recentered_count + not_recentered_count})')
+        #     wedges, texts, autotexts = ax3.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%',
+        #                                         startangle=90, explode=explode)
+        #     for autotext in autotexts:
+        #         autotext.set_color('black')
+        #         autotext.set_fontweight('bold')
+        #     ax3.set_title(f'(c) Recentering Pass Requirements\n(Total: {recentered_count + not_recentered_count})')
         
-        # 4. Error threshold compliance
-        ax4 = axes[1, 0]
+        # # 4. Error threshold compliance
+        # ax4 = axes[1, 0]
         
-        thresholds = [1e-15, 1e-13, 1e-10, 1e-8]
-        threshold_labels = ['10⁻¹⁵\n(Machine ε)', '10⁻¹³', '10⁻¹⁰\n(Target)', '10⁻⁸']
+        # thresholds = [1e-15, 1e-13, 1e-10, 1e-8]
+        # threshold_labels = ['10⁻¹⁵\n(Machine ε)', '10⁻¹³', '10⁻¹⁰\n(Target)', '10⁻⁸']
         
-        centering_compliance = [100 * np.mean(np.array(centering_errors) < thresh) for thresh in thresholds]
-        scaling_compliance = [100 * np.mean(np.array(scaling_errors) < thresh * 1e4) for thresh in thresholds]  # Scaled thresholds
+        # centering_compliance = [100 * np.mean(np.array(centering_errors) < thresh) for thresh in thresholds]
+        # scaling_compliance = [100 * np.mean(np.array(scaling_errors) < thresh * 1e4) for thresh in thresholds]  # Scaled thresholds
         
-        x = np.arange(len(threshold_labels))
-        width = 0.35
+        # x = np.arange(len(threshold_labels))
+        # width = 0.35
         
-        bars1 = ax4.bar(x - width/2, centering_compliance, width, label='Centering', color='steelblue', alpha=0.7, edgecolor='black')
-        bars2 = ax4.bar(x + width/2, scaling_compliance, width, label='Scaling', color='forestgreen', alpha=0.7, edgecolor='black')
+        # bars1 = ax4.bar(x - width/2, centering_compliance, width, label='Centering', color='steelblue', alpha=0.7, edgecolor='black')
+        # bars2 = ax4.bar(x + width/2, scaling_compliance, width, label='Scaling', color='forestgreen', alpha=0.7, edgecolor='black')
         
-        ax4.set_ylabel('Compliance Rate (%)')
-        ax4.set_xlabel('Error Threshold')
-        ax4.set_title('(d) Error Threshold Compliance')
-        ax4.set_xticks(x)
-        ax4.set_xticklabels(threshold_labels)
-        ax4.legend()
-        ax4.grid(True, alpha=0.3, axis='y')
-        ax4.set_ylim([0, 105])
+        # ax4.set_ylabel('Compliance Rate (%)')
+        # ax4.set_xlabel('Error Threshold')
+        # ax4.set_title('(d) Error Threshold Compliance')
+        # ax4.set_xticks(x)
+        # ax4.set_xticklabels(threshold_labels)
+        # ax4.legend()
+        # ax4.grid(True, alpha=0.3, axis='y')
+        # ax4.set_ylim([0, 105])
         
         # 5. Aspect ratio preservation
-        ax5 = axes[1, 1]
+        # ax5 = axes[0, 1]
         
-        aspect_errors = self.extract_metric('aspect_ratio_analysis.preservation_error')
+        # aspect_errors = self.extract_metric('aspect_ratio_analysis.preservation_error')
         
-        if aspect_errors:
-            ax5.hist(np.log10(aspect_errors), bins=40, color='purple', alpha=0.7, edgecolor='black')
-            ax5.axvline(np.log10(1e-6), color='red', linestyle='--', linewidth=2, label='Target (10⁻⁶)')
-            ax5.set_xlabel('Log₁₀(Aspect Ratio Preservation Error)')
-            ax5.set_ylabel('Frequency')
-            ax5.set_title('(e) Aspect Ratio Preservation')
-            ax5.legend()
-            ax5.grid(True, alpha=0.3)
+        # if aspect_errors:
+        #     ax5.hist(np.log10(aspect_errors), bins=40, color='purple', alpha=0.7, edgecolor='black')
+        #     ax5.axvline(np.log10(1e-6), color='red', linestyle='--', linewidth=2, label='Target (10⁻⁶)')
+        #     ax5.set_xlabel('Log₁₀(Aspect Ratio Preservation Error)')
+        #     ax5.set_ylabel('Frequency')
+        #     ax5.set_title('(e) Aspect Ratio Preservation')
+        #     ax5.legend()
+        #     ax5.grid(True, alpha=0.3)
             
-            pct_preserved = 100 * np.mean(np.array(aspect_errors) < 1e-6)
-            ax5.text(0.6, 0.8, f'{pct_preserved:.1f}% perfectly\npreserved',
-                    transform=ax5.transAxes, fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        #     pct_preserved = 100 * np.mean(np.array(aspect_errors) < 1e-6)
+        #     ax5.text(0.6, 0.8, f'{pct_preserved:.1f}% perfectly\npreserved',
+        #             transform=ax5.transAxes, fontsize=10, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
         
         # 6. Precision summary table
-        ax6 = axes[1, 2]
-        ax6.axis('off')
+        # ax6 = axes[1, 0]
+        # ax6.axis('off')
         
-        summary_data = [
-            ['Metric', 'Mean', 'Max', '< Target'],
-            ['', '', '', ''],
-            ['Centering Error', f'{np.mean(centering_errors):.2e}', f'{np.max(centering_errors):.2e}', 
-             f'{100*np.mean(np.array(centering_errors) < 1e-10):.1f}%'],
-            ['Scaling Error', f'{np.mean(scaling_errors):.2e}', f'{np.max(scaling_errors):.2e}', 
-             f'{100*np.mean(np.array(scaling_errors) < 1e-6):.1f}%'],
-        ]
+        # summary_data = [
+        #     ['Metric', 'Mean', 'Max', '< Target'],
+        #     ['', '', '', ''],
+        #     ['Centering Error', f'{np.mean(centering_errors):.2e}', f'{np.max(centering_errors):.2e}', 
+        #      f'{100*np.mean(np.array(centering_errors) < 1e-10):.1f}%'],
+        #     ['Scaling Error', f'{np.mean(scaling_errors):.2e}', f'{np.max(scaling_errors):.2e}', 
+        #      f'{100*np.mean(np.array(scaling_errors) < 1e-6):.1f}%'],
+        # ]
         
-        if aspect_errors:
-            summary_data.append(['Aspect Error', f'{np.mean(aspect_errors):.2e}', f'{np.max(aspect_errors):.2e}', 
-                                f'{100*np.mean(np.array(aspect_errors) < 1e-6):.1f}%'])
+        # if aspect_errors:
+        #     summary_data.append(['Aspect Error', f'{np.mean(aspect_errors):.2e}', f'{np.max(aspect_errors):.2e}', 
+        #                         f'{100*np.mean(np.array(aspect_errors) < 1e-6):.1f}%'])
         
-        table = ax6.table(cellText=summary_data, cellLoc='center', loc='center',
-                         colWidths=[0.3, 0.25, 0.25, 0.2])
-        table.auto_set_font_size(False)
-        table.set_fontsize(9)
-        table.scale(1, 2)
+        # table = ax6.table(cellText=summary_data, cellLoc='center', loc='center',
+        #                  colWidths=[0.3, 0.25, 0.25, 0.2])
+        # table.auto_set_font_size(False)
+        # table.set_fontsize(9)
+        # table.scale(1, 2)
         
-        # Style header row
-        for i in range(4):
-            table[(0, i)].set_facecolor('#40466e')
-            table[(0, i)].set_text_props(weight='bold', color='white')
+        # # Style header row
+        # for i in range(4):
+        #     table[(0, i)].set_facecolor('#40466e')
+        #     table[(0, i)].set_text_props(weight='bold', color='white')
         
-        # Style data rows
-        for i in range(2, len(summary_data)):
-            for j in range(4):
-                if i % 2 == 0:
-                    table[(i, j)].set_facecolor('#f0f0f0')
+        # # Style data rows
+        # for i in range(2, len(summary_data)):
+        #     for j in range(4):
+        #         if i % 2 == 0:
+        #             table[(i, j)].set_facecolor('#f0f0f0')
         
-        ax6.set_title('(f) Precision Summary', fontweight='bold', pad=20)
+        # ax6.set_title('(f) Precision Summary', fontweight='bold', pad=20)
         
-        plt.suptitle('Numerical Precision and Robustness Analysis', fontsize=14, fontweight='bold')
+        plt.suptitle('Numerical Precision — Centering Error CDF', fontsize=14, fontweight='bold')
         plt.tight_layout()
         
         output_path = self.output_dir / 'fig5_numerical_precision.png'
@@ -862,40 +964,185 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         categories = [categories[i] for i in sorted_indices]
         heatmap_data = [heatmap_data[i] for i in sorted_indices]
         
-        # Create heatmap
-        fig, ax = plt.subplots(figsize=(10, max(8, len(categories) * 0.3)))
-        
+        # Create a combined figure: heatmap (left) + three scatter panels for final bbox dimensions (right)
+        fig = plt.figure(figsize=(14, max(8, len(categories) * 0.3)))
+        gs = GridSpec(1, 4, figure=fig, width_ratios=[2, 1, 1, 1], wspace=0.4)
+
+        # Heatmap in the first (wide) column
+        ax = fig.add_subplot(gs[0, 0])
         heatmap_array = np.array(heatmap_data)
         im = ax.imshow(heatmap_array, cmap='RdYlGn', aspect='auto', vmin=80, vmax=100)
-        
-        # Set ticks
+
+        # Set ticks and labels for heatmap
         ax.set_xticks(np.arange(5))
         ax.set_yticks(np.arange(len(categories)))
         ax.set_xticklabels(['Centering', 'Scaling', 'Alignment', 'Flipping', 'Overall'])
         ax.set_yticklabels(categories)
-        
-        # Rotate x labels
         plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-        
-        # Add text annotations
+
+        # Add text annotations inside heatmap cells
         for i in range(len(categories)):
             for j in range(5):
-                text = ax.text(j, i, f'{heatmap_array[i, j]:.1f}%',
-                             ha='center', va='center', color='black', fontsize=7, fontweight='bold')
-        
-        # Add colorbar
+                ax.text(j, i, f'{heatmap_array[i, j]:.1f}%', ha='center', va='center',
+                        color='black', fontsize=7, fontweight='bold')
+
+        # Colorbar for heatmap
         cbar = plt.colorbar(im, ax=ax)
         cbar.set_label('Success Rate (%)', rotation=270, labelpad=20)
-        
         ax.set_title('Category-Specific Normalization Performance Heatmap', fontsize=14, fontweight='bold', pad=20)
-        
+
+        # Save the heatmap only
         plt.tight_layout()
-        
         output_path = self.output_dir / 'fig6_category_heatmap.png'
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         print(f"   ✅ Saved: {output_path}")
         plt.close()
+
+        # --- Create a separate figure with scatter plots of final bounding-box dimensions for all shapes ---
+        metadata_glob = os.path.join(str(self.output_dir.parent), '*', '*_metadata.json')
+        dims_all = []
+        cats_all = []
+        names_all = []
+        for meta_path in glob.glob(metadata_glob):
+            try:
+                with open(meta_path, 'r') as mf:
+                    meta = json.load(mf)
+                # try multiple common locations for final bbox dims
+                dims = meta.get('normalization_info', {}).get('final', {}).get('bounding_box', {}).get('dimensions')
+                if dims is None:
+                    dims = meta.get('final', {}).get('bounding_box', {}).get('dimensions')
+                if dims and isinstance(dims, (list, tuple)) and len(dims) == 3:
+                    dims_all.append([float(d) for d in dims])
+                    cats_all.append(meta.get('category', 'Unknown'))
+                    names_all.append(Path(meta_path).stem)
+            except Exception:
+                continue
+
+        if dims_all:
+            # Group dims by category for per-category subplots
+            category_grouped = {}
+            for dims, cat, name in zip(dims_all, cats_all, names_all):
+                category_grouped.setdefault(cat, []).append((dims, name))
+
+            # Prepare subplot grid: up to 5 columns per row
+            cats_with_data = [c for c, lst in category_grouped.items() if lst]
+            if not cats_with_data:
+                return
+            n_cats = len(cats_with_data)
+            cols = min(5, n_cats)
+            rows = int(np.ceil(n_cats / cols))
+            fig2, axs2 = plt.subplots(rows, cols, figsize=(cols * 4.0, rows * 3.0), squeeze=False)
+
+            for idx, cat in enumerate(cats_with_data):
+                r = idx // cols
+                c = idx % cols
+                ax = axs2[r][c]
+                entries = category_grouped[cat]
+                arr = np.array([e[0] for e in entries])
+                n = arr.shape[0]
+                # jitter x positions for readability
+                jitter = (np.random.RandomState(123).randn(n) * 0.06)
+                xcoords = np.arange(n) + jitter
+                ax.scatter(xcoords, arr[:, 0], s=18, alpha=0.8, color='red', label='X')
+                ax.scatter(xcoords, arr[:, 1], s=18, alpha=0.8, color='green', label='Y')
+                ax.scatter(xcoords, arr[:, 2], s=18, alpha=0.8, color='blue', label='Z')
+                ax.set_title(f'{cat} (n={n})')
+                ax.set_xlabel('Shape index (within category)')
+                ax.set_ylabel('Dimension (units)')
+                ax.grid(True, alpha=0.2)
+                # Do not draw per-subplot legends (we'll add a single figure legend)
+                pass
+
+            # Hide any unused subplots
+            total_plots = rows * cols
+            for extra in range(n_cats, total_plots):
+                r = extra // cols
+                c = extra % cols
+                axs2[r][c].axis('off')
+
+            # Place the title slightly lower (y) so it sits closer to the subplots
+            fig2.suptitle('Final Bounding Box Dimensions: per-category scatter (X=red, Y=green, Z=blue)', y=0.995)
+            out2 = self.output_dir / 'fig6_bbox_dimensions_by_category.png'
+            # Add a single figure-level legend in the top-right (below the suptitle)
+            from matplotlib.lines import Line2D
+            handles = [Line2D([0], [0], marker='o', color='w', markerfacecolor='red', markersize=6),
+                       Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=6),
+                       Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', markersize=6)]
+            labels = ['X', 'Y', 'Z']
+            # Slightly reduce top margin so title isn't too far; place legend below title at top-right
+            fig2.tight_layout(rect=[0, 0, 1, 0.97])
+            # Anchor legend slightly lower to avoid touching the title
+            fig2.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.98, 0.9), frameon=False)
+            plt.savefig(out2, dpi=300, bbox_inches='tight')
+            print(f"   ✅ Saved: {out2}")
+            plt.close(fig2)
     
+    def plot_pca_axis_angle_violinplot(self):
+        """Violin plot: Distribution of angles between sorted PCA axes and world axes"""
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import glob
+        import os
+        import json
+        print("📈 Generating PCA axis-to-world angle violin plots...")
+        world_axes = np.eye(3)
+        colors = ['red', 'green', 'blue']
+        axis_labels = ['X-axis', 'Y-axis', 'Z-axis']
+        axis_angles = [[], [], []]  # For each world axis
+        # Find metadata files
+        base_dir = os.path.join(str(self.output_dir.parent), '*', '*_metadata.json')
+        metadata_files = glob.glob(base_dir)
+        print(f"[INFO] Scanning {len(metadata_files)} metadata files for eigenvectors...")
+        for meta_path in metadata_files:
+            try:
+                with open(meta_path, 'r') as f:
+                    meta = json.load(f)
+                pca_block = meta.get('normalization_info', {}).get('pca')
+                eigvecs = None
+                eigvals = None
+                if pca_block and 'eigenvectors' in pca_block and 'eigenvalues' in pca_block:
+                    eigvecs = np.array(pca_block['eigenvectors'])
+                    eigvals = np.array(pca_block['eigenvalues'])
+                if eigvecs is None or eigvals is None or eigvecs.shape != (3, 3) or eigvals.shape[0] != 3:
+                    continue
+                # Sort PCA axes by eigenvalue magnitude (descending)
+                sort_idx = np.argsort(-eigvals)
+                eigvecs_sorted = eigvecs[sort_idx]
+                # For each world axis, find the angle to the corresponding sorted PCA axis
+                for j in range(3):
+                    angle = np.arccos(np.clip(abs(np.dot(eigvecs_sorted[j], world_axes[j])), -1.0, 1.0)) * 180.0 / np.pi
+                    axis_angles[j].append(angle)
+            except Exception as e:
+                print(f"[ERROR] Failed to process {meta_path}: {e}")
+                continue
+        print(f"[DEBUG] axis_angles population: {[len(a) for a in axis_angles]}")
+        for idx, arr in enumerate(axis_angles):
+            print(f"[DEBUG] axis_angles[{idx}] first 10: {arr[:10]}")
+            if arr:
+                print(f"[DEBUG] axis_angles[{idx}] min: {min(arr)}, max: {max(arr)}")
+        # Prepare data for violin plot
+        data = []
+        for i in range(3):
+            vals = [float(v) for v in axis_angles[i] if v is not None and not (isinstance(v, float) and (np.isnan(v) or np.isinf(v)))]
+            vals = [v for v in vals if v >= 0.01]
+            data.append(vals)
+        fig, ax = plt.subplots(figsize=(8, 5))
+        parts = ax.violinplot(data, showmeans=True, showmedians=True, showextrema=True)
+        for i, pc in enumerate(parts['bodies']):
+            pc.set_facecolor(colors[i])
+            pc.set_edgecolor('black')
+            pc.set_alpha(0.7)
+        ax.set_xticks([1, 2, 3])
+        ax.set_xticklabels(axis_labels)
+        ax.set_ylabel('Angle (degrees)')
+        ax.set_title('Violin Plot: Angle between sorted PCA axes and world axes (corresponding axes)')
+        ax.set_ylim(0, 180)
+        ax.grid(True, alpha=0.3, axis='y')
+        output_path = self.output_dir / 'fig_pca_axis_angle_violinplot.png'
+        plt.tight_layout()
+        fig.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        print(f"   ✅ Saved: {output_path}")
     def generate_all_plots(self):
         """Generate all validation plots"""
         print("\n" + "="*60)
@@ -916,6 +1163,15 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
             self.plot_pca_analysis()
         except Exception as e:
             print(f"   ⚠️ Error generating Figure 3: {e}")
+        try:
+            self.plot_pca_axis_angle_boxplot()
+        except Exception as e:
+            print(f"   ⚠️ Error generating PCA axis angle boxplot: {e}")
+
+        try:
+            self.plot_pca_axis_angle_violinplot()
+        except Exception as e:
+            print(f"   ⚠️ Error generating PCA axis angle violinplot: {e}")
         
         try:
             self.plot_moment_and_symmetry()
@@ -938,38 +1194,17 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         print(f"\n📁 All figures saved to: {self.output_dir.absolute()}\n")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Generate comprehensive validation plots for normalization pipeline',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Using default paths
-  python generate_validation_plots.py
-  
-  # Custom paths
-  python generate_validation_plots.py --input path/to/validation_detailed.json --output figures/
-        """
-    )
+def main():    
+    """
+        Main function to run the validation plot generator.
+    """
+
+    BASE = Path(__file__).parent.parent.parent.parent.resolve()
+    SOURCE_ROOT = BASE / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
+
+    input_path = SOURCE_ROOT  / 'validation_detailed.json'
+    output_path = SOURCE_ROOT / 'Validation_Figures'
     
-    parser.add_argument('--input', '-i', 
-                       default='../../Datasets/UnifiedPreprocessed/validation_detailed.json',
-                       help='Path to validation_detailed.json file')
-    parser.add_argument('--output', '-o',
-                       default='validation_figures',
-                       help='Output directory for figures')
-    
-    args = parser.parse_args()
-    
-    # Resolve paths
-    script_dir = Path(__file__).parent
-    input_path = Path(args.input)
-    if not input_path.is_absolute():
-        input_path = script_dir / input_path
-    
-    output_path = Path(args.output)
-    if not output_path.is_absolute():
-        output_path = script_dir / output_path
     
     # Check if input exists
     if not input_path.exists():
