@@ -85,7 +85,7 @@ class MeshExtractions:
         # plt.show()
 
         # Run full dataset extraction and save histograms to CSV
-        MeshExtractions.compute_and_save_all_descriptors()
+        MeshExtractions.compute_and_save_elementary_descriptors()
 
         pass
 
@@ -175,6 +175,90 @@ class MeshExtractions:
                         # 'D3_bins': arr_to_str(D3_bins),
                         # 'D4_hist': arr_to_str(D4_hist),
                         # 'D4_bins': arr_to_str(D4_bins),
+                    }
+
+                    writer.writerow(row)
+                except Exception as e:
+                    print(f"Failed to process {rel_name}: {e}")
+                    failed += 1
+
+        print(f"Finished. Processed: {total - failed}, Failed: {failed}, Output: {output_csv_path}")
+
+    @staticmethod
+    def compute_and_save_elementary_descriptors(output_csv: str = None, data_root: str = None):
+        """Compute elementary scalar descriptors for all shapes and save to CSV.
+
+        The output CSV will have columns:
+          name, surface_area, compactness, rectangularity, diameter, convexity, eccentricity
+
+        Uses the existing class methods for each scalar descriptor.
+        """
+        repo_root = Path(__file__).resolve().parents[3]
+
+        # Prefer the unified prepared dataset folder
+        # preferred = repo_root / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
+        preferred = repo_root / 'Datasets' / 'Histogram_testing'
+        if data_root:
+            data_root_path = Path(data_root)
+        elif preferred.exists() and preferred.is_dir():
+            data_root_path = preferred
+        else:
+            for p in [repo_root / 'Data_sampled', repo_root / 'Data', repo_root / 'Data_resampled', repo_root / 'Data_sampled_resampled']:
+                if p.exists() and p.is_dir():
+                    data_root_path = p
+                    break
+            else:
+                raise FileNotFoundError('Could not find dataset root. Provide data_root or ensure Datasets/UnifiedPreprocessed/Data exists.')
+
+        files = sorted(data_root_path.rglob('*_unified_prepared.obj'))
+        if not files:
+            raise FileNotFoundError(f'No *_unified_prepared.obj files found under {data_root_path}')
+
+        if output_csv is None:
+            output_csv_path = repo_root / 'output' / 'descriptors_elementary.csv'
+        else:
+            output_csv_path = Path(output_csv)
+
+        output_csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+        fieldnames = [
+            'name',
+            'surface_area',
+            'compactness',
+            'rectangularity',
+            'diameter',
+            'convexity',
+            'eccentricity'
+        ]
+
+        total = 0
+        failed = 0
+
+        with output_csv_path.open('w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for obj_file in tqdm(files, desc='Computing elementary descriptors', unit='file'):
+                total += 1
+                rel_name = str(obj_file.relative_to(repo_root))
+                try:
+                    mesh = ShapeMesh.from_file(str(obj_file))
+
+                    sa = MeshExtractions.surface_area(mesh)
+                    diam = MeshExtractions.diameter(mesh)
+                    ecc = MeshExtractions.eccentricity(mesh)
+                    rect = MeshExtractions.rectangularity(mesh)
+                    comp = MeshExtractions.compactness(mesh, S=sa)
+                    conv = MeshExtractions.convexity(mesh)
+
+                    row = {
+                        'name': rel_name,
+                        'surface_area': f"{float(sa):.6f}",
+                        'compactness': f"{float(comp):.6f}",
+                        'rectangularity': f"{float(rect):.6f}",
+                        'diameter': f"{float(diam):.6f}",
+                        'convexity': f"{float(conv):.6f}",
+                        'eccentricity': f"{float(ecc):.6f}",
                     }
 
                     writer.writerow(row)
