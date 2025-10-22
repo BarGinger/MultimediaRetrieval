@@ -1972,37 +1972,37 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         """
         # First check if we're in a dataset that should show step controls
         if not selected_dataset or not ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
-            return True, 5, 5, "Not available for this dataset", "step-info-text"
+            return True, 6, 6, "Not available for this dataset", "step-info-text"
             
         if selected_file_data is None:
-            return True, 5, 5, "Select a processed shape to enable step navigation", "step-info-text"
+            return True, 6, 6, "Select a processed shape to enable step navigation", "step-info-text"
         
         # Extract filename from the selection data
         if isinstance(selected_file_data, dict):
             selected_filename = selected_file_data.get('filename')
             file_dataset = selected_file_data.get('dataset', selected_dataset)
         else:
-            return True, 5, 5, "Invalid shape selection", "step-info-text"
+            return True, 6, 6, "Invalid shape selection", "step-info-text"
         
         if not selected_filename:
-            return True, 5, 5, "Invalid shape selection", "step-info-text"
+            return True, 6, 6, "Invalid shape selection", "step-info-text"
         
         try:
             # Get the file data for the selected shape
             file_df = get_cached_dataset_data(file_dataset)
             if file_df is None or file_df.empty:
-                return True, 5, 5, "Invalid shape selection", "step-info-text"
+                return True, 6, 6, "Invalid shape selection", "step-info-text"
             
             # Find the file by filename
             matching_rows = file_df[file_df['filename'] == selected_filename]
             if matching_rows.empty:
-                return True, 5, 5, "Shape not found in dataset", "step-info-text"
+                return True, 6, 6, "Shape not found in dataset", "step-info-text"
             
             row = matching_rows.iloc[0]
             
             # Check if shape has processing steps
             if not row.get('has_processing_steps', False):
-                return True, 5, 5, "This shape has no processing steps available", "step-info-text"
+                return True, 6, 6, "This shape has no processing steps available", "step-info-text"
             
             # Get available step information
             step_availability = get_available_steps(row)
@@ -2010,7 +2010,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             recommended_max = step_availability['recommended_max_step']
             
             if not available_indices:
-                return True, 5, 5, "No processing steps found for this shape", "step-info-text"
+                return True, 6, 6, "No processing steps found for this shape", "step-info-text"
             
             # Set slider max to the highest available step
             slider_max = max(available_indices)
@@ -2021,7 +2021,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             # Create info message showing available steps
             missing_steps = step_availability['missing_step_indices']
             if missing_steps:
-                step_names = ["Orig", "Mesh", "Trans", "Align", "Flip", "Scale"]
+                step_names = ["Orig", "Mesh", "Trans", "Align", "Flip", "Scale", "Final"]
                 available_names = [step_names[i] for i in available_indices]
                 missing_names = [step_names[i] for i in missing_steps if i < len(step_names)]
                 info_msg = f"Available steps: {', '.join(available_names)}"
@@ -2034,10 +2034,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             
         except Exception as e:
             print(f"[DEBUG] Error updating step slider state: {e}")
-            return True, 5, 5, "Error checking processing steps", "step-info-text"
+            return True, 6, 6, "Error checking processing steps", "step-info-text"
 
     @app.callback(
-        [Output(f'step-label-{i}', 'className') for i in range(6)],
+        [Output(f'step-label-{i}', 'className') for i in range(7)],
         [Input('processing-step-slider', 'value'),
          Input('processing-step-slider', 'disabled'),
          Input('selected-file-store', 'data'),
@@ -2078,7 +2078,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     print(f"� Available steps for {filename}: {available_steps}")
                     
                     class_names = []
-                    for i in range(6):
+                    for i in range(7):
                         if i not in available_steps:
                             # This step is missing
                             class_names.append("step-label missing")
@@ -2100,7 +2100,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         
         # Default fallback - no missing steps styling
         class_names = []
-        for i in range(6):
+        for i in range(7):
             if is_disabled:
                 class_names.append("step-label disabled")
             elif i == step_value:

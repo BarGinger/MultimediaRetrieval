@@ -363,11 +363,12 @@ def build_layout(file_df, dataset_options, selected_dataset):
                                     html.Div("Trans", className="step-label", id="step-label-2"),
                                     html.Div("Align", className="step-label", id="step-label-3"),
                                     html.Div("Flip", className="step-label", id="step-label-4"),
-                                    html.Div("Scale", className="step-label", id="step-label-5")
+                                    html.Div("Scale", className="step-label", id="step-label-5"),
+                                    html.Div("Final", className="step-label", id="step-label-6"),
                                 ], className="step-labels"),
                                 dcc.Slider(
                                     id='processing-step-slider',
-                                    min=0, max=5, step=1, value=5,
+                                    min=0, max=6, step=1, value=5,
                                     marks={},  # Remove built-in marks
                                     tooltip={'always_visible': True, 'placement': 'bottom'},
                                     disabled=True,  # Initially disabled, enabled when processed shape is selected

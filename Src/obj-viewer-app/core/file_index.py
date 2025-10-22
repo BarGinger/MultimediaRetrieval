@@ -41,7 +41,8 @@ def detect_step_files(shape_directory: Path, base_filename: str) -> dict:
         "02_translated",
         "03_aligned", 
         "04_flipped",
-        "05_scaled"
+        "05_scaled",
+        "06_fill_holes_and_orientation"
     ]
     
     # Check if we have the key step files
@@ -56,6 +57,9 @@ def detect_step_files(shape_directory: Path, base_filename: str) -> dict:
     elif "05_scaled" in step_files:
         # Fallback to scaled version if no unified file
         original_file = step_files["05_scaled"]
+    elif "06_fill_holes_and_orientation" in step_files:
+        # Fallback to final step if available
+        original_file = step_files["06_fill_holes_and_orientation"]
     elif has_steps:
         # If we have some steps but not the final one, show the highest numbered step
         available_steps = sorted([step for step in expected_steps if step in step_files])
@@ -196,6 +200,7 @@ def get_step_file_path(row: pd.Series, step_index: int = 5) -> tuple:
             3: 03_aligned
             4: 04_flipped
             5: 05_scaled (default - final result)
+            6: 06_fill_holes_and_orientation (if available)
     
     Returns:
         tuple: (file_path, actual_step_index, step_info)
@@ -220,7 +225,8 @@ def get_step_file_path(row: pd.Series, step_index: int = 5) -> tuple:
         "02_translated",
         "03_aligned",
         "04_flipped", 
-        "05_scaled"
+        "05_scaled",
+        "06_fill_holes_and_orientation"
     ]
     
     if step_index < 0 or step_index >= len(step_names):
@@ -289,7 +295,8 @@ def get_step_display_info(step_index: int = 5) -> dict:
         {"name": "Translated", "description": "Centered at origin (barycenter)", "color": "#9b59b6"},
         {"name": "Aligned", "description": "PCA aligned to axes", "color": "#e67e22"},
         {"name": "Flipped", "description": "Consistent orientation (moment test)", "color": "#f39c12"},
-        {"name": "Scaled", "description": "Unit bounding box", "color": "#27ae60"}
+        {"name": "Scaled", "description": "Unit bounding box", "color": "#27ae60"},
+        {"name": "Fill Holes & Orientation", "description": "Holes filled and correct orientation", "color": "#0c6f43"},
     ]
     
     if step_index < 0 or step_index >= len(step_info):
@@ -319,7 +326,7 @@ def get_available_steps(row: pd.Series) -> dict:
     if not result['has_processing_steps']:
         # Only original step available
         result['available_step_indices'] = [0]
-        result['step_availability'] = {0: True, 1: False, 2: False, 3: False, 4: False, 5: False}
+        result['step_availability'] = {0: True, 1: False, 2: False, 3: False, 4: False, 5: False, 6: False}
         result['recommended_max_step'] = 0
         return result
     
@@ -329,7 +336,8 @@ def get_available_steps(row: pd.Series) -> dict:
         "02_translated",
         "03_aligned",
         "04_flipped", 
-        "05_scaled"
+        "05_scaled",
+        "06_fill_holes_and_orientation"
     ]
     
     step_files = row.get('step_files', {})
