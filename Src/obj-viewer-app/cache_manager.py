@@ -62,16 +62,16 @@ def preload_cache():
 
 def main(command=None):
     """Main command-line interface."""
-    if len(sys.argv) < 2:
-        print("Dataset Cache Management Utility")
-        print("\nUsage:")
-        print("  python cache_manager.py info          - Show cache information")
-        print("  python cache_manager.py clear         - Clear memory cache")
-        print("  python cache_manager.py clear-all     - Clear memory and disk cache")
-        print("  python cache_manager.py preload       - Preload all datasets")
-        return
+    # if len(sys.argv) < 2:
+    #     print("Dataset Cache Management Utility")
+    #     print("\nUsage:")
+    #     print("  python cache_manager.py info          - Show cache information")
+    #     print("  python cache_manager.py clear         - Clear memory cache")
+    #     print("  python cache_manager.py clear-all     - Clear memory and disk cache")
+    #     print("  python cache_manager.py preload       - Preload all datasets")
+    #     return
     
-    command = sys.argv[1].lower()
+    # command = sys.argv[1].lower()
     
     if command == "info":
         print_cache_info()

@@ -56,7 +56,7 @@ def test_step_detection():
             test_row = processed_shapes.iloc[0]
             print(f"   Testing with shape: {test_row['category']}/{test_row['filename']}")
             
-            for step in range(6):
+            for step in range(7):
                 step_path = get_step_file_path(test_row, step)
                 step_info = get_step_display_info(step)
                 print(f"     Step {step} ({step_info['name']}): {Path(step_path).name}")
