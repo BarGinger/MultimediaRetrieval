@@ -457,17 +457,16 @@ class ShapeMesh:
         
         Returns:
         html.Div - Dash HTML Div component with formatted metadata
-        """        
+        """
         dims = self.dimensions
-        
         return html.Div([
             # Filename section with prominent display
             html.Div([
-                html.Span("📄 ", className="shape-info-icon"), 
+                html.Span("📄 ", className="shape-info-icon"),
                 html.Strong("File: ", style={'color': '#27ae60'}),
                 html.Span(self.filename or "Unknown", style={'color': '#27ae60', 'fontWeight': 'bold'})
             ], style={'width': '100%', 'marginBottom': '6px', 'borderBottom': '1px solid #27ae60', 'paddingBottom': '3px'}),
-            
+
             # Other metadata in flexible layout
             html.Div([
                 html.Span("📁 ", className="shape-info-icon"), html.Strong("Category: "),
@@ -489,6 +488,37 @@ class ShapeMesh:
                 html.Span("📐 ", className="shape-info-icon"), html.Strong("Dims: "),
                 html.Span(f"X {dims[0]:.2f} · Y {dims[1]:.2f} · Z {dims[2]:.2f}")
             ], className="shape-info-prop"),
+
+
+            # --- NEW ROW: Elementary Descriptors (all in one row) ---
+            html.Div([
+                html.Div([
+                    html.Span("🌐 ", className="shape-info-icon"), html.Strong("Surface Area: "),
+                    html.Span(f"{self.area:.4f}" if self.area is not None else "-")
+                ], className="shape-info-prop shape-info-descriptor"),
+                html.Div([
+                    html.Span("⚪ ", className="shape-info-icon"), html.Strong("Compactness: "),
+                    html.Span(f"{self.compactness:.4f}" if self.compactness is not None else "-")
+                ], className="shape-info-prop shape-info-descriptor"),
+                html.Div([
+                    html.Span("📦 ", className="shape-info-icon"), html.Strong("3D Rectangularity: "),
+                    html.Span(f"{self.rectangularity:.4f}" if self.rectangularity is not None else "-")
+                ], className="shape-info-prop shape-info-descriptor"),
+                html.Div([
+                    html.Span("📏 ", className="shape-info-icon"), html.Strong("Diameter: "),
+                    html.Span(f"{self.diameter:.4f}" if self.diameter is not None else "-")
+                ], className="shape-info-prop shape-info-descriptor"),
+                html.Div([
+                    html.Span("⛰️ ", className="shape-info-icon"), html.Strong("Convexity: "),
+                    html.Span(f"{self.convexity:.4f}" if self.convexity is not None else "-")
+                ], className="shape-info-prop shape-info-descriptor"),
+                html.Div([
+                    html.Span("🧮 ", className="shape-info-icon"), html.Strong("Eccentricity: "),
+                    html.Span(f"{self.eccentricity:.4f}" if self.eccentricity is not None else "-")
+                ], className="shape-info-prop shape-info-descriptor"),
+            ], style={'display': 'flex', 'flexDirection': 'row', 'gap': '16px', 'margin': '8px 0'}),
+            # --- END NEW ROW ---
+
             html.Div([
                 html.Span("🎯 ", className="shape-info-icon"), html.Strong("Quality: "),
                 html.Span(self.quality)
