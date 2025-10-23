@@ -127,6 +127,107 @@ def merge_csvs(path_a: Path, path_b: Path, out: Path, key: str = "name", how: st
     merged.to_csv(out, index=False)
 
 
+def merge_analysis_with_features(path_analysis: Path, path_features: Path, out: Path, left_key: str = 'shape_file', right_key: str = 'name', how: str = 'left', overwrite: bool = True, version_suffix: str | None = '_06_fill_holes_and_orientation.obj') -> None:
+    """Specialized merge for analysis_results (A) and final_features (B).
+
+    - left_key: column in analysis CSV (default 'shape_file')
+    - right_key: column in features CSV (default 'name')
+    Produces output with columns: shape, class, <analysis columns except left_key/class>, <feature columns except right_key/class and duplicates>
+    """
+    if not path_analysis.exists():
+        raise FileNotFoundError(f"File not found: {path_analysis}")
+    if not path_features.exists():
+        raise FileNotFoundError(f"File not found: {path_features}")
+
+    df_a = pd.read_csv(path_analysis)
+    df_b = pd.read_csv(path_features)
+
+    # If a version_suffix is provided, keep only rows in analysis whose filename ends with it
+    if version_suffix:
+        def filename_from_path(x: str) -> str:
+            try:
+                return Path(str(x)).name
+            except Exception:
+                return str(x)
+
+        mask = df_a[left_key].astype(str).apply(lambda s: filename_from_path(s).endswith(version_suffix))
+        df_a = df_a[mask].copy()
+
+    if left_key not in df_a.columns:
+        raise KeyError(f"Left key '{left_key}' not found in {path_analysis}")
+    if right_key not in df_b.columns:
+        raise KeyError(f"Right key '{right_key}' not found in {path_features}")
+
+    # Preserve original analysis order by adding a dedicated order column.
+    # Reset the index to ensure a dense 0..N-1 ordering, then set a unique temporary column.
+    df_a = df_a.reset_index(drop=True)
+    order_col = '__merge_order__'
+    df_a[order_col] = df_a.index
+
+    # Merge, prefer values from features (B) when overwrite=True
+    if overwrite:
+        tmp_suffix = '_tmp_b'
+        merged = pd.merge(df_a, df_b, left_on=left_key, right_on=right_key, how=how, suffixes=("", tmp_suffix))
+        # For overlapping non-key columns, copy values from suffixed B into the original name
+        for c in df_b.columns:
+            if c == right_key:
+                continue
+            suff = c + tmp_suffix
+            if suff in merged.columns:
+                merged[c] = merged[suff]
+                merged.drop(columns=[suff], inplace=True)
+    else:
+        merged = pd.merge(df_a, df_b, left_on=left_key, right_on=right_key, how=how, suffixes=("", "_b"))
+
+    # Restore analysis original order when possible, then remove the temporary column safely
+    if order_col in merged.columns:
+        try:
+            merged.sort_values(order_col, inplace=True)
+        except Exception:
+            # If sorting fails for any reason, proceed without reordering
+            pass
+        # Safely drop the temporary order column if present
+        merged.drop(columns=[order_col], errors='ignore', inplace=True)
+
+    # Create the 'shape' column: prefer the features filename (right_key) if available
+    if right_key in merged.columns:
+        merged['shape'] = merged[right_key]
+    elif left_key in merged.columns:
+        merged['shape'] = merged[left_key]
+    else:
+        merged['shape'] = ''
+
+    # Determine class: prefer features' class (from df_b) if present, otherwise take from df_a
+    class_from_b = 'class' if 'class' in df_b.columns else None
+    class_from_a = 'class' if 'class' in df_a.columns else None
+    if class_from_b and class_from_b in merged.columns:
+        merged['class'] = merged[class_from_b]
+    elif class_from_a and class_from_a in merged.columns:
+        merged['class'] = merged[class_from_a]
+    else:
+        merged['class'] = ''
+
+    # Build output column order
+    cols_a = list(df_a.columns)
+    cols_b = list(df_b.columns)
+
+    # Exclude the left_key, class and the temporary order column from the analysis columns
+    analysis_cols = [c for c in cols_a if c not in (left_key, 'class', order_col)]
+    feature_cols = [c for c in cols_b if c not in (right_key, 'class') and c not in cols_a]
+
+    out_cols = ['shape', 'class'] + analysis_cols + feature_cols
+
+    # Safety: append any remaining columns
+    for c in merged.columns:
+        if c not in out_cols:
+            out_cols.append(c)
+
+    # Filter out any columns that are not present in the merged DataFrame (safe-write)
+    out_cols = [c for c in out_cols if c in merged.columns]
+
+    merged.to_csv(out, columns=out_cols, index=False)
+
+
 def _parse_args(argv: Optional[list] = None):
     p = argparse.ArgumentParser(description="Merge two CSV files on a key and preserve column ordering.")
     p.add_argument('file_a', type=Path, help='First CSV file (its columns appear first)')
@@ -136,13 +237,29 @@ def _parse_args(argv: Optional[list] = None):
     p.add_argument('--how', type=str, choices=['inner', 'left', 'right', 'outer'], default='outer', help='Join type (default: outer)')
     p.add_argument('--suffix', type=str, default='_b', help='Suffix to append to overlapping non-key columns from second file (default: _b)')
     p.add_argument('--overwrite', action='store_true', help='If set, values from file B overwrite same-named columns from file A (no suffix)')
+    p.add_argument('--analysis-merge', action='store_true', help='Specialized merge: analysis_results (file_a) with final_features (file_b)')
+    p.add_argument('--left-key', type=str, default='shape_file', help='Key column in analysis file (default: shape_file)')
+    p.add_argument('--right-key', type=str, default='name', help='Key column in features file (default: name)')
+    p.add_argument('--version-suffix', type=str, default='_06_fill_holes_and_orientation.obj', help='Only keep analysis rows whose filename ends with this suffix (default: _06_fill_holes_and_orientation.obj)')
     return p.parse_args(argv)
 
 
 def main(argv: Optional[list] = None):
     args = _parse_args(argv)
     try:
-        merge_csvs(args.file_a, args.file_b, args.out, key=args.key, how=args.how, suffix=args.suffix, overwrite=args.overwrite)
+        if args.analysis_merge:
+            merge_analysis_with_features(
+                args.file_a,
+                args.file_b,
+                args.out,
+                left_key=args.left_key,
+                right_key=args.right_key,
+                how=args.how,
+                overwrite=args.overwrite,
+                version_suffix=args.version_suffix,
+            )
+        else:
+            merge_csvs(args.file_a, args.file_b, args.out, key=args.key, how=args.how, suffix=args.suffix, overwrite=args.overwrite)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2

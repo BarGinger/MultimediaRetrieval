@@ -19,6 +19,7 @@ import csv
 import sys
 import os
 from typing import Optional
+import re
 
 
 def strip_leading_components(s: str, n: int) -> str:
@@ -32,7 +33,7 @@ def strip_leading_components(s: str, n: int) -> str:
     return os.path.sep.join(parts[n:])
 
 
-def adjust_csv(input_csv: Path, output_csv: Path, key: str = 'name', strip: int = 3, inplace: bool = False, suffix_replace: tuple | None = None) -> None:
+def adjust_csv(input_csv: Path, output_csv: Path, key: str = 'name', strip: int = 3, inplace: bool = False, suffix_replace: tuple | None = None, split_class: bool = False) -> None:
     if not input_csv.exists():
         raise FileNotFoundError(f"Input CSV not found: {input_csv}")
 
@@ -44,7 +45,10 @@ def adjust_csv(input_csv: Path, output_csv: Path, key: str = 'name', strip: int 
         reader = csv.DictReader(fh)
         if key not in reader.fieldnames:
             raise KeyError(f"Key column '{key}' not found in {input_csv}")
-        fieldnames = reader.fieldnames
+        fieldnames = list(reader.fieldnames)
+        # If requested, ensure a 'class' column exists
+        if split_class and 'class' not in fieldnames:
+            fieldnames.append('class')
         for r in reader:
             val = r.get(key, '')
             if suffix_replace:
@@ -59,18 +63,46 @@ def adjust_csv(input_csv: Path, output_csv: Path, key: str = 'name', strip: int 
                     if stem.endswith(old):
                         stem = stem[: -len(old)] + new
                     parts[-1] = stem + suffix
-                    r[key] = os.path.sep.join(parts)
+                    new_path = os.path.sep.join(parts)
+                    r[key] = new_path
                 else:
                     r[key] = val
             else:
                 r[key] = strip_leading_components(val, strip)
+            # Optionally split class and filename into separate columns
+            if split_class:
+                # Normalize separators and split
+                norm = r[key].replace('/', os.path.sep).replace('\\', os.path.sep)
+                parts = norm.split(os.path.sep)
+                if len(parts) >= 2:
+                    class_raw = parts[-2]
+                    filename = parts[-1]
+                elif parts:
+                    class_raw = ''
+                    filename = parts[-1]
+                else:
+                    class_raw = ''
+                    filename = r[key]
+
+                r[key] = filename
+                r['class'] = class_raw
             rows.append(r)
 
+    # If split_class was requested, ensure the column order is: key, class, <other original columns>
+    if split_class:
+        # preserve original field order but force key then class
+        other_cols = [c for c in fieldnames if c not in (key, 'class')]
+        ordered_fieldnames = [key, 'class'] + other_cols
+    else:
+        ordered_fieldnames = fieldnames
+
     with output_csv.open('w', newline='', encoding='utf-8') as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer = csv.DictWriter(fh, fieldnames=ordered_fieldnames)
         writer.writeheader()
         for r in rows:
-            writer.writerow(r)
+            # Ensure all keys exist in the row dict to avoid KeyError
+            out_row = {c: r.get(c, '') for c in ordered_fieldnames}
+            writer.writerow(out_row)
 
 
 def _parse_args(argv: Optional[list] = None):
@@ -81,6 +113,7 @@ def _parse_args(argv: Optional[list] = None):
     p.add_argument('--key', type=str, default='name', help='Column name containing the path (default: name)')
     p.add_argument('--inplace', action='store_true', help='Modify the input file in-place')
     p.add_argument('--suffix-replace', nargs=2, metavar=('OLD', 'NEW'), help='Replace trailing OLD suffix on file stem with NEW (preserve extension). If supplied, this mode runs instead of --strip')
+    p.add_argument('--split-class', action='store_true', help='Split the path in `name` into filename and class (parent folder)')
     return p.parse_args(argv)
 
 
@@ -89,7 +122,15 @@ def main(argv: Optional[list] = None):
     inp = args.input_csv
     out = args.output_csv if args.output_csv is not None else inp.with_suffix('.fixed.csv')
     try:
-        adjust_csv(inp, out, key=args.key, strip=args.strip, inplace=args.inplace, suffix_replace=tuple(args.suffix_replace) if args.suffix_replace else None)
+        adjust_csv(
+            inp,
+            out,
+            key=args.key,
+            strip=args.strip,
+            inplace=args.inplace,
+            suffix_replace=tuple(args.suffix_replace) if args.suffix_replace else None,
+            split_class=args.split_class,
+        )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
