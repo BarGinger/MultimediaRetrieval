@@ -1,4 +1,3 @@
-
 from dash import dcc, html, Input, Output, no_update, State, callback_context
 import dash
 import numpy as np
@@ -1513,190 +1512,166 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         [State('category-filter', 'value'),
          State('sort-field', 'value'),
          State('sort-order', 'data-order'),
-         Input('3d-plot', 'figure')],
+         State('3d-plot', 'figure')], # Changed to State
         prevent_initial_call=True
     )
-    def update_plot(display_options, 
-                    selected_file_data, 
-                    mesh_color,                      
+    def update_plot(display_options,
+                    selected_file_data,
+                    mesh_color,
                     show_normalized,
                     processing_step,
                     selected_dataset,
-                    selected_category, 
-                    sort_field, 
+                    selected_category,
+                    sort_field,
                     sort_order,
                     current_fig):
-        
         """
-        Update the 3D plot based on user selections and current figure state.
+        Update the 3D plot based on user selections.
+        - Preserves camera view when changing steps/display options for the same shape.
+        - Resets camera view when a new shape is selected.
+        """
+        ctx = dash.callback_context
+        triggered_id = ""
+        if ctx.triggered:
+            triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-        Parameters:
-        - display_options: list of str, display options selected (e.g., 'wireframe', 'smooth_shading')
-        - selected_file_data: dict with 'filename' and 'dataset', or None if no file selected
-        - mesh_color: str, color selected for the mesh
-        - show_normalized: list of str, normalization toggle state
-        - processing_step: int, processing step index (0-5) for step-by-step viewing
-        - selected_dataset: str, currently selected dataset from dropdown
-        - selected_category: str, selected category filter ('all' or specific category)
-        - sort_field: str, field to sort by ('category', 'num_vertices', 'num_faces')
-        - sort_order: str, sort order ('asc' or 'desc')
-        - current_fig: dict, current figure state of the 3D plot
-        
-        Returns:
-        - fig: Plotly figure object for the 3D plot
-        - If no shape is selected or an error occurs, returns an empty plot with a message.
-        """
-        smooth_shading = 'smooth_shading' in (display_options or [])
-        camera = None
+
+        # Ensure camera_config, vertices, and faces are always defined
+        camera_config = None
+        vertices = np.array([])
+        faces = np.array([])
+
+
+        # Always try to extract the current camera from the figure if available
+        prev_camera = None
+        prev_filename = None
         if current_fig and 'layout' in current_fig and 'scene' in current_fig['layout']:
-            camera = current_fig['layout']['scene'].get('camera', None)
-        
+            prev_camera = current_fig['layout']['scene'].get('camera', None)
+            # Try to extract previous filename from figure layout title (if present)
+            prev_title = current_fig['layout'].get('title', {}).get('text', '')
+            if '-' in prev_title:
+                prev_filename = prev_title.split('-')[-1].strip().split()[0]
+
+        # Determine if the selected shape has changed (reset camera if so)
+        selected_filename = None
+        if isinstance(selected_file_data, dict):
+            selected_filename = selected_file_data.get('filename')
+
+        reset_camera = (prev_filename is not None and selected_filename is not None and prev_filename != selected_filename)
+
+        # Camera to use: reset if new shape, else preserve
+        camera = None if reset_camera else prev_camera
+
+        smooth_shading = 'smooth_shading' in (display_options or [])
+
         if selected_file_data is None:
             return create_3d_plot(np.array([]), np.array([]), "Select a shape to view",
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
-        # Safety check: ensure selected_file_data is a dictionary
         if not isinstance(selected_file_data, dict):
             print(f"❌ ERROR: selected_file_data should be dict, got {type(selected_file_data)}: {selected_file_data}")
             return create_3d_plot(np.array([]), np.array([]), "Invalid selection data",
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
-        # Get filename and dataset from the selection data
         selected_filename = selected_file_data.get('filename')
         file_dataset = selected_file_data.get('dataset', selected_dataset)
-        
+
         if not selected_filename:
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
         if file_dataset is None or file_dataset == "":
             file_dataset = 'Data'
-        
-        # Use high-performance cached dataset
+
         file_df = get_cached_dataset_data(file_dataset)
 
         if file_df is None or file_df.empty:
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
-                                  mesh_color=mesh_color or 'lightblue'), None
+                                  mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
-        # Find the selected file by filename in the dataset
         matching_rows = file_df[file_df['filename'] == selected_filename]
         if matching_rows.empty:
             return create_3d_plot(np.array([]), np.array([]), f"File {selected_filename} not found",
-                                  mesh_color=mesh_color or 'lightblue'), None
-        
-        row = matching_rows.iloc[0]  # Get the first (and should be only) matching row
+                                  mesh_color=mesh_color or 'lightblue'), no_update, no_update
+
+        row = matching_rows.iloc[0]
         print(f"🎯 3D Plot: Loading {selected_filename} from {file_dataset}")
-        
-        # Determine which file to load based on processing step slider
+
         step_row = row
         title_suffix = ""
-        
-        # Only use step processing if we're in a dataset that supports it AND the slider is enabled
         step_fallback_info = None
-        if (processing_step is not None and 
-            selected_dataset and 
-            ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset) and
-            row.get('has_processing_steps', False)):
-            
-            # Special handling for D00355 - force missing step 1 behavior
-            if 'D00355' in row.get('filename', '') and processing_step == 1:
-                print(f"[DEBUG] D00355 step 1 requested - forcing fallback to step 0 (original)")
-                # Force fallback to step 0 (original) since step 1 is missing
-                actual_file_path = row['filepath']
-                step_fallback_info = {
-                    'requested_step': 1,
-                    'actual_step': 0,
-                    'requested_step_name': 'Remeshed',
-                    'actual_step_name': 'Original',
-                    'step_available': False
-                }
-                title_suffix = f" (Original Step - Fallback)"
-                
-                # Create a temporary row with the step file path
-                step_row = row.copy()
-                step_row['filepath'] = actual_file_path
-                print(f"[DEBUG] D00355: Forced fallback from step 1 to step 0: {actual_file_path}")
-            else:
-                # Normal step processing
-                actual_file_path, actual_step_index, step_info = get_step_file_path(row, processing_step)
-                title_suffix = f" ({step_info['name']} Step)"
-                
-                # Check if we had to use a fallback
-                if step_info.get('fallback_used', False):
-                    step_fallback_info = {
-                        'requested_step': step_info['requested_step'],
-                        'actual_step': step_info['actual_step'],
-                        'requested_step_name': step_info.get('requested_step_name', 'Unknown'),
-                        'actual_step_name': step_info['name'],
-                        'step_available': step_info.get('step_available', False)
-                    }
-                    title_suffix = f" ({step_info['name']} Step - Fallback)"
-                
-                # Create a temporary row with the step file path
-                step_row = row.copy()
-                step_row['filepath'] = actual_file_path
-                
-                print(f"[DEBUG] Loading step {processing_step} -> {actual_step_index} file: {actual_file_path}")
-                if step_fallback_info:
-                    print(f"[DEBUG] Step fallback: requested {step_fallback_info['requested_step_name']} -> showing {step_fallback_info['actual_step_name']}")
-        
-        # Create ShapeMesh instance and handle special cases for different datasets
+
         try:
-            # Special handling for NormalizedShapes dataset
+            # If processing steps are available and selected, use step logic
+            if (processing_step is not None and
+                selected_dataset and
+                ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset) and
+                row.get('has_processing_steps', False)):
+
+                if 'D00355' in row.get('filename', '') and processing_step == 1:
+                    print(f"[DEBUG] D00355 step 1 requested - forcing fallback to step 0 (original)")
+                    actual_file_path = row['filepath']
+                    step_fallback_info = {
+                        'requested_step': 1, 'actual_step': 0,
+                        'requested_step_name': 'Remeshed', 'actual_step_name': 'Original',
+                        'step_available': False
+                    }
+                    title_suffix = f" (Original Step - Fallback)"
+                    step_row = row.copy()
+                    step_row['filepath'] = actual_file_path
+                else:
+                    actual_file_path, actual_step_index, step_info = get_step_file_path(row, processing_step)
+                    title_suffix = f" ({step_info['name']} Step)"
+                    if step_info.get('fallback_used', False):
+                        step_fallback_info = {
+                            'requested_step': step_info['requested_step'],
+                            'actual_step': step_info['actual_step'],
+                            'requested_step_name': step_info.get('requested_step_name', 'Unknown'),
+                            'actual_step_name': step_info['name'],
+                            'step_available': step_info.get('step_available', False)
+                        }
+                        title_suffix = f" ({step_info['name']} Step - Fallback)"
+                    step_row = row.copy()
+                    step_row['filepath'] = actual_file_path
+            # Always load mesh for the selected file (step_row is set above if needed)
             if selected_dataset == 'NormalizedShapes':
-                # NormalizedShapes dataset contains pre-normalized files
                 mesh = ShapeMesh.from_file_row(step_row)
-                vertices = mesh.vertices  # Already normalized
+                vertices = mesh.vertices
                 title_suffix += " (Pre-normalized Dataset)"
-                camera_config = None  # Use default camera for normalized shapes
-                print(f"[DEBUG] Using pre-normalized vertices from NormalizedShapes dataset for {step_row['filename']}")
-            
-            # Handle normalization toggle for other datasets (only if not using processing steps)
             elif show_normalized and 'normalized' in show_normalized and not row.get('has_processing_steps', False):
                 from core.normalized_cache import normalized_cache
-                # Try to load from cache first
                 if normalized_cache.is_normalized_available(row['filename'], selected_dataset):
                     mesh = normalized_cache.load_normalized_shape(row['filename'], selected_dataset)
                     vertices = mesh.vertices
                     title_suffix += " (Cached Normalized)"
-                    print(f"[DEBUG] Using cached normalized vertices for {row['filename']}")
                 else:
-                    # Fall back to computing normalization
                     mesh = ShapeMesh.from_file_row(step_row)
                     vertices = mesh.apply_full_normalization()
                     title_suffix += " (Computed Normalized)"
-                    print(f"[DEBUG] Computing normalized vertices for {row['filename']} (cache not available)")
-                
-                camera_config = None  # Use default camera for normalized shapes
             else:
-                # Load the selected step file or original shape
                 mesh = ShapeMesh.from_file_row(step_row)
                 vertices = mesh.vertices
                 camera_config = mesh.get_optimal_camera_position()
-                print(f"[DEBUG] Using step file for {step_row['filename']}")
-            
+
             faces = mesh.faces
-                
+
         except Exception as e:
             print(f"[DEBUG] ShapeMesh failed: {e}")
-            # Fallback to original method if ShapeMesh fails
             file_path_to_use = step_row['filepath'] if 'step_row' in locals() else row['filepath']
             vertices, faces = OBJParser.parse_obj_file(file_path_to_use)
-            camera_config = None
             title_suffix += " (Fallback Parser)"
-        
+
         show_wire = 'wireframe' in (display_options or [])
         title = f"{row['category']} - {row['filename']}{title_suffix}"
+
+        # Use preserved camera if available, otherwise use the calculated optimal one
+        # Always pass a Plotly-style camera dict to create_3d_plot
+        final_camera = camera if camera is not None else camera_config
 
         fig = create_3d_plot(vertices, faces, title, show_wireframe=show_wire,
                               mesh_color=mesh_color or 'lightblue',
                               smooth_shading=smooth_shading,
-                              camera_config=camera_config)
-        
-        # If user had a previous camera position, restore it
-        if camera:
-            fig.update_layout(scene_camera=camera)
+                              camera_config=final_camera)
         
         # Create toast notification for step fallback if needed
         # Handle missing step notification
@@ -1707,15 +1682,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             if not step_fallback_info['step_available']:
                 # Send step missing messages to the step-toast-store (positioned over 3D viewer)
                 step_toast_data = create_toast_data(
-                    f"ℹ️ Step '{step_fallback_info['requested_step_name']}' is not available for this shape. "
-                    f"Displaying '{step_fallback_info['actual_step_name']}' step instead.",
-                    "info",
-                    "ℹ️"
+                    f"ℹ️ Step '{step_fallback_info['requested_step_name']}' is not available. "
+                    f"Displaying '{step_fallback_info['actual_step_name']}' instead.",
+                    "info", "ℹ️"
                 )
-                print(f"[DEBUG] Created step toast notification for missing step")
-            
-        return fig, regular_toast_data, step_toast_data
 
+        return fig, regular_toast_data, step_toast_data
 
     # 5) Similar shapes rendering
     @app.callback(
@@ -1972,37 +1944,37 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         """
         # First check if we're in a dataset that should show step controls
         if not selected_dataset or not ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
-            return True, 5, 5, "Not available for this dataset", "step-info-text"
+            return True, 6, 6, "Not available for this dataset", "step-info-text"
             
         if selected_file_data is None:
-            return True, 5, 5, "Select a processed shape to enable step navigation", "step-info-text"
+            return True, 6, 6, "Select a processed shape to enable step navigation", "step-info-text"
         
         # Extract filename from the selection data
         if isinstance(selected_file_data, dict):
             selected_filename = selected_file_data.get('filename')
             file_dataset = selected_file_data.get('dataset', selected_dataset)
         else:
-            return True, 5, 5, "Invalid shape selection", "step-info-text"
+            return True, 6, 6, "Invalid shape selection", "step-info-text"
         
         if not selected_filename:
-            return True, 5, 5, "Invalid shape selection", "step-info-text"
+            return True, 6, 6, "Invalid shape selection", "step-info-text"
         
         try:
             # Get the file data for the selected shape
             file_df = get_cached_dataset_data(file_dataset)
             if file_df is None or file_df.empty:
-                return True, 5, 5, "Invalid shape selection", "step-info-text"
+                return True, 6, 6, "Invalid shape selection", "step-info-text"
             
             # Find the file by filename
             matching_rows = file_df[file_df['filename'] == selected_filename]
             if matching_rows.empty:
-                return True, 5, 5, "Shape not found in dataset", "step-info-text"
+                return True, 6, 6, "Shape not found in dataset", "step-info-text"
             
             row = matching_rows.iloc[0]
             
             # Check if shape has processing steps
             if not row.get('has_processing_steps', False):
-                return True, 5, 5, "This shape has no processing steps available", "step-info-text"
+                return True, 6, 6, "This shape has no processing steps available", "step-info-text"
             
             # Get available step information
             step_availability = get_available_steps(row)
@@ -2010,7 +1982,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             recommended_max = step_availability['recommended_max_step']
             
             if not available_indices:
-                return True, 5, 5, "No processing steps found for this shape", "step-info-text"
+                return True, 6, 6, "No processing steps found for this shape", "step-info-text"
             
             # Set slider max to the highest available step
             slider_max = max(available_indices)
@@ -2021,7 +1993,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             # Create info message showing available steps
             missing_steps = step_availability['missing_step_indices']
             if missing_steps:
-                step_names = ["Orig", "Mesh", "Trans", "Align", "Flip", "Scale"]
+                step_names = ["Orig", "Mesh", "Trans", "Align", "Flip", "Scale", "Final"]
                 available_names = [step_names[i] for i in available_indices]
                 missing_names = [step_names[i] for i in missing_steps if i < len(step_names)]
                 info_msg = f"Available steps: {', '.join(available_names)}"
@@ -2034,10 +2006,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             
         except Exception as e:
             print(f"[DEBUG] Error updating step slider state: {e}")
-            return True, 5, 5, "Error checking processing steps", "step-info-text"
+            return True, 6, 6, "Error checking processing steps", "step-info-text"
 
     @app.callback(
-        [Output(f'step-label-{i}', 'className') for i in range(6)],
+        [Output(f'step-label-{i}', 'className') for i in range(7)],
         [Input('processing-step-slider', 'value'),
          Input('processing-step-slider', 'disabled'),
          Input('selected-file-store', 'data'),
@@ -2064,12 +2036,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 
                 # Get the file data directly from the dataset
                 file_df = get_cached_dataset_data(selected_dataset)
-                if file_df is not None and not file_df.empty:
-                    # Find the row with matching filename
-                    matching_rows = file_df[file_df['filename'] == filename]
-                    if not matching_rows.empty:
-                        row = matching_rows.iloc[0]
-                        print(f"✅ Found matching row for {filename}")
+                if file_df is not None and file_df.empty:
+                    return True, 6, 6, "Invalid shape selection", "step-info-text"
+                
+                # Find the row with matching filename
+                matching_rows = file_df[file_df['filename'] == filename]
+                if not matching_rows.empty:
+                    row = matching_rows.iloc[0]
+                    print(f"✅ Found matching row for {filename}")
                     
                     # Get available steps for this shape
                     from core.file_index import get_available_steps
@@ -2078,7 +2052,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     print(f"� Available steps for {filename}: {available_steps}")
                     
                     class_names = []
-                    for i in range(6):
+                    for i in range(7):
                         if i not in available_steps:
                             # This step is missing
                             class_names.append("step-label missing")
@@ -2100,7 +2074,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         
         # Default fallback - no missing steps styling
         class_names = []
-        for i in range(6):
+        for i in range(7):
             if is_disabled:
                 class_names.append("step-label disabled")
             elif i == step_value:

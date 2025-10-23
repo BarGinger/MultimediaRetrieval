@@ -19,7 +19,7 @@ def test_step_file_detection():
         print("✅ Enhanced step detection functions imported successfully")
         
         # Test step display info
-        for i in range(6):
+        for i in range(7):
             info = get_step_display_info(i)
             print(f"  Step {i}: {info['name']} - {info['description']}")
         

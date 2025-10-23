@@ -53,7 +53,7 @@ def scan_mesh_files(root_dir: Path):
     for p in root_dir.rglob("*"):
         if p.is_file() and p.suffix.lower() in MESH_EXTS:
             name = p.stem.lower()
-            if "_unified_prepared" in name:
+            if "_unified_prepared" in name or '_06_fill_holes_and_orientation' in name:
                 yield p
 
 
