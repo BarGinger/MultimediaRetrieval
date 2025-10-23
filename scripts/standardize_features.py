@@ -26,6 +26,29 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
+def export_outliers_per_feature(df: pd.DataFrame, id_column: str, out_dir: Path) -> None:
+    """For each numeric feature, export outliers (by 1.5*IQR rule) to a CSV file."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    features = df.drop(columns=[id_column])
+    numeric = features.apply(pd.to_numeric, errors='coerce')
+    for col in numeric.columns:
+        col_data = numeric[col]
+        if col_data.isna().all():
+            continue
+        q1 = col_data.quantile(0.25)
+        q3 = col_data.quantile(0.75)
+        iqr = q3 - q1
+        # Use 4*IQR for a more relaxed outlier definition
+        lower = q1 - 5.0 * iqr
+        upper = q3 + 5.0 * iqr
+        mask = (col_data < lower) | (col_data > upper)
+        outliers = df.loc[mask, [id_column, col]]
+        if not outliers.empty:
+            out_path = out_dir / f"outliers_{safe_filename(col)}.csv"
+            outliers.to_csv(out_path, index=False)
+            print(f"Exported outliers for {col}: {out_path} ({len(outliers)} rows)")
+
+
 def standardize_csv(input_path: Path, output_path: Path, id_column: str = "name") -> None:
     df = pd.read_csv(input_path)
 
@@ -286,7 +309,7 @@ def main(argv=None):
     parser.add_argument("--output", "-o", help="Output CSV path",
                         default="output/descriptor_values/features_unified_prepared_standardized.csv")
     parser.add_argument("--id-column", "-c", help="Identifier column name",
-                        default="id")
+                        default="name")
     parser.add_argument("--plot", action="store_true", help="Generate per-feature plots before and after standardization", default=True)
     args = parser.parse_args(argv)
 
@@ -307,6 +330,13 @@ def main(argv=None):
                 df_before = None
 
         standardize_csv(input_path, output_path, id_column=args.id_column)
+
+        # Export outliers for each feature (using original values for interpretability)
+        outlier_dir = output_path.parent / 'outliers'
+        try:
+            export_outliers_per_feature(df_before, args.id_column, outlier_dir)
+        except Exception as e:
+            print(f"Warning: failed to export outliers: {e}")
 
         if getattr(args, 'plot', False):
             try:
