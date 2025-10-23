@@ -292,28 +292,25 @@ def build_layout(file_df, dataset_options, selected_dataset):
             html.Div([
                 html.Div([
                     html.H3("🎮 3D Visualization", className="panel-title viz-title"),
-
+                    
                     html.Div([
+                        html.H4("📄 Shape Info", className="shape-info-title"),
                         html.Div([
-                            html.H4("📄 Shape Info", className="shape-info-title"),
-                            html.Div([
-                                html.Label("Normalized:", className="normalization-label", style={'fontSize': '0.85em', 'fontWeight': 'bold', 'marginRight': '8px'}),
-                                dcc.Checklist(
-                                    id='normalization-toggle',
-                                    options=[
-                                        {'label': ' Yes', 'value': 'normalized'}
-                                    ],
-                                    value=[],
-                                    className="normalization-checklist",
-                                    style={'display': 'inline-block'}
-                                )
-                            ], style={'marginBottom': '8px', 'paddingBottom': '6px', 'borderBottom': '1px solid #ddd'}),
-                        ], style={'marginBottom': '8px'}),
-                        html.Div(id='shape-info', children=[
-                            html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint"),
-                        ], className="shape-info-properties")
-                    ], className="shape-info-card"),
-
+                            html.Label("Normalized:", className="normalization-label", style={'fontSize': '0.85em', 'fontWeight': 'bold', 'marginRight': '8px'}),
+                            dcc.Checklist(
+                                id='normalization-toggle',
+                                options=[
+                                    {'label': ' Yes', 'value': 'normalized'}
+                                ],
+                                value=[],
+                                className="normalization-checklist",
+                                style={'display': 'inline-block'}
+                            )
+                        ], style={'marginBottom': '8px', 'paddingBottom': '6px', 'borderBottom': '1px solid #ddd'}),
+                    ], style={'marginBottom': '8px'}),
+                    html.Div(id='shape-info', children=[
+                        html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint"),
+                    ], className="shape-info-properties"),
                     html.Div([
                         html.Div([
                             html.Div([
@@ -328,6 +325,61 @@ def build_layout(file_df, dataset_options, selected_dataset):
                                     className="display-wireframe-checklist"
                                 )
                             ], className="display-wireframe-panel"),
+
+                            # --- Insert two buttons in the middle of the Center panel ---
+                            html.Div([
+                                html.Button([
+                                    html.Span('🌐', style={'marginRight': '8px', 'fontSize': '18px', 'verticalAlign': 'middle'}),
+                                    html.Span('Global Descriptors', style={'verticalAlign': 'middle'})
+                                ],
+                                    id='show-global-descriptors-btn',
+                                    n_clicks=0,
+                                    className='center-action-btn pretty-action-btn',
+                                    style={
+                                        'marginRight': '12px',
+                                        'background': 'linear-gradient(90deg, #2563eb 0%, #38bdf8 100%)',
+                                        'width': 'max-content',
+                                        'color': 'white',
+                                        'border': 'none',
+                                        'borderRadius': '8px',
+                                        'padding': '8px 22px',
+                                        'fontWeight': 600,
+                                        'fontSize': '16px',
+                                        'boxShadow': '0 2px 8px rgba(37,99,235,0.10)',
+                                        'cursor': 'pointer',
+                                        'transition': 'background 0.2s',
+                                        'outline': 'none',
+                                        'display': 'flex',
+                                        'alignItems': 'center',
+                                        'gap': '4px',
+                                    }
+                                ),
+                                html.Button([
+                                    html.Span('🧬', style={'marginRight': '8px', 'fontSize': '18px', 'verticalAlign': 'middle'}),
+                                    html.Span('Clustering', style={'verticalAlign': 'middle'})
+                                ],
+                                    id='show-clustering-btn',
+                                    n_clicks=0,
+                                    className='center-action-btn pretty-action-btn',
+                                    style={
+                                        'background': 'linear-gradient(90deg, #583191 0%, #C3A1F3 100%)',
+                                        'color': 'white',
+                                        'border': 'none',
+                                        'borderRadius': '8px',
+                                        'padding': '8px 22px',
+                                        'fontWeight': 600,
+                                        'fontSize': '16px',
+                                        'boxShadow': '0 2px 8px rgba(190,24,93,0.10)',
+                                        'cursor': 'pointer',
+                                        'transition': 'background 0.2s',
+                                        'outline': 'none',
+                                        'display': 'flex',
+                                        'alignItems': 'center',
+                                        'gap': '4px',
+                                    }
+                                )
+                            ], style={'display': 'flex', 'justifyContent': 'center', 'alignItems': 'center', 'margin': '0 0 0 0', 'gap': '8px'}),
+
 
                             html.Div([
                                 html.Label("Shape Color:", className="display-color-label"),
@@ -377,11 +429,9 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             ], id="display-step-panel", className="display-step-panel", style={'display': 'none'}),
                         ], className="display-toolbar"),
                     ], className="display-options-panel"),
-
                     html.Div([
                         # Step-specific toast container (positioned over 3D viewer)
                         html.Div(id="step-toast-container", className="step-toast-container", children=[]),
-                        
                         dcc.Loading(
                             id="loading-3d",
                             children=[dcc.Graph(
