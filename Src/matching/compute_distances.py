@@ -16,7 +16,7 @@ from shapeFeatures import Shape
 from distance import ShapeDistance
 
 
-def compute_pairwise_distances(csv_file_path, num_shapes=None, output_dir="distance_matrices"):
+def compute_pairwise_distances(csv_file_path, num_shapes=None, output_dir="distance_matrices", which: str = "both"):
     """
     Compute pairwise EMD distances between shapes for all descriptors.
     
@@ -24,6 +24,7 @@ def compute_pairwise_distances(csv_file_path, num_shapes=None, output_dir="dista
         csv_file_path (str): Path to the CSV file containing shape features
         num_shapes (int, optional): Number of shapes to compare (default: all shapes)
         output_dir (str): Directory to save distance matrices
+        which (str): Which distances to compute: 'hist', 'global', or 'both' (default)
     """
     # Read the CSV to get the list of shapes
     print(f"Reading shape data from: {csv_file_path}")
@@ -42,7 +43,12 @@ def compute_pairwise_distances(csv_file_path, num_shapes=None, output_dir="dista
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # List of descriptors to compute distances for
+    # Determine modes to compute
+    which = (which or "both").lower()
+    compute_hist = which in ("hist", "both")
+    compute_global = which in ("global", "both")
+
+    # List of histogram descriptors to compute distances for
     descriptors = ['A3', 'D1', 'D2', 'D3', 'D4']
     
     # Load all Shape objects first
@@ -63,55 +69,142 @@ def compute_pairwise_distances(csv_file_path, num_shapes=None, output_dir="dista
     
     print(f"\nSuccessfully loaded {len(shapes)} shapes")
     
-    # Compute distances for each descriptor
-    for descriptor in descriptors:
+    # Compute histogram-based distances for each descriptor
+    if compute_hist:
+        for descriptor in descriptors:
+            print(f"\n{'='*60}")
+            print(f"Computing {descriptor} distances...")
+            print(f"{'='*60}")
+            
+            # Initialize distance matrix with NaN
+            n = len(shapes)
+            distance_matrix = np.full((n, n), np.nan)
+            
+            # Fill diagonal with zeros (sanity check)
+            np.fill_diagonal(distance_matrix, 0.0)
+            
+            # Compute pairwise distances (only lower triangle)
+            # Total number of comparisons (excluding diagonal)
+            total_comparisons = n * (n - 1) // 2
+            
+            with tqdm(total=total_comparisons, desc=f"{descriptor} comparisons") as pbar:
+                for i in range(n):
+                    for j in range(i):  # Only compute lower triangle (j < i)
+                        try:
+                            # Create distance calculator
+                            dist_calc = ShapeDistance(shapes[i], shapes[j])
+                            
+                            # Compute EMD for this descriptor
+                            distance = dist_calc.histogram_distance(descriptor)
+                            
+                            # Store in matrix (only lower triangle)
+                            distance_matrix[i, j] = distance
+                            
+                        except Exception as e:
+                            print(f"\nError computing distance between {shape_names[i]} and {shape_names[j]}: {e}")
+                            distance_matrix[i, j] = np.nan
+                        
+                        pbar.update(1)
+            
+            # Create DataFrame with shape names as index and columns
+            df_distances = pd.DataFrame(
+                distance_matrix,
+                index=shape_names,
+                columns=shape_names
+            )
+            
+            # Save to CSV
+            output_file = os.path.join(output_dir, f"distances_{descriptor}.csv")
+            df_distances.to_csv(output_file)
+            print(f"Saved {descriptor} distance matrix to: {output_file}")
+            
+            # Print statistics
+            valid_distances = distance_matrix[~np.isnan(distance_matrix) & (distance_matrix > 0)]
+            if len(valid_distances) > 0:
+                print(f"  Min distance: {np.min(valid_distances):.6f}")
+                print(f"  Max distance: {np.max(valid_distances):.6f}")
+                print(f"  Mean distance: {np.mean(valid_distances):.6f}")
+                print(f"  Median distance: {np.median(valid_distances):.6f}")
+    else:
+        print("\nSkipping histogram EMD distances (which != 'hist'/'both').")
+
+    # Compute distances for global (scalar) descriptors using absolute differences
+    global_descriptors = ['surface_area', 'compactness', 'rectangularity', 'diameter', 'convexity', 'eccentricity']
+
+    if compute_global:
+        for gdesc in global_descriptors:
+            print(f"\n{'='*60}")
+            print(f"Computing global descriptor distances: {gdesc}...")
+            print(f"{'='*60}")
+
+            n = len(shapes)
+            distance_matrix = np.full((n, n), np.nan)
+            np.fill_diagonal(distance_matrix, 0.0)
+
+            total_comparisons = n * (n - 1) // 2
+            with tqdm(total=total_comparisons, desc=f"{gdesc} comparisons") as pbar:
+                for i in range(n):
+                    val_i = getattr(shapes[i], gdesc, None)
+                    for j in range(i):  # lower triangle only (j < i)
+                        val_j = getattr(shapes[j], gdesc, None)
+                        try:
+                            if val_i is None or val_j is None or np.isnan(val_i) or np.isnan(val_j):
+                                distance = np.nan
+                            else:
+                                # Absolute difference on already-normalized scalar features
+                                distance = float(abs(val_i - val_j))
+                            distance_matrix[i, j] = distance
+                        except Exception as e:
+                            print(f"\nError computing {gdesc} distance between {shape_names[i]} and {shape_names[j]}: {e}")
+                            distance_matrix[i, j] = np.nan
+                        pbar.update(1)
+
+            # Save matrix
+            df_distances = pd.DataFrame(distance_matrix, index=shape_names, columns=shape_names)
+            output_file = os.path.join(output_dir, f"distances_global_{gdesc}.csv")
+            df_distances.to_csv(output_file)
+            print(f"Saved global descriptor distance matrix to: {output_file}")
+
+            valid_distances = distance_matrix[~np.isnan(distance_matrix) & (distance_matrix > 0)]
+            if len(valid_distances) > 0:
+                print(f"  Min distance: {np.min(valid_distances):.6f}")
+                print(f"  Max distance: {np.max(valid_distances):.6f}")
+                print(f"  Mean distance: {np.mean(valid_distances):.6f}")
+                print(f"  Median distance: {np.median(valid_distances):.6f}")
+    else:
+        print("\nSkipping global descriptor distances (which != 'global'/'both').")
         print(f"\n{'='*60}")
-        print(f"Computing {descriptor} distances...")
+        print(f"Computing global descriptor distances: {gdesc}...")
         print(f"{'='*60}")
-        
-        # Initialize distance matrix with NaN
+
         n = len(shapes)
         distance_matrix = np.full((n, n), np.nan)
-        
-        # Fill diagonal with zeros (sanity check)
         np.fill_diagonal(distance_matrix, 0.0)
-        
-        # Compute pairwise distances (only lower triangle)
-        # Total number of comparisons (excluding diagonal)
+
         total_comparisons = n * (n - 1) // 2
-        
-        with tqdm(total=total_comparisons, desc=f"{descriptor} comparisons") as pbar:
+        with tqdm(total=total_comparisons, desc=f"{gdesc} comparisons") as pbar:
             for i in range(n):
-                for j in range(i):  # Only compute lower triangle (j < i)
+                val_i = getattr(shapes[i], gdesc, None)
+                for j in range(i):  # lower triangle only (j < i)
+                    val_j = getattr(shapes[j], gdesc, None)
                     try:
-                        # Create distance calculator
-                        dist_calc = ShapeDistance(shapes[i], shapes[j])
-                        
-                        # Compute EMD for this descriptor
-                        distance = dist_calc.histogram_distance(descriptor)
-                        
-                        # Store in matrix (only lower triangle)
+                        if val_i is None or val_j is None or np.isnan(val_i) or np.isnan(val_j):
+                            distance = np.nan
+                        else:
+                            # Absolute difference on already-normalized scalar features
+                            distance = float(abs(val_i - val_j))
                         distance_matrix[i, j] = distance
-                        
                     except Exception as e:
-                        print(f"\nError computing distance between {shape_names[i]} and {shape_names[j]}: {e}")
+                        print(f"\nError computing {gdesc} distance between {shape_names[i]} and {shape_names[j]}: {e}")
                         distance_matrix[i, j] = np.nan
-                    
                     pbar.update(1)
-        
-        # Create DataFrame with shape names as index and columns
-        df_distances = pd.DataFrame(
-            distance_matrix,
-            index=shape_names,
-            columns=shape_names
-        )
-        
-        # Save to CSV
-        output_file = os.path.join(output_dir, f"distances_{descriptor}.csv")
+
+        # Save matrix
+        df_distances = pd.DataFrame(distance_matrix, index=shape_names, columns=shape_names)
+        output_file = os.path.join(output_dir, f"distances_global_{gdesc}.csv")
         df_distances.to_csv(output_file)
-        print(f"Saved {descriptor} distance matrix to: {output_file}")
-        
-        # Print statistics
+        print(f"Saved global descriptor distance matrix to: {output_file}")
+
         valid_distances = distance_matrix[~np.isnan(distance_matrix) & (distance_matrix > 0)]
         if len(valid_distances) > 0:
             print(f"  Min distance: {np.min(valid_distances):.6f}")
@@ -150,6 +243,13 @@ if __name__ == "__main__":
         default="distance_matrices",
         help="Directory to save distance matrices (default: distance_matrices)"
     )
+    parser.add_argument(
+        "--which",
+        type=str,
+        choices=["hist", "global", "both"],
+        default="both",
+        help="Which distances to compute: 'hist', 'global', or 'both' (default)"
+    )
     
     args = parser.parse_args()
     
@@ -169,4 +269,4 @@ if __name__ == "__main__":
         output_path = args.output_dir
     
     # Run the computation
-    compute_pairwise_distances(csv_path, args.num_shapes, output_path)
+    compute_pairwise_distances(csv_path, args.num_shapes, output_path, which=args.which)
