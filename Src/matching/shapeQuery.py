@@ -63,30 +63,45 @@ class ShapeQuery:
         self.total_distance_dir = total_distance_dir
         self.num_shapes = num_shapes
         
-        # Load shapes
+        # Load shapes - OPTIMIZATION: Load CSV once and reuse
         print(f"Loading shapes from: {csv_file_path}")
+        import time
+        t_csv_start = time.time()
         df = pd.read_csv(csv_file_path)
+        t_csv_end = time.time()
+        if debug:
+            print(f"[DEBUG] CSV load took: {(t_csv_end-t_csv_start)*1000:.0f}ms")
+        
         self.shape_names = df['shape'].tolist()
         
         if num_shapes is not None:
             self.shape_names = self.shape_names[:num_shapes]
+            df = df[df['shape'].isin(self.shape_names)]  # Filter DataFrame too
             print(f"Limited to first {num_shapes} shapes")
         
         print(f"Loading {len(self.shape_names)} shape objects...")
+        t_load_start = time.time()
         self.shapes = []
-        for shape_name in tqdm(self.shape_names, desc="Loading shapes"):
+        for shape_name in tqdm(self.shape_names, desc="Loading shapes", disable=debug):
             try:
-                shape = Shape(shape_name, csv_file_path)
+                # Pass DataFrame to avoid repeated CSV reads
+                shape = Shape(shape_name, csv_file_path, df=df)
                 self.shapes.append(shape)
             except Exception as e:
                 print(f"\nWarning: Could not load shape {shape_name}: {e}")
                 self.shapes.append(None)
+        t_load_end = time.time()
+        if debug:
+            print(f"[DEBUG] Shape object creation took: {(t_load_end-t_load_start)*1000:.0f}ms")
         
         # Filter out failed loads
         valid_indices = [i for i, s in enumerate(self.shapes) if s is not None]
         self.shapes = [self.shapes[i] for i in valid_indices]
         self.shape_names = [self.shape_names[i] for i in valid_indices]
         print(f"Successfully loaded {len(self.shapes)} shapes\n")
+        
+        # Create mapping from shape name to class for query results
+        self.shape_to_class = {s.shape: s.shape_class for s in self.shapes}
         
         # Distance matrix (to be computed or loaded)
         self.distance_matrix = None
@@ -132,7 +147,13 @@ class ShapeQuery:
         
         If a cached matrix exists for the current weight configuration, load it.
         Otherwise, compute it and save for future use.
+        
+        OPTIMIZED: Uses vectorized operations on precomputed matrices instead of
+        creating ShapeDistance objects for every pair.
         """
+        import time
+        t_total_start = time.time()
+        
         os.makedirs(self.total_distance_dir, exist_ok=True)
         
         # Generate filename from weights
@@ -142,8 +163,10 @@ class ShapeQuery:
         # Try to load existing matrix
         if os.path.exists(self.distance_matrix_path):
             print(f"Loading cached total distance matrix: {filename}")
+            t_load = time.time()
             self.distance_matrix = pd.read_csv(self.distance_matrix_path, index_col=0)
-            print("Matrix loaded successfully\n")
+            t_load_end = time.time()
+            print(f"Matrix loaded successfully ({(t_load_end-t_load)*1000:.0f}ms)\n")
             return
         
         # Compute new matrix
@@ -151,86 +174,137 @@ class ShapeQuery:
         print(f"Using weights from: {os.path.basename(self.weights_csv)}")
         print(f"Using precomputed distances from: {os.path.basename(self.precomputed_dir)}\n")
         
-        n = len(self.shapes)
-        distance_matrix = np.full((n, n), np.nan)
-        np.fill_diagonal(distance_matrix, 0.0)
-        
-        total_comparisons = n * (n - 1) // 2
-        
+        # === OPTIMIZATION: Load weights ONCE ===
+        t_weights = time.time()
+        wdf = pd.read_csv(self.weights_csv)
+        if 'descriptor' not in wdf.columns or 'weight' not in wdf.columns:
+            raise ValueError("Weights CSV must have 'descriptor' and 'weight' columns")
+        weights = {row['descriptor']: float(row['weight']) for _, row in wdf.iterrows()}
+        t_weights_end = time.time()
         if self.debug:
-            import time
-            print("\n[DEBUG] Starting distance computation loop...")
-            print(f"[DEBUG] Total comparisons: {total_comparisons}")
-            print(f"[DEBUG] Precomputed dir: {self.precomputed_dir}")
-            print(f"[DEBUG] Weights CSV: {self.weights_csv}\n")
+            print(f"[DEBUG] Loaded weights ({(t_weights_end-t_weights)*1000:.0f}ms): {weights}\n")
         
-        with tqdm(total=total_comparisons, desc="Computing total distances", disable=self.debug) as pbar:
-            for i in range(n):
-                for j in range(i):  # Lower triangle only
-                    if self.debug and (i * n + j) < 5:  # Debug first few iterations
-                        print(f"\n[DEBUG] === Iteration {i},{j} ===")
-                        print(f"[DEBUG] Shape A: {self.shape_names[i]}")
-                        print(f"[DEBUG] Shape B: {self.shape_names[j]}")
-                        t_start = time.time()
-                    
-                    try:
-                        # Create distance calculator with precomputed matrices
-                        if self.debug and (i * n + j) < 5:
-                            t0 = time.time()
-                        
-                        dist_calc = ShapeDistance(
-                            self.shapes[i], 
-                            self.shapes[j],
-                            precomputed_dir=self.precomputed_dir,
-                            debug=self.debug if (i * n + j) < 5 else False
-                        )
-                        
-                        if self.debug and (i * n + j) < 5:
-                            t1 = time.time()
-                            print(f"[DEBUG] ShapeDistance init took: {(t1-t0)*1000:.2f}ms")
-                        
-                        # Compute weighted total distance
-                        if self.debug and (i * n + j) < 5:
-                            t0 = time.time()
-                        
-                        distance = dist_calc.total_distance(
-                            weights_csv=self.weights_csv,
-                            normalize_missing=True
-                        )
-                        
-                        if self.debug and (i * n + j) < 5:
-                            t1 = time.time()
-                            print(f"[DEBUG] total_distance() took: {(t1-t0)*1000:.2f}ms")
-                            print(f"[DEBUG] Computed distance: {distance:.6f}")
-                            t_end = time.time()
-                            print(f"[DEBUG] Total iteration time: {(t_end-t_start)*1000:.2f}ms")
-                        
-                        distance_matrix[i, j] = distance
-                        
-                    except Exception as e:
-                        print(f"\nError computing distance between {self.shape_names[i]} and {self.shape_names[j]}: {e}")
-                        distance_matrix[i, j] = np.nan
-                    
-                    pbar.update(1)
+        # === OPTIMIZATION: Load ALL precomputed matrices ONCE ===
+        t_matrices_start = time.time()
+        descriptors = ['A3', 'D1', 'D2', 'D3', 'D4']
+        global_descriptors = ['surface_area', 'compactness', 'rectangularity', 
+                              'diameter', 'convexity', 'eccentricity']
+        
+        precomputed_matrices = {}
+        cache_hits = 0
+        cache_misses = 0
+        
+        # Collect all descriptors to load
+        all_descriptors = [(desc, False) for desc in descriptors] + \
+                          [(desc, True) for desc in global_descriptors]
+        
+        print(f"Loading {len(all_descriptors)} precomputed distance matrices...")
+        
+        for desc, is_global in tqdm(all_descriptors, desc="Loading matrices", disable=self.debug):
+            fname = f"distances_global_{desc}.csv" if is_global else f"distances_{desc}.csv"
+            path = os.path.join(self.precomputed_dir, fname)
+            
+            if os.path.exists(path):
+                df_dist = pd.read_csv(path, index_col=0)
+                # Make symmetric: fill upper triangle from lower triangle
+                df_dist = df_dist.combine_first(df_dist.T)
+                
+                # Take absolute value to ensure non-negative distances
+                # Standardized distances can be negative, but distances must be >= 0
+                df_dist = df_dist.abs()
+                
+                precomputed_matrices[desc] = df_dist
+                cache_hits += 1
+            else:
+                cache_misses += 1
+        
+        t_matrices_end = time.time()
+        print(f"Loaded {cache_hits}/{len(all_descriptors)} matrices in {(t_matrices_end-t_matrices_start):.1f}s")
+        if cache_misses > 0:
+            print(f"⚠ Warning: {cache_misses} descriptor matrices not found - those will be skipped")
+        
+        # === OPTIMIZATION: Vectorized weighted sum ===
+        t_compute_start = time.time()
+        n = len(self.shapes)
+        
+        # Initialize with zeros
+        total_distance_matrix = np.zeros((n, n))
+        weight_sum_used = 0.0
+        descriptors_used = 0
+        
+        # Get shape names for lookups
+        shape_names = [s.shape for s in self.shapes]
+        
+        print(f"Computing weighted distance matrix for {n} shapes...")
+        
+        for desc_name, weight in tqdm(weights.items(), desc="Applying weights", disable=self.debug):
+            if desc_name not in precomputed_matrices:
+                if self.debug:
+                    print(f"[DEBUG] Skipping {desc_name} (no precomputed matrix)")
+                continue
+            
+            desc_matrix = precomputed_matrices[desc_name]
+            
+            # Extract relevant submatrix for our shapes
+            # Handle missing shapes gracefully
+            try:
+                # Reindex to match our shape order, fill missing with NaN
+                desc_submatrix = desc_matrix.reindex(index=shape_names, columns=shape_names, fill_value=np.nan)
+                desc_values = desc_submatrix.values
+                
+                # Add weighted contribution (skip NaN values)
+                valid_mask = ~np.isnan(desc_values)
+                total_distance_matrix[valid_mask] += weight * desc_values[valid_mask]
+                
+                weight_sum_used += weight
+                descriptors_used += 1
+                
+                if self.debug:
+                    valid_count = np.sum(valid_mask)
+                    print(f"[DEBUG] {desc_name}: weight={weight:.4f}, valid_entries={valid_count}/{n*n}")
+            
+            except Exception as e:
+                print(f"Warning: Could not process descriptor {desc_name}: {e}")
+                continue
+        
+        t_compute_end = time.time()
+        print(f"\nWeighted sum computed using {descriptors_used} descriptors")
+        print(f"  Matrix loading: {(t_matrices_end-t_matrices_start):.1f}s")
+        print(f"  Computation: {(t_compute_end-t_compute_start):.1f}s")
+        
+        # Normalize by sum of used weights (so distances are in same scale)
+        if weight_sum_used > 0:
+            total_distance_matrix /= weight_sum_used
         
         # Create DataFrame
         self.distance_matrix = pd.DataFrame(
-            distance_matrix,
-            index=self.shape_names,
-            columns=self.shape_names
+            total_distance_matrix,
+            index=shape_names,
+            columns=shape_names
         )
         
         # Save to CSV
+        t_save = time.time()
         self.distance_matrix.to_csv(self.distance_matrix_path)
-        print(f"\nSaved total distance matrix to: {self.distance_matrix_path}")
+        t_save_end = time.time()
+        print(f"  Saving to CSV: {(t_save_end-t_save):.1f}s")
         
         # Print statistics
-        valid_distances = distance_matrix[~np.isnan(distance_matrix) & (distance_matrix > 0)]
+        valid_distances = total_distance_matrix[total_distance_matrix > 0]
         if len(valid_distances) > 0:
-            print(f"  Min distance: {np.min(valid_distances):.6f}")
-            print(f"  Max distance: {np.max(valid_distances):.6f}")
-            print(f"  Mean distance: {np.mean(valid_distances):.6f}")
-            print(f"  Median distance: {np.median(valid_distances):.6f}\n")
+            print(f"\nDistance matrix statistics:")
+            print(f"  Shape: {n}×{n} ({n*n:,} total entries)")
+            print(f"  Non-zero: {len(valid_distances):,} ({100*len(valid_distances)/(n*n):.1f}%)")
+            print(f"  Min: {np.min(valid_distances):.6f}")
+            print(f"  Max: {np.max(valid_distances):.6f}")
+            print(f"  Mean: {np.mean(valid_distances):.6f}")
+            print(f"  Median: {np.median(valid_distances):.6f}")
+        
+        t_total_end = time.time()
+        print(f"\n{'='*60}")
+        print(f"Total time: {(t_total_end-t_total_start):.1f}s")
+        print(f"Saved to: {os.path.basename(self.distance_matrix_path)}")
+        print(f"{'='*60}\n")
     
     def query(self, query_shape_name: str, k: int = 10, include_self: bool = False) -> pd.DataFrame:
         """
@@ -242,7 +316,7 @@ class ShapeQuery:
             include_self: If True, include the query shape itself in results (default: False)
         
         Returns:
-            pd.DataFrame with columns ['shape', 'distance', 'rank'] sorted by distance
+            pd.DataFrame with columns ['shape', 'class', 'distance', 'rank'] sorted by distance
         
         Raises:
             ValueError: If query shape not found or distance matrix not computed
@@ -252,6 +326,10 @@ class ShapeQuery:
         
         if query_shape_name not in self.distance_matrix.index:
             raise ValueError(f"Query shape '{query_shape_name}' not found in distance matrix")
+        
+        # Get query shape class
+        query_class = self.shape_to_class.get(query_shape_name, 'Unknown')
+        print(f"Query: {query_shape_name} (class: {query_class})")
         
         # Get distances from query shape to all others
         distances = self.distance_matrix.loc[query_shape_name]
@@ -278,9 +356,10 @@ class ShapeQuery:
         # Take top k
         top_k = distances_sorted.head(k)
         
-        # Build result DataFrame
+        # Build result DataFrame with shape class
         result = pd.DataFrame({
             'shape': top_k.index,
+            'class': [self.shape_to_class.get(shape, 'Unknown') for shape in top_k.index],
             'distance': top_k.values,
             'rank': range(1, len(top_k) + 1)
         })
@@ -316,29 +395,22 @@ class ShapeQuery:
 
 # Example usage
 if __name__ == "__main__":
-    # # Initialize query system with default weights
-    # query_system = ShapeQuery(
-    #     csv_file_path="final_006_cleaned.csv",
-    #     weights_csv="distance_weights.csv"
-    # )
+    # Test with a small subset first to see performance gains
+    print("="*60)
+    print("Testing optimized ShapeQuery with 20 shapes")
+    print("="*60 + "\n")
     
-    # # Query a single shape
-    # query_shape = query_system.shape_names[0]
-    # print(f"Querying for shape: {query_shape}\n")
-    
-    # results = query_system.query(query_shape, k=10)
-    # print("Top 10 nearest shapes:")
-    # print(results)
-    
-    # Optional: batch query multiple shapes
-    # test_queries = query_system.shape_names[:5]
-    # batch_results = query_system.batch_query(test_queries, k=5)
-    # for query, result in batch_results.items():
-    #     print(f"\nQuery: {query}")
-    #     print(result)
+    qs = ShapeQuery()
 
-    # Test with just 10 shapes to see debug output
-  qs = ShapeQuery(
-      num_shapes=10,
-      debug=True
-  )
+    
+    print("="*60 + "\n")
+    print("INITIALIZED ShapeQuery\n")
+    print("="*60 + "\n")
+    
+    # Try a query
+    if len(qs.shape_names) > 0:
+        test_shape = qs.shape_names[0]
+        print(f"\n{'='*60}")
+        print("="*60 + "\n")
+        results = qs.query(test_shape, k=10)
+        print(results)
