@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 from .file_index import get_file_tree
 from .analysis_cache import get_analysis_data
+import re
 
 
 class DatasetCache:
@@ -357,10 +358,44 @@ class DatasetCache:
                 file_df_copy['base_filename'] = file_df_copy['filename'].str.replace(r'_(\d{2}_.*|unified)\.obj$', '.obj', regex=True)
                 analysis_df_copy['base_filename'] = analysis_df_copy['filename'].str.replace(r'_(\d{2}_.*|unified)\.obj$', '.obj', regex=True)
 
-                # Merge on category and base filename
+                # Prefer analysis rows from the latest processing step for each base_filename
+                # Determine a numeric step order so we can pick the last (most processed) entry.
+                def _step_order_from_filename(fname: str) -> int:
+                    if not isinstance(fname, str):
+                        return -1
+                    fname = fname.lower()
+                    # unified should be considered the latest
+                    if fname.endswith('_unified.obj') or fname.endswith('_unified'):
+                        return 999
+                    # look for the two-digit step prefix like '_03_' in 'm1337_03_aligned.obj'
+                    m = re.search(r'_(\d{2})_', fname)
+                    if m:
+                        try:
+                            return int(m.group(1))
+                        except Exception:
+                            return -1
+                    # also handle cases like '_06_fill_holes_and_orientation.obj'
+                    m2 = re.search(r'_(\d{2})_', fname)
+                    if m2:
+                        try:
+                            return int(m2.group(1))
+                        except Exception:
+                            return -1
+                    return -1
+
+                analysis_df_copy['step_order'] = analysis_df_copy['filename'].astype(str).apply(_step_order_from_filename)
+
+                # For each (category, base_filename) keep only the row with the highest step_order (latest processing)
+                analysis_latest = (
+                    analysis_df_copy
+                    .sort_values(['category', 'base_filename', 'step_order'])
+                    .drop_duplicates(subset=['category', 'base_filename'], keep='last')
+                )
+
+                # Merge on category and base filename using the latest analysis rows
                 merged = pd.merge(
                     file_df_copy,
-                    analysis_df_copy[['category', 'base_filename', 'num_vertices', 'num_faces']],
+                    analysis_latest[['category', 'base_filename', 'num_vertices', 'num_faces']],
                     left_on=['category', 'base_filename'],
                     right_on=['category', 'base_filename'],
                     how='left'
