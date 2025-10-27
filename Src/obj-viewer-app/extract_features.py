@@ -148,5 +148,5 @@ if __name__ == "__main__":
     #     sys.exit(1)
 
     main_folder = "Datasets/UnifiedPreprocessed/Data"  # sys.argv[1]
-    output_csv = "outputfeatures_unified_prepared.csv"  # sys.argv[2] if len(sys.argv) == 3 else "features_unified_prepared.csv"
+    output_csv = "output/features_unified_prepared.csv"  # sys.argv[2] if len(sys.argv) == 3 else "features_unified_prepared.csv"
     run(main_folder, output_csv)

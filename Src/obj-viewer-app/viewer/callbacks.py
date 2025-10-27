@@ -1589,6 +1589,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
+        # Ensure all step files are included in the merge
+        if selected_dataset and 'UnifiedPreprocessed' in selected_dataset:
+            file_df = get_cached_dataset_data(selected_dataset)
+            if file_df is not None and not file_df.empty:
+                # Filter rows to include all steps
+                step_files = file_df[file_df['filename'].str.contains('_step')]
+                if not step_files.empty:
+                    file_df = pd.concat([file_df, step_files]).drop_duplicates()
+
+        # Proceed with existing logic to find matching rows
         matching_rows = file_df[file_df['filename'] == selected_filename]
         if matching_rows.empty:
             return create_3d_plot(np.array([]), np.array([]), f"File {selected_filename} not found",
@@ -2049,22 +2059,27 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     from core.file_index import get_available_steps
                     available_steps_info = get_available_steps(row)
                     available_steps = available_steps_info.get('available_step_indices', [])
-                    print(f"� Available steps for {filename}: {available_steps}")
-                    
+                    print(f"🟢 Available steps for {filename}: {available_steps}")
+
+                    # Ensure all step files are included in the merge
+                    if selected_dataset and 'UnifiedPreprocessed' in selected_dataset:
+                        file_df = get_cached_dataset_data(selected_dataset)
+                        if file_df is not None and not file_df.empty:
+                            # Filter rows to include all steps
+                            step_files = file_df[file_df['filename'].str.contains('_step')]
+                            if not step_files.empty:
+                                file_df = pd.concat([file_df, step_files]).drop_duplicates()
+
+                    # Update slider and step info dynamically
                     class_names = []
                     for i in range(7):
                         if i not in available_steps:
-                            # This step is missing
                             class_names.append("step-label missing")
-                            print(f"🔴 Step {i} is MISSING")
                         elif i == step_value:
                             class_names.append("step-label active")
-                            print(f"🟢 Step {i} is ACTIVE")
                         else:
                             class_names.append("step-label")
-                            print(f"⚪ Step {i} is NORMAL")
-                    
-                    print(f"🎯 Final class names: {class_names}")
+
                     return class_names
                     
             except Exception as e:
@@ -2082,7 +2097,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             else:
                 class_names.append("step-label")
         
-        print(f"📋 Default class names: {class_names}")
         return class_names
 
     @app.callback(

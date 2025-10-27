@@ -329,53 +329,53 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             # --- Insert two buttons in the middle of the Center panel ---
                             html.Div([
                                 html.Button([
-                                    html.Span('🌐', style={'marginRight': '8px', 'fontSize': '18px', 'verticalAlign': 'middle'}),
-                                    html.Span('Global Descriptors', style={'verticalAlign': 'middle'})
+                                    html.Span('🌐', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                                    html.Span('Global', style={'verticalAlign': 'middle'})
                                 ],
                                     id='show-global-descriptors-btn',
                                     n_clicks=0,
                                     className='center-action-btn pretty-action-btn',
                                     style={
-                                        'marginRight': '12px',
                                         'background': 'linear-gradient(90deg, #2563eb 0%, #38bdf8 100%)',
-                                        'width': 'max-content',
+                                        'width': 'auto',
                                         'color': 'white',
                                         'border': 'none',
-                                        'borderRadius': '8px',
-                                        'padding': '8px 22px',
-                                        'fontWeight': 600,
-                                        'fontSize': '16px',
-                                        'boxShadow': '0 2px 8px rgba(37,99,235,0.10)',
+                                        'borderRadius': '6px',
+                                        'padding': '2px 12px',
+                                        'fontWeight': 500,
+                                        'fontSize': '12px',
+                                        'boxShadow': '0 1px 4px rgba(37,99,235,0.10)',
                                         'cursor': 'pointer',
                                         'transition': 'background 0.2s',
                                         'outline': 'none',
                                         'display': 'flex',
                                         'alignItems': 'center',
-                                        'gap': '4px',
+                                        'gap': '2px',
                                     }
                                 ),
                                 html.Button([
-                                    html.Span('🧬', style={'marginRight': '8px', 'fontSize': '18px', 'verticalAlign': 'middle'}),
-                                    html.Span('Clustering', style={'verticalAlign': 'middle'})
+                                    html.Span('🧬', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                                    html.Span('Cluster', style={'verticalAlign': 'middle'})
                                 ],
                                     id='show-clustering-btn',
                                     n_clicks=0,
                                     className='center-action-btn pretty-action-btn',
                                     style={
                                         'background': 'linear-gradient(90deg, #583191 0%, #C3A1F3 100%)',
+                                        'width': 'auto',
                                         'color': 'white',
                                         'border': 'none',
-                                        'borderRadius': '8px',
-                                        'padding': '8px 22px',
-                                        'fontWeight': 600,
-                                        'fontSize': '16px',
-                                        'boxShadow': '0 2px 8px rgba(190,24,93,0.10)',
+                                        'borderRadius': '6px',
+                                        'padding': '2px 12px',
+                                        'fontWeight': 500,
+                                        'fontSize': '12px',
+                                        'boxShadow': '0 1px 4px rgba(190,24,93,0.10)',
                                         'cursor': 'pointer',
                                         'transition': 'background 0.2s',
                                         'outline': 'none',
                                         'display': 'flex',
                                         'alignItems': 'center',
-                                        'gap': '4px',
+                                        'gap': '2px',
                                     }
                                 )
                             ], style={'display': 'flex', 'justifyContent': 'center', 'alignItems': 'center', 'margin': '0 0 0 0', 'gap': '8px'}),
