@@ -393,9 +393,22 @@ class DatasetCache:
                 )
 
                 # Merge on category and base filename using the latest analysis rows
+                # Select the standard numeric fields plus the additional analysis fields
+                analysis_merge_cols = [
+                    'category', 'base_filename', 'num_vertices', 'num_faces',
+                    'surface_area', 'compactness', 'rectangularity', 'diameter',
+                    'convexity', 'eccentricity', 'A3_hist', 'A3_bins',
+                    'D1_hist', 'D1_bins', 'D2_hist', 'D2_bins',
+                    'D3_hist', 'D3_bins', 'D4_hist', 'D4_bins',
+                    'shape_file', 'name', 'class_b'
+                ]
+
+                # Keep only columns that actually exist in analysis_latest to avoid KeyError
+                analysis_merge_cols = [c for c in analysis_merge_cols if c in analysis_latest.columns]
+
                 merged = pd.merge(
                     file_df_copy,
-                    analysis_latest[['category', 'base_filename', 'num_vertices', 'num_faces']],
+                    analysis_latest[analysis_merge_cols],
                     left_on=['category', 'base_filename'],
                     right_on=['category', 'base_filename'],
                     how='left'
@@ -409,17 +422,31 @@ class DatasetCache:
                 unmatched_mask = merged['num_vertices'].isna()
                 if unmatched_mask.any():
                     print(f"[DEBUG] Fallback matching for {unmatched_mask.sum()} entries...")
+                    # Prepare fallback columns (use 'filename' keyed rows)
+                    fallback_cols = ['category', 'filename', 'num_vertices', 'num_faces',
+                                     'surface_area', 'compactness', 'rectangularity', 'diameter',
+                                     'convexity', 'eccentricity', 'A3_hist', 'A3_bins',
+                                     'D1_hist', 'D1_bins', 'D2_hist', 'D2_bins',
+                                     'D3_hist', 'D3_bins', 'D4_hist', 'D4_bins',
+                                     'shape_file', 'name', 'class_b']
+
+                    fallback_cols = [c for c in fallback_cols if c in analysis_df_copy.columns]
+
                     fallback_merged = pd.merge(
                         file_df_copy[unmatched_mask],
-                        analysis_df_copy[['category', 'filename', 'num_vertices', 'num_faces']],
+                        analysis_df_copy[fallback_cols],
                         left_on=['category', 'filename'],
                         right_on=['category', 'filename'],
                         how='left'
                     )
 
-                    # Update the original merged DataFrame with fallback matches
-                    for col in ['num_vertices', 'num_faces']:
-                        merged.loc[unmatched_mask, col] = fallback_merged[col].values
+                    # Update the original merged DataFrame with fallback matches for any columns we have
+                    for col in [c for c in fallback_cols if c not in ('category', 'filename')]:
+                        if col in merged.columns:
+                            merged.loc[unmatched_mask, col] = fallback_merged[col].values
+                        else:
+                            # If the merged frame didn't originally have the column, add it from fallback
+                            merged.loc[unmatched_mask, col] = fallback_merged[col].values
 
                 # Fill missing values with defaults
                 merged['num_vertices'] = merged['num_vertices'].fillna(0).astype('int32')

@@ -86,7 +86,38 @@ def load_meshes_from_csv(csv_path, obj_dir):
 
 
 class ShapeMesh:
-    def __init__(self, vertices, faces, category=None, filename=None, face_types=None, bounding_box=None, base_mesh=None, size=None, filepath=None):
+    def __init__(
+        self,
+        vertices,
+        faces,
+        category=None,
+        filename=None,
+        face_types=None,
+        bounding_box=None,
+        base_mesh=None,
+        size=None,
+        filepath=None,
+        # analysis / derived properties (optional)
+        surface_area=None,
+        compactness=None,
+        rectangularity=None,
+        diameter=None,
+        convexity=None,
+        eccentricity=None,
+        A3_hist=None,
+        A3_bins=None,
+        D1_hist=None,
+        D1_bins=None,
+        D2_hist=None,
+        D2_bins=None,
+        D3_hist=None,
+        D3_bins=None,
+        D4_hist=None,
+        D4_bins=None,
+        shape_file=None,
+        name=None,
+        class_b=None,
+    ):
         self.vertices = np.array(vertices)
         self.faces = np.array(faces)
         self.category = category
@@ -95,9 +126,59 @@ class ShapeMesh:
         self.bounding_box = bounding_box  # Should be a dict with 'min' and 'max'
         self.size = size  # File size in bytes
         self.filepath = filepath  # Full path to the file
+
         # If using trimesh, wrap it
         # self.base_mesh = base_mesh or trimesh.Trimesh(vertices=self.vertices, faces=self.faces)
         self.base_mesh = base_mesh  # For now, can be None or your own mesh class
+
+        # Optional analysis-derived properties (store under _* to avoid clobbering @property descriptors)
+        # Also expose analysis_* aliases for direct access if needed elsewhere.
+        self._surface_area = surface_area
+        self.analysis_surface_area = surface_area
+
+        self._compactness = compactness
+        self.analysis_compactness = compactness
+
+        self._rectangularity = rectangularity
+        self.analysis_rectangularity = rectangularity
+
+        self._diameter = diameter
+        self.analysis_diameter = diameter
+
+        self._convexity = convexity
+        self.analysis_convexity = convexity
+
+        self._eccentricity = eccentricity
+        self.analysis_eccentricity = eccentricity
+
+        self._A3_hist = A3_hist
+        self.analysis_A3_hist = A3_hist
+        self._A3_bins = A3_bins
+        self.analysis_A3_bins = A3_bins
+
+        self._D1_hist = D1_hist
+        self.analysis_D1_hist = D1_hist
+        self._D1_bins = D1_bins
+        self.analysis_D1_bins = D1_bins
+
+        self._D2_hist = D2_hist
+        self.analysis_D2_hist = D2_hist
+        self._D2_bins = D2_bins
+        self.analysis_D2_bins = D2_bins
+
+        self._D3_hist = D3_hist
+        self.analysis_D3_hist = D3_hist
+        self._D3_bins = D3_bins
+        self.analysis_D3_bins = D3_bins
+
+        self._D4_hist = D4_hist
+        self.analysis_D4_hist = D4_hist
+        self._D4_bins = D4_bins
+        self.analysis_D4_bins = D4_bins
+
+        self.analysis_shape_file = shape_file
+        self.analysis_name = name
+        self.analysis_class_b = class_b
     
     @classmethod
     def from_row(cls, row, obj_dir):
@@ -118,7 +199,26 @@ class ShapeMesh:
             face_types=row.get('face_types'),
             bounding_box=bounding_box,
             size=row.get('size'),
-            filepath=filepath
+            filepath=filepath,
+            surface_area=row.get('surface_area'),
+            compactness=row.get('compactness'),
+            rectangularity=row.get('rectangularity'),
+            diameter=row.get('diameter'),
+            convexity=row.get('convexity'),
+            eccentricity=row.get('eccentricity'),
+            A3_hist=row.get('A3_hist'),
+            A3_bins=row.get('A3_bins'),
+            D1_hist=row.get('D1_hist'),
+            D1_bins=row.get('D1_bins'),
+            D2_hist=row.get('D2_hist'),
+            D2_bins=row.get('D2_bins'),
+            D3_hist=row.get('D3_hist'),
+            D3_bins=row.get('D3_bins'),
+            D4_hist=row.get('D4_hist'),
+            D4_bins=row.get('D4_bins'),
+            shape_file=row.get('shape_file'),
+            name=row.get('name'),
+            class_b=row.get('class_b')
         )
     
     @classmethod
@@ -166,7 +266,26 @@ class ShapeMesh:
             category=row.get('category'),
             filename=row.get('filename'),
             filepath=filepath,
-            size=row.get('size')
+            size=row.get('size'),
+            surface_area=row.get('surface_area'),
+            compactness=row.get('compactness'),
+            rectangularity=row.get('rectangularity'),
+            diameter=row.get('diameter'),
+            convexity=row.get('convexity'),
+            eccentricity=row.get('eccentricity'),
+            A3_hist=row.get('A3_hist'),
+            A3_bins=row.get('A3_bins'),
+            D1_hist=row.get('D1_hist'),
+            D1_bins=row.get('D1_bins'),
+            D2_hist=row.get('D2_hist'),
+            D2_bins=row.get('D2_bins'),
+            D3_hist=row.get('D3_hist'),
+            D3_bins=row.get('D3_bins'),
+            D4_hist=row.get('D4_hist'),
+            D4_bins=row.get('D4_bins'),
+            shape_file=row.get('shape_file'),
+            name=row.get('name'),
+            class_b=row.get('class_b')
         )
 
     @property
@@ -178,6 +297,13 @@ class ShapeMesh:
         return len(self.faces)
     @property
     def area(self):
+        # Prefer analysis-provided value when present
+        if getattr(self, '_surface_area', None) is not None:
+            try:
+                return float(self._surface_area)
+            except Exception:
+                return self._surface_area
+
         if self.base_mesh and hasattr(self.base_mesh, 'area'):
             return self.base_mesh.area
         # Custom area calculation fallback
@@ -192,6 +318,13 @@ class ShapeMesh:
 
     @property
     def diameter(self):
+        # Use analysis-provided diameter if available
+        if getattr(self, '_diameter', None) is not None:
+            try:
+                return float(self._diameter)
+            except Exception:
+                return self._diameter
+
         if len(self.vertices) < 2:
             return 0
         from scipy.spatial.distance import pdist
@@ -199,12 +332,25 @@ class ShapeMesh:
 
     @property
     def compactness(self):
+        # Prefer analysis-provided compactness
+        if getattr(self, '_compactness', None) is not None:
+            try:
+                return float(self._compactness)
+            except Exception:
+                return self._compactness
+
         if self.volume == 0 or self.area is None:
             return 0
         return (self.area ** 1.5) / self.volume
 
     @property
     def rectangularity(self):
+        if getattr(self, '_rectangularity', None) is not None:
+            try:
+                return float(self._rectangularity)
+            except Exception:
+                return self._rectangularity
+
         if self.base_mesh and hasattr(self.base_mesh, 'bounding_box_oriented'):
             obb = self.base_mesh.bounding_box_oriented
             obb_volume = obb.volume
@@ -215,6 +361,12 @@ class ShapeMesh:
 
     @property
     def convexity(self):
+        if getattr(self, '_convexity', None) is not None:
+            try:
+                return float(self._convexity)
+            except Exception:
+                return self._convexity
+
         if self.base_mesh and hasattr(self.base_mesh, 'convex_hull'):
             hull = self.base_mesh.convex_hull
             hull_volume = hull.volume
@@ -225,6 +377,12 @@ class ShapeMesh:
 
     @property
     def eccentricity(self):
+        if getattr(self, '_eccentricity', None) is not None:
+            try:
+                return float(self._eccentricity)
+            except Exception:
+                return self._eccentricity
+
         cov = np.cov(self.vertices.T)
         eigvals = np.linalg.eigvalsh(cov)
         if np.min(eigvals) == 0:
@@ -501,7 +659,7 @@ class ShapeMesh:
                     html.Span(f"{self.compactness:.4f}" if self.compactness is not None else "-")
                 ], className="shape-info-prop shape-info-descriptor"),
                 html.Div([
-                    html.Span("📦 ", className="shape-info-icon"), html.Strong("3D Rectangularity: "),
+                    html.Span("📦 ", className="shape-info-icon"), html.Strong("Rectangularity: "),
                     html.Span(f"{self.rectangularity:.4f}" if self.rectangularity is not None else "-")
                 ], className="shape-info-prop shape-info-descriptor"),
                 html.Div([
@@ -516,7 +674,7 @@ class ShapeMesh:
                     html.Span("🧮 ", className="shape-info-icon"), html.Strong("Eccentricity: "),
                     html.Span(f"{self.eccentricity:.4f}" if self.eccentricity is not None else "-")
                 ], className="shape-info-prop shape-info-descriptor"),
-            ], style={'display': 'flex', 'flexDirection': 'row', 'gap': '16px', 'margin': '8px 0'}),
+            ], style={'display': 'flex', 'flexDirection': 'row', 'gap': '3px', 'margin': '8px 0'}),
             # --- END NEW ROW ---
 
             html.Div([
