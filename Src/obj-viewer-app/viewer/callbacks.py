@@ -2307,19 +2307,24 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Step slider control callbacks
     @app.callback(
-        Output('display-step-panel', 'style'),
-        Input('selected-dataset-store', 'data'),
-        prevent_initial_call=True
+        [Output('display-step-panel', 'style'), Output('center-action-buttons', 'style'), Output('inline-global-descriptors', 'style')],
+        Input('selected-dataset-store', 'data')
     )
     def update_step_panel_visibility(selected_dataset):
         """
-        Show/hide the step panel based on dataset type.
+        Show/hide the step panel and center action buttons based on dataset type.
         Only show for datasets that contain processed step files.
         """
         if selected_dataset and ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
-            return {'display': 'block'}
+            visible = {'display': 'block'}
+            center_style = {'display': 'flex', 'flexDirection': 'row', 'justifyContent': 'center', 'alignItems': 'center', 'gap': '8px'}
+            inline_style = {'display': 'flex', 'gap': '12px', 'alignItems': 'flex-start'}
         else:
-            return {'display': 'none'}
+            visible = {'display': 'none'}
+            center_style = {'display': 'none'}
+            inline_style = {'display': 'none'}
+
+        return visible, center_style, inline_style
 
     @app.callback(
         [Output('processing-step-slider', 'disabled'),

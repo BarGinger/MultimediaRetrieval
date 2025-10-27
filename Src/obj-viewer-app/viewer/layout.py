@@ -400,7 +400,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                                         'gap': '2px',
                                     }
                                 )
-                            ], style={'display': 'flex', 'justifyContent': 'center', 'alignItems': 'center', 'margin': '0 0 0 0', 'gap': '8px'}),
+                            ], id='center-action-buttons', style={'display': 'none', 'flexDirection': 'row', 'display': 'flex', 'justifyContent': 'center', 'alignItems': 'center', 'margin': '0 0 0 0', 'gap': '8px'}),
 
 
                             html.Div([
