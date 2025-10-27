@@ -39,7 +39,9 @@ def create_dash_app():
     app.layout = html.Div([
         dcc.Store(id="selected-file-store"),
         dcc.Store(id="selected-dataset-store", data=DEFAULT_DATASET),
-        build_layout(file_df, DATASET_OPTIONS, DEFAULT_DATASET)
+    # Ensure a stable hidden Close button exists at top-level so callbacks referencing
+    # its `n_clicks` property validate correctly (prevents missing-input errors).
+    build_layout(file_df, DATASET_OPTIONS, DEFAULT_DATASET)
     ], style={'fontFamily': 'Arial, sans-serif'})
 
     # Register server callbacks
