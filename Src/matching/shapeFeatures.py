@@ -12,7 +12,7 @@ class Shape:
     including global features and histogram-based descriptors.
     """
     
-    def __init__(self, obj_file_path, csv_file_path="final_006_cleaned.csv"):
+    def __init__(self, obj_file_path, csv_file_path="final_006_cleaned.csv", df: pd.DataFrame | None = None):
         """
         Initialize a Shape object with features from the CSV file.
         
@@ -20,6 +20,8 @@ class Shape:
             obj_file_path (str): Path to the .obj file for this shape
             csv_file_path (str): Path to the CSV file containing shape features
                                 (default: "final_006_cleaned.csv" in the same directory)
+            df (pd.DataFrame, optional): Pre-loaded DataFrame to avoid repeated CSV reads.
+                                         If provided, csv_file_path is only used for reference.
         """
         self.obj_file_path = obj_file_path
         self.shape_name = os.path.basename(obj_file_path)
@@ -31,13 +33,14 @@ class Shape:
         
         self.csv_file_path = csv_file_path
         
-        # Load features from CSV
-        self._load_features()
+        # Load features from CSV or DataFrame
+        self._load_features(df)
     
-    def _load_features(self):
+    def _load_features(self, df: pd.DataFrame | None = None):
         """Load all features from the CSV file and set them as properties."""
-        # Read the CSV file
-        df = pd.read_csv(self.csv_file_path)
+        # Read the CSV file only if DataFrame not provided
+        if df is None:
+            df = pd.read_csv(self.csv_file_path)
         
         # Find the row corresponding to this shape
         row = df[df['shape'] == self.shape_name]
