@@ -16,6 +16,37 @@ from core.dataset_cache import get_cached_dataset_data, get_available_datasets, 
 from core.shapeMesh import ShapeMesh
 
 
+def _parse_hist_and_bins(hist_str, bins_str):
+    """Parse semicolon-separated histogram and bins strings into lists of floats.
+
+    Returns (midpoints, hist_vals) where midpoints has same length as hist_vals.
+    If parsing fails, returns (None, None).
+    """
+    try:
+        if hist_str is None or pd.isna(hist_str) or str(hist_str).strip() == "":
+            return None, None
+        if bins_str is None or pd.isna(bins_str) or str(bins_str).strip() == "":
+            return None, None
+
+        hist_vals = [float(x) for x in str(hist_str).split(";") if x != ""]
+        bin_vals = [float(x) for x in str(bins_str).split(";") if x != ""]
+
+        # If bins give edges (N+1) and hist has N, compute midpoints
+        if len(bin_vals) == len(hist_vals) + 1:
+            b = np.array(bin_vals)
+            mids = (b[:-1] + b[1:]) / 2.0
+            return mids.tolist(), hist_vals
+
+        # If bin_vals length equals hist_vals, treat bins as midpoints already
+        if len(bin_vals) == len(hist_vals):
+            return bin_vals, hist_vals
+
+        # Fallback: create simple x positions 0..N-1
+        return list(range(len(hist_vals))), hist_vals
+    except Exception:
+        return None, None
+
+
 def create_toast_data(message, toast_type="info", icon="ℹ️"):
     """Create toast data for store"""
     import random
@@ -1880,7 +1911,272 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             cards.append(card)
 
         return cards
-    
+
+    # Control the modal visibility via a persistent Store to avoid missing-id issues
+    @app.callback(
+        Output('global-descriptors-open', 'data'),
+        [Input('show-global-descriptors-btn', 'n_clicks'), Input('global-descriptors-hidden-close-trigger', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def set_global_descriptors_open(show_clicks, hidden_close_clicks):
+        """Set the `global-descriptors-open` store based on which button triggered.
+
+        We listen to the persistent hidden close trigger (`global-descriptors-hidden-close-trigger`)
+        instead of any in-modal id to avoid missing-id validation errors in the renderer.
+        """
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update
+        triggered = ctx.triggered[0]['prop_id'].split('.')[0]
+        if triggered == 'show-global-descriptors-btn':
+            return True
+        if triggered == 'global-descriptors-hidden-close-trigger':
+            return False
+        return no_update
+
+    # Main modal builder: listens to the store and renders/hides the modal atomically
+    @app.callback(
+        [Output('global-descriptors-modal', 'children'), Output('global-descriptors-modal', 'style')],
+        Input('global-descriptors-open', 'data'),
+        [State('selected-file-store', 'data'), State('selected-dataset-store', 'data')],
+        prevent_initial_call=False
+    )
+    def show_global_descriptors(is_open, selected_file_data, selected_dataset):
+        """Display or hide the modal depending on the store value.
+
+        When is_open is True, build the modal content. When False or missing,
+        hide the modal. This avoids relying on combined n_clicks Inputs.
+        """
+        # If store indicates closed or missing, hide modal
+        if not is_open:
+            return [], {'display': 'none'}
+
+        # Modal base style (centered overlay)
+        modal_style = {
+            'display': 'block',
+            'position': 'fixed',
+            'left': '0',
+            'top': '0',
+            'width': '100%',
+            'height': '100%',
+            'backgroundColor': 'rgba(0,0,0,0.5)',
+            'zIndex': 9999,
+            'padding': '40px',
+            'boxSizing': 'border-box',
+            'overflow': 'auto'
+        }
+
+        # Simple header used for early-return error messages (no shape selected / dataset errors)
+        header = html.Div([
+            html.Div(html.H3("Global Descriptor Histograms", style={'margin': 0, 'color': '#fff'}), style={'flex': '1'}),
+            # In-modal Close button: plain Dash button (clicks are proxied by assets JS)
+            html.Button('Close', n_clicks=0,
+                        style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
+        ], style={'display': 'flex', 'alignItems': 'center', 'gap': '12px', 'marginBottom': '12px'})
+
+        # If no shape selected, show helpful message
+        if not selected_file_data or not isinstance(selected_file_data, dict):
+            body = html.Div([
+                html.P("No shape selected. Please select a shape from the list first.", style={'color': '#fff'})
+            ])
+            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
+            # Wrap content in the full-screen modal overlay style so it appears as a dialog
+            return html.Div(content, style=modal_style), modal_style
+
+        selected_filename = selected_file_data.get('filename')
+        dataset = selected_file_data.get('dataset', selected_dataset)
+        if not dataset:
+            dataset = 'Data'
+
+        # Load file data
+        try:
+            df = get_cached_dataset_data(dataset)
+        except Exception as e:
+            body = html.Div([html.P(f"Failed to load dataset: {e}", style={'color': '#fff'})])
+            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
+            return content, modal_style
+
+        if df is None or df.empty:
+            body = html.Div([html.P("Dataset is empty or unavailable.", style={'color': '#fff'})])
+            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
+            return html.Div(content, style=modal_style), modal_style
+
+        matching = df[df['filename'] == selected_filename]
+        if matching.empty:
+            body = html.Div([html.P(f"Selected file '{selected_filename}' not found in dataset.", style={'color': '#fff'})])
+            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
+            return html.Div(content, style=modal_style), modal_style
+
+        row = matching.iloc[0]
+
+        # Determine display name for the selected shape (try several possible fields)
+        display_name = None
+        for name_key in ('name', 'Name', 'analysis_name', 'display_name', 'shape_file'):
+            if name_key in row.index and pd.notna(row.get(name_key)) and str(row.get(name_key)).strip() != '':
+                display_name = str(row.get(name_key))
+                break
+        if not display_name:
+            display_name = selected_filename or 'Unknown'
+
+        # Update header to include the shape name
+        header = html.Div([
+            html.Div(html.H3(f"Global Descriptor Histograms — {display_name}", style={'margin': 0, 'color': '#fff'}), style={'flex': '1'}),
+            # In-modal Close button: plain Dash button (clicks are proxied by assets JS)
+            html.Button('Close', n_clicks=0,
+                        style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
+        ], style={'display': 'flex', 'alignItems': 'center', 'gap': '12px', 'marginBottom': '12px'})
+
+        # Descriptor pairs to render
+        descriptor_pairs = [
+            ('A3', 'A3_hist', 'A3_bins'),
+            ('D1', 'D1_hist', 'D1_bins'),
+            ('D2', 'D2_hist', 'D2_bins'),
+            ('D3', 'D3_hist', 'D3_bins'),
+            ('D4', 'D4_hist', 'D4_bins')
+        ]
+        # Color palette for the five histograms (A3, D1, D2, D3, D4)
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        graphs = []
+        inline_graphs = []  # smaller versions for inline display
+        for title, hist_field, bins_field in descriptor_pairs:
+            # Accept several possible column name variants
+            hist_val = None
+            bins_val = None
+            for key in (hist_field, hist_field.lower(), 'analysis_' + hist_field, 'analysis_' + hist_field.lower()):
+                if key in row.index:
+                    hist_val = row.get(key)
+                    break
+            for key in (bins_field, bins_field.lower(), 'analysis_' + bins_field, 'analysis_' + bins_field.lower()):
+                if key in row.index:
+                    bins_val = row.get(key)
+                    break
+
+            mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+            if mids is None or hist_vals is None:
+                # Placeholder card for modal
+                card = html.Div([
+                    html.H4(f"{title} - Data unavailable", style={'color': '#fff'}),
+                    html.P("Histogram or bins data missing for this shape.", style={'color': '#fff'})
+                ], style={'flex': '1', 'minWidth': '200px', 'padding': '12px'})
+                # Inline placeholder (smaller)
+                inline_card = html.Div([
+                    html.H5(f"{title}", style={'margin': '6px 0'}),
+                    html.P("Data unavailable", style={'margin': 0, 'fontSize': '0.85em', 'color': '#666'})
+                ], style={'flex': '0 0 160px', 'minWidth': '140px', 'padding': '8px', 'background': '#fff', 'borderRadius': '6px', 'textAlign': 'center'})
+            else:
+                fig = go.Figure()
+                # choose color by index
+                idx = len(graphs) if len(graphs) < len(colors) else 0
+                color = colors[idx]
+                fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=color))
+                fig.update_layout(title=f"{title}", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                  xaxis_title='Value', yaxis_title='Frequency', margin=dict(l=30, r=10, t=30, b=30))
+
+                card = html.Div([
+                    dcc.Graph(figure=fig, config={'displayModeBar': False}, style={'height': '260px'})
+                ], style={'flex': '1', 'minWidth': '200px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
+                # Inline smaller thumbnail version
+                inline_fig = go.Figure()
+                inline_fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=color))
+                inline_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                         margin=dict(l=20, r=6, t=6, b=20), xaxis=dict(showticklabels=False), yaxis=dict(showticklabels=False))
+                inline_card = html.Div([
+                    dcc.Graph(figure=inline_fig, config={'displayModeBar': False}, style={'height': '160px', 'width': '180px'})
+                ], style={'flex': '0 0 180px', 'minWidth': '140px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
+
+            graphs.append(card)
+            inline_graphs.append(inline_card)
+
+        # Layout the five histograms in rows (wrap)
+        graphs_row = html.Div(graphs, style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap', 'justifyContent': 'center'})
+
+        body = html.Div([
+            graphs_row
+        ])
+
+        content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
+        # Ensure the returned content is wrapped in the full-screen modal overlay so it appears centered
+        return html.Div(content, style=modal_style), modal_style
+
+    # Modal visibility is handled within the same server callback that returns children and style.
+
+    @app.callback(
+        Output('inline-global-descriptors', 'children', allow_duplicate=True),
+        [Input('selected-file-store', 'data'), Input('selected-dataset-store', 'data'), Input('shape-info', 'children')],
+        prevent_initial_call='initial_duplicate'
+    )
+    def update_inline_descriptors(selected_file_data, selected_dataset, shape_info=None):
+        """Populate the inline thumbnails below Shape Info when a shape is selected.
+
+        This mirrors the inline part of the modal rendering but only returns the
+        inline children so it can be updated independently of the modal.
+        """
+        try:
+            if not selected_file_data or not isinstance(selected_file_data, dict):
+                return []
+
+            selected_filename = selected_file_data.get('filename')
+            dataset = selected_file_data.get('dataset', selected_dataset)
+            if not dataset:
+                dataset = 'Data'
+
+            df = get_cached_dataset_data(dataset)
+            if df is None or df.empty:
+                return []
+
+            matching = df[df['filename'] == selected_filename]
+            if matching.empty:
+                return []
+
+            row = matching.iloc[0]
+
+            descriptor_pairs = [
+                ('A3', 'A3_hist', 'A3_bins'),
+                ('D1', 'D1_hist', 'D1_bins'),
+                ('D2', 'D2_hist', 'D2_bins'),
+                ('D3', 'D3_hist', 'D3_bins'),
+                ('D4', 'D4_hist', 'D4_bins')
+            ]
+            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+
+            inline_graphs = []
+            for i, (title, hist_field, bins_field) in enumerate(descriptor_pairs):
+                hist_val = None
+                bins_val = None
+                for key in (hist_field, hist_field.lower(), 'analysis_' + hist_field, 'analysis_' + hist_field.lower()):
+                    if key in row.index:
+                        hist_val = row.get(key)
+                        break
+                for key in (bins_field, bins_field.lower(), 'analysis_' + bins_field, 'analysis_' + bins_field.lower()):
+                    if key in row.index:
+                        bins_val = row.get(key)
+                        break
+
+                mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+                if mids is None or hist_vals is None:
+                    inline_card = html.Div([
+                        html.Div(title, style={'fontWeight': '600', 'marginBottom': '6px', 'fontSize': '12px'}),
+                        html.Div("Data unavailable", style={'fontSize': '11px', 'color': '#666'})
+                    ], style={'flex': '0 0 140px', 'minWidth': '120px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px', 'textAlign': 'center'})
+                else:
+                    color = colors[i] if i < len(colors) else colors[0]
+                    inline_fig = go.Figure()
+                    inline_fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=color))
+                    inline_fig.update_layout(title={'text': title, 'x': 0.5, 'xanchor': 'center', 'font': {'size': 12}},
+                                             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                             margin=dict(l=8, r=6, t=24, b=6), xaxis=dict(showticklabels=False), yaxis=dict(showticklabels=False))
+                    inline_card = html.Div([
+                        dcc.Graph(figure=inline_fig, config={'displayModeBar': False}, style={'height': '120px', 'width': '140px'})
+                    ], style={'flex': '0 0 140px', 'minWidth': '120px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
+
+                inline_graphs.append(inline_card)
+
+            graphs_row = html.Div(inline_graphs, style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap', 'justifyContent': 'center'})
+            return graphs_row
+        except Exception:
+            # On any error, return empty so the UI doesn't break
+            return []
+
      # Store current dataset in dcc.Store and clear selection when dataset changes
     @app.callback(
         [Output('selected-dataset-store', 'data'),
@@ -2011,19 +2307,24 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Step slider control callbacks
     @app.callback(
-        Output('display-step-panel', 'style'),
-        Input('selected-dataset-store', 'data'),
-        prevent_initial_call=True
+        [Output('display-step-panel', 'style'), Output('center-action-buttons', 'style'), Output('inline-global-descriptors', 'style')],
+        Input('selected-dataset-store', 'data')
     )
     def update_step_panel_visibility(selected_dataset):
         """
-        Show/hide the step panel based on dataset type.
+        Show/hide the step panel and center action buttons based on dataset type.
         Only show for datasets that contain processed step files.
         """
         if selected_dataset and ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
-            return {'display': 'block'}
+            visible = {'display': 'block'}
+            center_style = {'display': 'flex', 'flexDirection': 'row', 'justifyContent': 'center', 'alignItems': 'center', 'gap': '8px'}
+            inline_style = {'display': 'flex', 'gap': '12px', 'alignItems': 'flex-start'}
         else:
-            return {'display': 'none'}
+            visible = {'display': 'none'}
+            center_style = {'display': 'none'}
+            inline_style = {'display': 'none'}
+
+        return visible, center_style, inline_style
 
     @app.callback(
         [Output('processing-step-slider', 'disabled'),
