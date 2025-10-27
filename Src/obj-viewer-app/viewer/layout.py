@@ -352,7 +352,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             html.Div([
                                 html.Button([
                                     html.Span('🌐', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
-                                    html.Span('Global', style={'verticalAlign': 'middle'})
+                                    html.Span('Histograms', style={'verticalAlign': 'middle'})
                                 ],
                                     id='show-global-descriptors-btn',
                                     n_clicks=0,
