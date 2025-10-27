@@ -1,6 +1,9 @@
 from dash import dcc, html
+from dash.dependencies import Input, Output
 import numpy as np
+import pandas as pd
 from core.plotting import create_3d_plot
+
 
 def _category_options(file_df):
     if file_df.empty:
@@ -9,6 +12,10 @@ def _category_options(file_df):
            [{'label': cat, 'value': cat} for cat in sorted(file_df['category'].unique())]
 
 def build_layout(file_df, dataset_options, selected_dataset):
+    # Load the analysis results for UnifiedPreprocessed/Data
+    analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
+    analysis_df = pd.read_csv(analysis_results_path)
+
     return html.Div([
     html.H1("3D Shape Viewer", className="main-title"),
 
@@ -84,7 +91,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                         style={'width': '100%', 'marginBottom': 4}
                     ),
 
-                    html.Label("Filter by Filename:", style={'fontSize': '12px', 'marginTop': 4, 'marginBottom': '2px'}),
+                    html.Label("Filter by Filename:", style={'fontSize': '12px', 'marginTop': '4px', 'marginBottom': '2px'}),
                     dcc.Input(
                         id='filename-filter',
                         type='text',
@@ -310,6 +317,12 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     ], style={'marginBottom': '8px'}),
                     html.Div(id='shape-info', children=[
                         html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint"),
+                        html.Div([
+                            html.Span("🔺 ", className="shape-info-icon"), html.Span("Vertices: ", className="shape-info-label"), html.Span("N/A", id='shape-vertices', className="shape-info-prop"),
+                        ], style={'display': 'none'}),  # hidden placeholders until a shape is selected
+                        html.Div([
+                            html.Span("🔷 ", className="shape-info-icon"), html.Span("Faces: ", className="shape-info-label"), html.Span("N/A", id='shape-faces', className="shape-info-prop"),
+                        ], style={'display': 'none'}),
                     ], className="shape-info-properties"),
                     html.Div([
                         html.Div([
@@ -329,53 +342,53 @@ def build_layout(file_df, dataset_options, selected_dataset):
                             # --- Insert two buttons in the middle of the Center panel ---
                             html.Div([
                                 html.Button([
-                                    html.Span('🌐', style={'marginRight': '8px', 'fontSize': '18px', 'verticalAlign': 'middle'}),
-                                    html.Span('Global Descriptors', style={'verticalAlign': 'middle'})
+                                    html.Span('🌐', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                                    html.Span('Global', style={'verticalAlign': 'middle'})
                                 ],
                                     id='show-global-descriptors-btn',
                                     n_clicks=0,
                                     className='center-action-btn pretty-action-btn',
                                     style={
-                                        'marginRight': '12px',
                                         'background': 'linear-gradient(90deg, #2563eb 0%, #38bdf8 100%)',
-                                        'width': 'max-content',
+                                        'width': 'auto',
                                         'color': 'white',
                                         'border': 'none',
-                                        'borderRadius': '8px',
-                                        'padding': '8px 22px',
-                                        'fontWeight': 600,
-                                        'fontSize': '16px',
-                                        'boxShadow': '0 2px 8px rgba(37,99,235,0.10)',
+                                        'borderRadius': '6px',
+                                        'padding': '2px 12px',
+                                        'fontWeight': 500,
+                                        'fontSize': '12px',
+                                        'boxShadow': '0 1px 4px rgba(37,99,235,0.10)',
                                         'cursor': 'pointer',
                                         'transition': 'background 0.2s',
                                         'outline': 'none',
                                         'display': 'flex',
                                         'alignItems': 'center',
-                                        'gap': '4px',
+                                        'gap': '2px',
                                     }
                                 ),
                                 html.Button([
-                                    html.Span('🧬', style={'marginRight': '8px', 'fontSize': '18px', 'verticalAlign': 'middle'}),
-                                    html.Span('Clustering', style={'verticalAlign': 'middle'})
+                                    html.Span('🧬', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                                    html.Span('Cluster', style={'verticalAlign': 'middle'})
                                 ],
                                     id='show-clustering-btn',
                                     n_clicks=0,
                                     className='center-action-btn pretty-action-btn',
                                     style={
                                         'background': 'linear-gradient(90deg, #583191 0%, #C3A1F3 100%)',
+                                        'width': 'auto',
                                         'color': 'white',
                                         'border': 'none',
-                                        'borderRadius': '8px',
-                                        'padding': '8px 22px',
-                                        'fontWeight': 600,
-                                        'fontSize': '16px',
-                                        'boxShadow': '0 2px 8px rgba(190,24,93,0.10)',
+                                        'borderRadius': '6px',
+                                        'padding': '2px 12px',
+                                        'fontWeight': 500,
+                                        'fontSize': '12px',
+                                        'boxShadow': '0 1px 4px rgba(190,24,93,0.10)',
                                         'cursor': 'pointer',
                                         'transition': 'background 0.2s',
                                         'outline': 'none',
                                         'display': 'flex',
                                         'alignItems': 'center',
-                                        'gap': '4px',
+                                        'gap': '2px',
                                     }
                                 )
                             ], style={'display': 'flex', 'justifyContent': 'center', 'alignItems': 'center', 'margin': '0 0 0 0', 'gap': '8px'}),

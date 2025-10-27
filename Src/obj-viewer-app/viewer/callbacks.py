@@ -6,6 +6,7 @@ import pandas as pd
 import json
 import uuid
 import time
+import re
 from core.obj_parser import OBJParser
 from core.plotting import create_3d_plot
 import plotly.graph_objects as go
@@ -29,6 +30,120 @@ def create_toast_data(message, toast_type="info", icon="ℹ️"):
 
 
 def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
+    # Callback to update Vertices and Faces count based on slider step and selected dataset
+    @app.callback(
+        [Output('shape-vertices', 'children'), Output('shape-faces', 'children')],
+        [Input('processing-step-slider', 'value'), Input('dataset-selector', 'value')],
+        prevent_initial_call=True
+    )
+    def update_shape_info(step, dataset):
+        """Update only the vertices and faces numeric spans when the slider changes for UnifiedPreprocessed/Data.
+
+        This avoids overwriting the entire `shape-info` card produced by other callbacks.
+        """
+        analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedpreprocessed_data.csv"
+        # fallback to the correctly named file if present
+        alt_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
+        if os.path.exists(analysis_results_path):
+            path = analysis_results_path
+        elif os.path.exists(alt_path):
+            path = alt_path
+        else:
+            return dash.no_update, dash.no_update
+
+        try:
+            analysis_df = pd.read_csv(path)
+        except Exception as e:
+            print(f"[update_shape_info] Failed to read analysis CSV '{path}': {e}")
+            return dash.no_update, dash.no_update
+
+        if dataset != "UnifiedPreprocessed/Data" or step is None or analysis_df.empty:
+            return dash.no_update, dash.no_update
+
+        # Normalize column names (case-insensitive) and map common variants
+        col_map = {c.lower(): c for c in analysis_df.columns}
+
+        # Common alternative names for logical fields in analysis CSVs
+        candidates = {
+            'step': ['step', 'processing_step', 'step_id', 'shape_file', 'filename'],
+            'vertices': ['num_vertices', 'vertices', 'verts', 'vertex_count'],
+            'faces': ['num_faces', 'faces', 'face_count']
+        }
+
+        found = {}
+        for logical, names in candidates.items():
+            for n in names:
+                if n in col_map:
+                    found[logical] = col_map[n]
+                    break
+
+        # If any logical column is missing, log and bail out gracefully
+        missing = [k for k in candidates.keys() if k not in found]
+        if missing:
+            print(f"[update_shape_info] Analysis CSV missing logical columns: {missing}. Available: {list(analysis_df.columns)}")
+            return dash.no_update, dash.no_update
+
+        step_col = found['step']
+        vert_col = found['vertices']
+        face_col = found['faces']
+
+        # Safely compare step values (allow numeric/string mismatch)
+        # If the step column contains filenames (e.g., 'shape_file' or 'filename'), match by the expected step suffix
+        step_col_lower = step_col.lower() if isinstance(step_col, str) else ''
+        if any(k in step_col_lower for k in ('shape', 'file', 'filename')):
+            # Expected processing step suffixes used in filenames
+            expected_steps = [
+                "00_original",
+                "01_remeshed",
+                "02_translated",
+                "03_aligned",
+                "04_flipped",
+                "05_scaled",
+                "06_fill_holes_and_orientation"
+            ]
+            try:
+                idx = int(step)
+                if 0 <= idx < len(expected_steps):
+                    suffix = expected_steps[idx]
+                    mask = analysis_df[step_col].astype(str).str.contains(rf"_{re.escape(suffix)}\.obj$", regex=True, na=False)
+                else:
+                    # Out-of-range numeric step: fallback to substring match
+                    mask = analysis_df[step_col].astype(str).str.contains(re.escape(str(step)), regex=True, na=False)
+            except Exception:
+                s = str(step)
+                if s in expected_steps:
+                    mask = analysis_df[step_col].astype(str).str.contains(rf"_{re.escape(s)}\.obj$", regex=True, na=False)
+                else:
+                    # Fallback: check if the filename contains the provided string
+                    mask = analysis_df[step_col].astype(str).str.contains(re.escape(s), regex=True, na=False)
+        else:
+            try:
+                # Try numeric comparison first
+                step_val = int(step)
+                mask = pd.to_numeric(analysis_df[step_col], errors='coerce') == step_val
+            except Exception:
+                # Fallback to string comparison
+                mask = analysis_df[step_col].astype(str) == str(step)
+
+        current_file_data = analysis_df[mask]
+        if current_file_data.empty:
+            print(f"[update_shape_info] No row for step={step} in '{path}'")
+            return dash.no_update, dash.no_update
+
+        vertices_count = current_file_data[vert_col].iloc[0]
+        faces_count = current_file_data[face_col].iloc[0]
+
+        # Format with commas like the rest of the UI
+        try:
+            vertices_str = f"{int(vertices_count):,}"
+        except Exception:
+            vertices_str = str(vertices_count)
+        try:
+            faces_str = f"{int(faces_count):,}"
+        except Exception:
+            faces_str = str(faces_count)
+
+        return vertices_str, faces_str
 
     # Sort order button toggle - SAME PATTERN AS LOADING MESSAGE
     @app.callback(
@@ -377,33 +492,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     )
 
     # Show global loading indicator when file button is clicked
-    app.clientside_callback(
-        """
-        function(n_clicks_list) {
-            const ctx = window.dash_clientside.callback_context;
-            if (!ctx.triggered.length) {
-                return window.dash_clientside.no_update;
-            }
-            
-            const trigger = ctx.triggered[0];
-            const propId = trigger.prop_id;
-            
-            // Check if it's a file button click
-            if (propId.includes('file-btn') && trigger.value > 0) {
-                const loadingIndicator = document.getElementById('global-loading-indicator');
-                if (loadingIndicator) {
-                    loadingIndicator.style.display = 'block';
-                }
-            }
-            
-            return window.dash_clientside.no_update;
-        }
-        """,
-        Output('global-loading-indicator', 'id', allow_duplicate=True),
-        Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
-        prevent_initial_call=True
-    )
-
     # Hide global loading indicator when shape info is updated
     app.clientside_callback(
         """
@@ -1332,7 +1420,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # 3) Click handler -> loads file, updates info + selected filename
     @app.callback(
-        [Output('shape-info', 'children'),
+        [Output('shape-info', 'children', allow_duplicate=True),
          Output('selected-file-store', 'data')],
         [Input({'type': 'file-btn', 'filename': dash.dependencies.ALL}, 'n_clicks'),
          Input('category-filter', 'value'),
@@ -1589,6 +1677,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
+        # Ensure all step files are included in the merge
+        if selected_dataset and 'UnifiedPreprocessed' in selected_dataset:
+            file_df = get_cached_dataset_data(selected_dataset)
+            if file_df is not None and not file_df.empty:
+                # Filter rows to include all steps
+                step_files = file_df[file_df['filename'].str.contains('_step')]
+                if not step_files.empty:
+                    file_df = pd.concat([file_df, step_files]).drop_duplicates()
+
+        # Proceed with existing logic to find matching rows
         matching_rows = file_df[file_df['filename'] == selected_filename]
         if matching_rows.empty:
             return create_3d_plot(np.array([]), np.array([]), f"File {selected_filename} not found",
@@ -2049,22 +2147,27 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     from core.file_index import get_available_steps
                     available_steps_info = get_available_steps(row)
                     available_steps = available_steps_info.get('available_step_indices', [])
-                    print(f"� Available steps for {filename}: {available_steps}")
-                    
+                    print(f"🟢 Available steps for {filename}: {available_steps}")
+
+                    # Ensure all step files are included in the merge
+                    if selected_dataset and 'UnifiedPreprocessed' in selected_dataset:
+                        file_df = get_cached_dataset_data(selected_dataset)
+                        if file_df is not None and not file_df.empty:
+                            # Filter rows to include all steps
+                            step_files = file_df[file_df['filename'].str.contains('_step')]
+                            if not step_files.empty:
+                                file_df = pd.concat([file_df, step_files]).drop_duplicates()
+
+                    # Update slider and step info dynamically
                     class_names = []
                     for i in range(7):
                         if i not in available_steps:
-                            # This step is missing
                             class_names.append("step-label missing")
-                            print(f"🔴 Step {i} is MISSING")
                         elif i == step_value:
                             class_names.append("step-label active")
-                            print(f"🟢 Step {i} is ACTIVE")
                         else:
                             class_names.append("step-label")
-                            print(f"⚪ Step {i} is NORMAL")
-                    
-                    print(f"🎯 Final class names: {class_names}")
+
                     return class_names
                     
             except Exception as e:
@@ -2082,7 +2185,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             else:
                 class_names.append("step-label")
         
-        print(f"📋 Default class names: {class_names}")
         return class_names
 
     @app.callback(
