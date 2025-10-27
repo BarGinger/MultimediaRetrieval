@@ -478,11 +478,11 @@ class ShapeMesh:
             ], className="shape-info-prop"),
             html.Div([
                 html.Span("🔺 ", className="shape-info-icon"), html.Strong("Vertices: "),
-                html.Span(_num(len(self.vertices)))
+                html.Span(_num(len(self.vertices)), id='shape-vertices')
             ], className="shape-info-prop"),
             html.Div([
                 html.Span("🔷 ", className="shape-info-icon"), html.Strong("Faces: "),
-                html.Span(_num(len(self.faces)))
+                html.Span(_num(len(self.faces)), id='shape-faces')
             ], className="shape-info-prop"),
             html.Div([
                 html.Span("📐 ", className="shape-info-icon"), html.Strong("Dims: "),

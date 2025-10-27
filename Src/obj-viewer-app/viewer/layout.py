@@ -1,6 +1,9 @@
 from dash import dcc, html
+from dash.dependencies import Input, Output
 import numpy as np
+import pandas as pd
 from core.plotting import create_3d_plot
+
 
 def _category_options(file_df):
     if file_df.empty:
@@ -9,6 +12,10 @@ def _category_options(file_df):
            [{'label': cat, 'value': cat} for cat in sorted(file_df['category'].unique())]
 
 def build_layout(file_df, dataset_options, selected_dataset):
+    # Load the analysis results for UnifiedPreprocessed/Data
+    analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
+    analysis_df = pd.read_csv(analysis_results_path)
+
     return html.Div([
     html.H1("3D Shape Viewer", className="main-title"),
 
@@ -84,7 +91,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                         style={'width': '100%', 'marginBottom': 4}
                     ),
 
-                    html.Label("Filter by Filename:", style={'fontSize': '12px', 'marginTop': 4, 'marginBottom': '2px'}),
+                    html.Label("Filter by Filename:", style={'fontSize': '12px', 'marginTop': '4px', 'marginBottom': '2px'}),
                     dcc.Input(
                         id='filename-filter',
                         type='text',
@@ -310,6 +317,12 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     ], style={'marginBottom': '8px'}),
                     html.Div(id='shape-info', children=[
                         html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint"),
+                        html.Div([
+                            html.Span("🔺 ", className="shape-info-icon"), html.Span("Vertices: ", className="shape-info-label"), html.Span("N/A", id='shape-vertices', className="shape-info-prop"),
+                        ], style={'display': 'none'}),  # hidden placeholders until a shape is selected
+                        html.Div([
+                            html.Span("🔷 ", className="shape-info-icon"), html.Span("Faces: ", className="shape-info-label"), html.Span("N/A", id='shape-faces', className="shape-info-prop"),
+                        ], style={'display': 'none'}),
                     ], className="shape-info-properties"),
                     html.Div([
                         html.Div([

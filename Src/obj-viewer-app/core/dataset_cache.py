@@ -350,7 +350,8 @@ class DatasetCache:
             
             # Filter the DataFrame to include only unique unified files
             if 'UnifiedPreprocessed' in dataset:
-                file_df_copy = file_df[file_df['filename'].str.contains('_unified\.obj$', regex=True)].drop_duplicates(subset=['filename']).copy()
+                # Use a raw string for the regex to avoid invalid escape sequence warnings
+                file_df_copy = file_df[file_df['filename'].str.contains(r'_unified\.obj$', regex=True)].drop_duplicates(subset=['filename']).copy()
 
                 # Convert processed filenames to original base names
                 file_df_copy['base_filename'] = file_df_copy['filename'].str.replace(r'_(\d{2}_.*|unified)\.obj$', '.obj', regex=True)
