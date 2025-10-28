@@ -1859,6 +1859,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return sampled.to_dict('records')
         except Exception:
             return []
+        
+     # Compute similarity score between selected file and this sample
+    def compute_similarity(sel_row, cand_row):
+        import random
+        # Placeholder: return a random similarity score between 0 and 1
+        return random.random()
 
     # 5) Similar shapes rendering
     @app.callback(
@@ -1934,6 +1940,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         cards = []
         for i, sample_row in enumerate(samples[:total]):
+            similarity_score = compute_similarity(selected_idx or {}, sample_row)
+
             # Attempt to load actual mesh file for the sampled row
             verts = None
             faces = None
@@ -1987,6 +1995,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
             card = html.Div([
                 header,
+                # Similarity badge in the top-right corner
+                html.Div(f"Similarity Score: {similarity_score:.3f}", style={
+                    'position': 'absolute', 'top': '8px', 'right': '8px',
+                    'backgroundColor': 'rgba(255,255,255,0.95)', 'padding': '4px 8px',
+                    'borderRadius': '12px', 'fontSize': '0.85em', 'boxShadow': '0 1px 3px rgba(0,0,0,0.12)'
+                }),
                 dcc.Graph(figure=fig, className='three-d-plot')
             ], style={
                 'minWidth': '360px',
@@ -1995,7 +2009,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 'border': '1px solid #e1e1e1',
                 'borderRadius': '8px',
                 'boxShadow': '0 1px 4px rgba(0,0,0,0.06)',
-                'padding': '6px'
+                'padding': '6px',
+                'position': 'relative',
+                'overflow': 'hidden'
             })
 
             cards.append(card)
