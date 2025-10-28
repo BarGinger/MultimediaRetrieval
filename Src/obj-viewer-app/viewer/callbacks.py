@@ -1784,10 +1784,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         using the precomputed distance matrix at ../../scalability/.
         Each dict includes all dataset info + 'distance' field.
         """
-        import pandas as pd
-        import numpy as np
-        import os, re
-
         try:
             # --- Validate input ---
             if not isinstance(selected_file_data, dict):
@@ -1946,8 +1942,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             faces = None
             filename_str = sample_row.get('filename') or sample_row.get('file', None) or f"similar_{i+1}"
             title = filename_str
+            # remove file suffix if present
+            if title.lower().endswith('_unified.obj'):
+                title = title.replace('_unified.obj', '')
+            elif title.lower().endswith('_06_fill_holes_and_orientation.obj'):
+                title = title.replace('_06_fill_holes_and_orientation.obj', '')
+            elif title.lower().endswith('.obj'):
+                title = title.replace('.obj', '')
+                
             category_name = sample_row.get('category') or 'Unknown'
             distance = sample_row.get('distance', -1)
+            similarity_score = sample_row.get('similarity_score', -1)
             try:
                 # get_step_file_path expects a pandas Series
                 import pandas as _pd
