@@ -1817,6 +1817,48 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 )
 
         return fig, regular_toast_data, step_toast_data
+    
+
+    # Similar shapes: sample random shapes from the (possibly selected) dataset
+    def retrieve_random_shapes(selected_file_data, n):
+        """Return up to n random rows (as dicts) from the selected dataset excluding the current file."""
+        try:
+            # Determine dataset to use
+            dataset = None
+            selected_filename = None
+            if isinstance(selected_file_data, dict):
+                selected_filename = selected_file_data.get('filename')
+                dataset = selected_file_data.get('dataset')
+
+            # Load dataset dataframe (fallback to closure file_df if dataset not provided)
+            df_candidates = None
+            if dataset:
+                try:
+                    df_candidates = get_cached_dataset_data(dataset)
+                except Exception:
+                    df_candidates = None
+
+            if df_candidates is None or df_candidates.empty:
+                df_candidates = file_df
+
+            if selected_filename:
+                df_candidates = df_candidates[df_candidates['filename'] != selected_filename]
+
+            if df_candidates is None or df_candidates.empty:
+                return []
+
+            n = int(n or 5)
+            if n <= 0:
+                return []
+
+            if n >= len(df_candidates):
+                sampled = df_candidates.sample(n=len(df_candidates))
+            else:
+                sampled = df_candidates.sample(n=n)
+
+            return sampled.to_dict('records')
+        except Exception:
+            return []
 
     # 5) Similar shapes rendering
     @app.callback(
@@ -1856,48 +1898,55 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if triggered_id != 'find-shapes-button' or not n_clicks or n_clicks <= 0 or selected_idx is None:
             return no_update
 
-        # For now, this function doesn't have access to file_df context 
-        # This is a placeholder implementation - similar shapes functionality
-        # would need significant refactoring to work with the new architecture 
-        
-        # Create a simple placeholder mesh for demonstration
-        try:
-            # Create dummy vertices for now (this would need proper similar shape logic)
-            vertices = np.random.rand(100, 3) * 2 - 1  # Random vertices from -1 to 1
-            faces = np.array([[0, 1, 2], [1, 2, 3]])  # Dummy faces
-        except Exception:
-            return []
-
         show_wire = 'wireframe' in (display_opts or [])
         smooth_shading = 'smooth_shading' in (display_opts or [])
         total = int(n_plots or 5)
-        title = "Similar Shape"
 
-        # Render cards with independent plot objects
+        samples = retrieve_random_shapes(selected_idx, total)
+        if not samples:
+            return []
+
         cards = []
-        for i in range(total):
-            # Deep copy vertices and faces to ensure independence
-            v_copy = np.copy(vertices)
-            f_copy = np.copy(faces)
-            card_title = f"{title} (Aux {i+1})"
-            fig = create_3d_plot(v_copy, f_copy, card_title, show_wireframe=show_wire,
+        for i, sample_row in enumerate(samples[:total]):
+            # Attempt to load actual mesh file for the sampled row
+            verts = None
+            faces = None
+            title = sample_row.get('filename', f"Similar {i+1}")
+            try:
+                # get_step_file_path expects a pandas Series
+                import pandas as _pd
+                row_series = _pd.Series(sample_row)
+                file_path, actual_step, step_info = get_step_file_path(row_series, 5)
+                if file_path:
+                    from pathlib import Path as _Path
+                    p = _Path(file_path)
+                    if p.exists():
+                        verts, faces = OBJParser.parse_obj_file(str(p))
+            except Exception:
+                verts = None
+                faces = None
+
+            # Fallback to small random mesh if loading failed
+            if verts is None or faces is None or len(verts) == 0:
+                verts = (np.random.rand(100, 3) * 2 - 1)
+                faces = np.array([[0, 1, 2], [1, 2, 3]])
+
+            fig = create_3d_plot(np.copy(verts), np.copy(faces), title, show_wireframe=show_wire,
                                 mesh_color=mesh_color or 'lightblue',
                                 smooth_shading=smooth_shading,
                                 camera_config=None,
                                 use_rotated_vertices=False)
 
-            # Create a simple header for aux plots
             header = html.Div([
                 html.Div([
-                    html.Span("🔍 ", className="shape-info-icon"), 
+                    html.Span("🔍 ", className="shape-info-icon"),
                     html.Strong(f"Similar Shape {i+1}")
                 ], className="shape-info-prop")
             ], className="shape-info-header")
 
             card = html.Div([
                 header,
-                dcc.Graph(figure=fig, 
-                          className='three-d-plot')
+                dcc.Graph(figure=fig, className='three-d-plot')
             ], style={
                 'minWidth': '360px',
                 'height': '200px',
