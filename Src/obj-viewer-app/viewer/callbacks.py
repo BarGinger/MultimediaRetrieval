@@ -255,7 +255,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Clear filters button callback
     @app.callback(
-        [Output('category-filter', 'value', allow_duplicate=True),
+        [Output('dataset-selector', 'value', allow_duplicate=True),
+         Output('selected-dataset-store', 'data', allow_duplicate=True),
+         Output('category-filter', 'value', allow_duplicate=True),
          Output('filename-filter', 'value', allow_duplicate=True), 
          Output('vertices-operator', 'value', allow_duplicate=True),
          Output('vertices-value', 'value', allow_duplicate=True),
@@ -266,10 +268,18 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def clear_filters(n_clicks):
-        """Reset all filters to their default values"""
+        """Reset all filters to their default values, including dataset selection.
+
+        Uses the outer-scope `default_dataset` captured when `register_callbacks` was called so
+        the UI resets to the configured app default.
+        """
         if n_clicks and n_clicks > 0:
-            return 'all', '', 'gt', '', 'gt', '', 'category'
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            # Reset dataset selector and stored dataset to the default value
+            ds = default_dataset if default_dataset else dash.no_update
+            # Return order must match Outputs: dataset-selector, selected-dataset-store, category, filename, v-op, v-val, f-op, f-val, sort-field
+            return ds, ds, 'all', '', 'gt', '', 'gt', '', 'category'
+        return (dash.no_update, dash.no_update, dash.no_update, dash.no_update,
+                dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update)
 
     # Show toast for clear filters button
     app.clientside_callback(
@@ -2021,7 +2031,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             })
 
             # Category small text
-            category_span = html.Span(category_name, style={'fontSize': '0.78em', 'color': '#666', 'marginLeft': '4px', 'flex': '0 0 auto'})
+            category_span = html.Span(category_name, style={'fontSize': '1em', 'font-weight': 'bold', 'color': '#666', 'marginLeft': '4px', 'flex': '0 0 auto'})
 
             # Build header row with left (info+title+category) and right (similarity) areas
             left_header = html.Div([
