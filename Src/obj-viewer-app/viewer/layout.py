@@ -2,6 +2,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import numpy as np
 import pandas as pd
+import os
 from core.plotting import create_3d_plot
 import colorsys
 
@@ -59,6 +60,19 @@ def build_layout(file_df, dataset_options, selected_dataset):
                 html.Span(cat, style={'fontSize': '0.85em'})
             ], style={'display': 'flex', 'alignItems': 'center', 'marginRight': '10px', 'marginBottom': '6px'})
         )
+
+    # Determine default dataset for the dropdown. Prefer 'UnifiedPreprocessed/Data' when available.
+    dataset_default = selected_dataset
+    preferred = 'UnifiedPreprocessed/Data'
+    if not dataset_default:
+        if preferred in dataset_options:
+            dataset_default = preferred
+        else:
+            preferred_path = os.path.join(os.getcwd(), 'Datasets', 'UnifiedPreprocessed', 'Data')
+            if os.path.isdir(preferred_path):
+                dataset_default = preferred
+            else:
+                dataset_default = dataset_options[0] if dataset_options else None
 
     return html.Div([
     html.H1("3D Shape Viewer", className="main-title"),
@@ -135,7 +149,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     dcc.Dropdown(
                         id='dataset-selector',
                         options=[{'label': name, 'value': name} for name in dataset_options],
-                        value=selected_dataset,
+                        value=dataset_default,
                         style={'marginBottom': 4, 'width': '100%'}
                     ),
 
