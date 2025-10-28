@@ -1905,13 +1905,41 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         samples = retrieve_random_shapes(selected_idx, total)
         if not samples:
             return []
+        # Build a category -> color dictionary (distinct colors)
+        categories_list = [
+            'AircraftBuoyant', 'Apartment', 'AquaticAnimal', 'Bed', 'Bicycle', 'Biplane', 'Bird', 'Bookset', 'Bottle',
+            'BuildingNonResidential', 'Bus', 'Car', 'Cellphone', 'Chess', 'City', 'ClassicPiano', 'Computer',
+            'ComputerKeyboard', 'Cup', 'DeskLamp', 'DeskPhone', 'Door', 'Drum', 'Fish', 'FloorLamp', 'Glasses',
+            'Guitar', 'Gun', 'Hand', 'Hat', 'Helicopter', 'House', 'HumanHead', 'Humanoid', 'Insect', 'Jet', 'Knife',
+            'MilitaryVehicle', 'Monitor', 'Monoplane', 'Motorcycle', 'Mug', 'MultiSeat', 'Musical_Instrument',
+            'NonWheelChair', 'PianoBoard', 'PlantIndoors', 'PlantWildNonTree', 'Quadruped', 'RectangleTable', 'Rocket',
+            'RoundTable', 'Shelf', 'Ship', 'Sign', 'Skyscraper', 'Spoon', 'Starship', 'SubmachineGun', 'Sword', 'Tool',
+            'Train', 'Tree', 'Truck', 'TruckNonContainer', 'Vase', 'Violin', 'Wheel', 'WheelChair'
+        ]
+
+        import colorsys
+        category_color_map = {}
+        # Stronger distinct palette: golden-ratio hue spacing + cycling saturation/value levels
+        n_cats = len(categories_list)
+        golden_angle = 137.508
+        sats = [0.92, 0.74, 0.56]
+        vals = [0.96, 0.82, 0.68]
+        for idx, cat in enumerate(categories_list):
+            hue = (idx * golden_angle) % 360.0
+            sat = sats[idx % len(sats)]
+            val = vals[(idx // len(sats)) % len(vals)]
+            r, g, b = colorsys.hsv_to_rgb(hue / 360.0, sat, val)
+            hex_color = '#%02x%02x%02x' % (int(r * 255), int(g * 255), int(b * 255))
+            category_color_map[cat] = hex_color
 
         cards = []
         for i, sample_row in enumerate(samples[:total]):
             # Attempt to load actual mesh file for the sampled row
             verts = None
             faces = None
-            title = sample_row.get('filename', f"Similar {i+1}")
+            filename_str = sample_row.get('filename') or sample_row.get('file', None) or f"similar_{i+1}"
+            title = filename_str
+            category_name = sample_row.get('category') or 'Unknown'
             try:
                 # get_step_file_path expects a pandas Series
                 import pandas as _pd
@@ -1931,16 +1959,29 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 verts = (np.random.rand(100, 3) * 2 - 1)
                 faces = np.array([[0, 1, 2], [1, 2, 3]])
 
+            # Choose color from category map, fallback to provided mesh_color or default
+            assigned_color = category_color_map.get(category_name, mesh_color or 'lightblue')
+
             fig = create_3d_plot(np.copy(verts), np.copy(faces), title, show_wireframe=show_wire,
-                                mesh_color=mesh_color or 'lightblue',
+                                mesh_color=assigned_color,
                                 smooth_shading=smooth_shading,
                                 camera_config=None,
                                 use_rotated_vertices=False)
+            # Header: show filename and a small color badge + category
+            badge = html.Span(style={
+                'display': 'inline-block',
+                'width': '12px',
+                'height': '12px',
+                'backgroundColor': assigned_color,
+                'borderRadius': '6px',
+                'marginRight': '8px',
+                'border': '1px solid rgba(0,0,0,0.12)'
+            })
 
             header = html.Div([
                 html.Div([
-                    html.Span("🔍 ", className="shape-info-icon"),
-                    html.Strong(f"Similar Shape {i+1}")
+                    html.Span([badge, html.Strong(title)], style={'display': 'inline-flex', 'alignItems': 'center'}),
+                    html.Span(category_name, style={'marginLeft': '8px', 'fontSize': '0.85em', 'color': '#666'})
                 ], className="shape-info-prop")
             ], className="shape-info-header")
 
@@ -1959,6 +2000,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
             cards.append(card)
 
+        # Return just the cards here; the legend is now rendered statically in the layout
         return cards
 
     # Control the modal visibility via a persistent Store to avoid missing-id issues

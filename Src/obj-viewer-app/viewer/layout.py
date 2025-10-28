@@ -3,6 +3,7 @@ from dash.dependencies import Input, Output
 import numpy as np
 import pandas as pd
 from core.plotting import create_3d_plot
+import colorsys
 
 
 def _category_options(file_df):
@@ -15,6 +16,49 @@ def build_layout(file_df, dataset_options, selected_dataset):
     # Load the analysis results for UnifiedPreprocessed/Data
     analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
     analysis_df = pd.read_csv(analysis_results_path)
+
+    # Prepare a full category list and color mapping for the legend
+    categories_list = [
+        'AircraftBuoyant', 'Apartment', 'AquaticAnimal', 'Bed', 'Bicycle', 'Biplane', 'Bird', 'Bookset', 'Bottle',
+        'BuildingNonResidential', 'Bus', 'Car', 'Cellphone', 'Chess', 'City', 'ClassicPiano', 'Computer',
+        'ComputerKeyboard', 'Cup', 'DeskLamp', 'DeskPhone', 'Door', 'Drum', 'Fish', 'FloorLamp', 'Glasses',
+        'Guitar', 'Gun', 'Hand', 'Hat', 'Helicopter', 'House', 'HumanHead', 'Humanoid', 'Insect', 'Jet', 'Knife',
+        'MilitaryVehicle', 'Monitor', 'Monoplane', 'Motorcycle', 'Mug', 'MultiSeat', 'Musical_Instrument',
+        'NonWheelChair', 'PianoBoard', 'PlantIndoors', 'PlantWildNonTree', 'Quadruped', 'RectangleTable', 'Rocket',
+        'RoundTable', 'Shelf', 'Ship', 'Sign', 'Skyscraper', 'Spoon', 'Starship', 'SubmachineGun', 'Sword', 'Tool',
+        'Train', 'Tree', 'Truck', 'TruckNonContainer', 'Vase', 'Violin', 'Wheel', 'WheelChair'
+    ]
+
+    # Generate stronger distinct colors using golden-ratio spacing + sat/val cycles
+    category_color_map = {}
+    golden_angle = 137.508
+    sats = [0.92, 0.74, 0.56]
+    vals = [0.96, 0.82, 0.68]
+    for idx, cat in enumerate(categories_list):
+        hue = (idx * golden_angle) % 360.0
+        sat = sats[idx % len(sats)]
+        val = vals[(idx // len(sats)) % len(vals)]
+        r, g, b = colorsys.hsv_to_rgb(hue / 360.0, sat, val)
+        hex_color = '#%02x%02x%02x' % (int(r * 255), int(g * 255), int(b * 255))
+        category_color_map[cat] = hex_color
+
+    # Build legend item children
+    legend_items = []
+    for cat in categories_list:
+        legend_items.append(
+            html.Div([
+                html.Span(style={
+                    'display': 'inline-block',
+                    'width': '12px',
+                    'height': '12px',
+                    'backgroundColor': category_color_map.get(cat),
+                    'borderRadius': '6px',
+                    'marginRight': '6px',
+                    'border': '1px solid rgba(0,0,0,0.08)'
+                }),
+                html.Span(cat, style={'fontSize': '0.85em'})
+            ], style={'display': 'flex', 'alignItems': 'center', 'marginRight': '10px', 'marginBottom': '6px'})
+        )
 
     return html.Div([
     html.H1("3D Shape Viewer", className="main-title"),
@@ -486,6 +530,23 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     tooltip={'always_visible': False},
                     className="aux-slider"
                 ),
+
+                # Static legend placed below the amount-plots-slider so it is always visible
+                # Build category list and color mapping (same scheme as callbacks)
+                html.Div(id='similar-shapes-legend', children=[
+                    html.Details([
+                        html.Summary('Legend', style={'cursor': 'pointer', 'fontWeight': '600'}),
+                        html.Div(legend_items, style={'display': 'flex', 'flexWrap': 'wrap', 'padding': '8px'})
+                    ], style={
+                        'display': 'block',
+                        'width': '100%',
+                        'marginTop': '12px',
+                        'border': '1px solid rgba(0,0,0,0.08)',
+                        'borderRadius': '6px',
+                        'backgroundColor': '#fbfbfb',
+                        'padding': '6px'
+                    })
+                ], style={'width': '100%'}),
 
                 html.Div(id='aux-plots-row', className="aux-plots-row"),
             ], className="right-panel"),
