@@ -1778,46 +1778,93 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         except Exception:
             return []
         
-     # Compute similarity score between selected file and this sample
-    def compute_similarity(sel_row, cand_row):
+    def retrieve_closest_shapes(selected_file_data, n):
+        """
+        Return up to n closest shapes (as dicts) from the same dataset,
+        using the precomputed distance matrix at ../../scalability/.
+        Each dict includes all dataset info + 'distance' field.
+        """
+        import pandas as pd
+        import numpy as np
+        import os, re
+
         try:
-            sims = []
-            hist_keys = ['A3', 'D1', 'D2', 'D3', 'D4']
-            for hk in hist_keys:
-                cand_hist = cand_row.get(f'{hk}_hist') or cand_row.get(f'analysis_{hk}_hist') or cand_row.get(hk.lower() + '_hist')
-                cand_bins = cand_row.get(f'{hk}_bins') or cand_row.get(f'analysis_{hk}_bins') or cand_row.get(hk.lower() + '_bins')
-                sel_hist = sel_row.get(f'{hk}_hist') or sel_row.get(f'analysis_{hk}_hist') or sel_row.get(hk.lower() + '_hist')
-                sel_bins = sel_row.get(f'{hk}_bins') or sel_row.get(f'analysis_{hk}_bins') or sel_row.get(hk.lower() + '_bins')
+            # --- Validate input ---
+            if not isinstance(selected_file_data, dict):
+                return []
+            selected_filename = selected_file_data.get('filename')
+            dataset = selected_file_data.get('dataset')
+            if not selected_filename:
+                return []
 
-                if not cand_hist or not sel_hist:
+            # --- Load the precomputed distance matrix ---
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            distance_path = os.path.join(base_dir, "..", "..", "scalability", "total_distances_597a37344657.csv")
+            distance_path = os.path.normpath(distance_path)
+
+            if not os.path.exists(distance_path):
+                print(f"⚠️ Distance file not found: {distance_path}")
+                return []
+
+            df = pd.read_csv(distance_path, index_col=0)
+
+            # --- Match by ID prefix ---
+            m = re.match(r"([A-Za-z0-9]+)_", selected_filename)
+            if not m:
+                print(f"⚠️ Could not extract ID prefix from {selected_filename}")
+                return []
+            shape_id = m.group(1)
+
+            matching_rows = [idx for idx in df.index if idx.startswith(shape_id + "_")]
+            if not matching_rows:
+                print(f"⚠️ No matching row found for ID {shape_id} in distance matrix.")
+                return []
+            row_name = matching_rows[0]
+            distances = df.loc[row_name]
+
+            # --- Sort and take n closest (excluding self) ---
+            closest = (
+                distances[distances.index != row_name]
+                .sort_values(ascending=True)
+                .head(int(n or 5))
+            )
+
+            # --- Load dataset (like retrieve_random_shapes does) ---
+            df_candidates = None
+            if dataset:
+                try:
+                    df_candidates = get_cached_dataset_data(dataset)
+                except Exception:
+                    df_candidates = None
+            if df_candidates is None or df_candidates.empty:
+                df_candidates = file_df
+
+            if df_candidates is None or df_candidates.empty:
+                return []
+
+            # --- Map closest filenames to unified format and dataset rows ---
+            results = []
+            for name, dist in closest.items():
+                m2 = re.match(r"([A-Za-z0-9]+)_", name)
+                if not m2:
                     continue
+                other_id = m2.group(1)
+                unified_name = f"{other_id}_unified.obj"
 
-                cand_vals = _parse_hist_and_bins(cand_hist, cand_bins)[1]
-                sel_vals = _parse_hist_and_bins(sel_hist, sel_bins)[1]
-                if cand_vals is None or sel_vals is None:
-                    continue
+                row = df_candidates[df_candidates['filename'] == unified_name]
+                if not row.empty:
+                    rec = row.iloc[0].to_dict()
+                    rec['distance'] = float(dist)
+                    results.append(rec)
 
-                a = np.array(cand_vals, dtype=float)
-                b = np.array(sel_vals, dtype=float)
-                if a.size != b.size and a.size > 1 and b.size > 1:
-                    new_len = max(a.size, b.size)
-                    a = np.interp(np.linspace(0, 1, new_len), np.linspace(0, 1, a.size), a)
-                    b = np.interp(np.linspace(0, 1, new_len), np.linspace(0, 1, b.size), b)
+            results.sort(key=lambda r: r.get('distance', float('inf')))
+            return results
 
-                denom = (np.linalg.norm(a) * np.linalg.norm(b))
-                if denom == 0:
-                    continue
-                sim = float(np.dot(a, b) / denom)
-                sims.append(sim)
 
-            if sims:
-                return float(np.mean(sims)) * 100.0
-            # Fallback: category match
-            if sel_row.get('category') and cand_row.get('category') and sel_row.get('category') == cand_row.get('category'):
-                return 100.0
-        except Exception:
-            pass
-        return 0.0
+        except Exception as e:
+            print(f"❌ Error retrieving closest shapes: {e}")
+            return []
+
 
     # 5) Similar shapes rendering
     @app.callback(
@@ -1861,7 +1908,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         smooth_shading = 'smooth_shading' in (display_opts or [])
         total = int(n_plots or 5)
 
-        samples = retrieve_random_shapes(selected_idx, total)
+        samples = retrieve_closest_shapes(selected_idx, total)
         if not samples:
             return []
         # Build a category -> color dictionary (distinct colors)
@@ -1893,7 +1940,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         cards = []
         for i, sample_row in enumerate(samples[:total]):
-            similarity_score = compute_similarity(selected_idx or {}, sample_row)
 
             # Attempt to load actual mesh file for the sampled row
             verts = None
@@ -1901,6 +1947,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             filename_str = sample_row.get('filename') or sample_row.get('file', None) or f"similar_{i+1}"
             title = filename_str
             category_name = sample_row.get('category') or 'Unknown'
+            distance = sample_row.get('distance', -1)
             try:
                 # get_step_file_path expects a pandas Series
                 import pandas as _pd
@@ -1939,53 +1986,21 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 'border': '1px solid rgba(0,0,0,0.12)'
             })
 
-            # Determine dataset to include in the pattern-matching id for the info button
-            aux_dataset = sample_row.get('dataset') if isinstance(sample_row, dict) else None
-            if not aux_dataset and isinstance(selected_idx, dict):
-                aux_dataset = selected_idx.get('dataset')
-            if not aux_dataset:
-                aux_dataset = default_dataset
-
-            # Inline small info button (placed inside the header row)
-            info_btn_inline = html.Button('ℹ️', id={'type': 'show-aux-descriptors', 'filename': filename_str, 'dataset': aux_dataset},
-                                          title='Show shape info', n_clicks=0,
-                                          style={
-                                              'width': '22px', 'height': '22px', 'borderRadius': '11px',
-                                              'backgroundColor': 'rgba(255,255,255,0.98)', 'border': '1px solid #ddd',
-                                              'boxShadow': '0 1px 2px rgba(0,0,0,0.06)', 'marginRight': '6px',
-                                              'fontSize': '12px', 'lineHeight': '16px', 'padding': '0'
-                                          })
-
-            # Tighter badge for color
-            small_badge = html.Span(style={
-                'display': 'inline-block', 'width': '10px', 'height': '10px', 'backgroundColor': assigned_color,
-                'borderRadius': '6px', 'marginRight': '6px', 'border': '1px solid rgba(0,0,0,0.12)'
-            })
-
-            # Title span with ellipsis to avoid overflow
-            title_span = html.Span([small_badge, html.Strong(title)], style={
-                'display': 'inline-block', 'maxWidth': '320px', 'whiteSpace': 'nowrap', 'overflow': 'hidden', 'textOverflow': 'ellipsis', 'verticalAlign': 'middle', 'marginRight': '6px'
-            })
-
-            # Category small text
-            category_span = html.Span(category_name, style={'fontSize': '0.78em', 'color': '#666', 'marginLeft': '4px', 'flex': '0 0 auto'})
-
-            # Build header row with left (info+title+category) and right (similarity) areas
-            left_header = html.Div([
-                info_btn_inline,
-                title_span,
-                category_span
-            ], style={'display': 'flex', 'alignItems': 'center', 'gap': '6px', 'flex': '1 1 auto', 'minWidth': '0'})
-
-            similarity_div = html.Div(f"Similarity Score: {similarity_score:.3f}", style={
-                'backgroundColor': 'rgba(255,255,255,0.95)', 'padding': '4px 8px',
-                'borderRadius': '12px', 'fontSize': '0.82em', 'boxShadow': '0 1px 3px rgba(0,0,0,0.12)', 'flex': '0 0 110px', 'textAlign': 'right'
-            })
-
-            header_row = html.Div([left_header, similarity_div], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center', 'gap': '8px'})
+            header = html.Div([
+                html.Div([
+                    html.Span([badge, html.Strong(title)], style={'display': 'inline-flex', 'alignItems': 'center'}),
+                    html.Span(category_name, style={'marginLeft': '8px', 'fontSize': '0.85em', 'color': '#666'})
+                ], className="shape-info-prop")
+            ], className="shape-info-header")
 
             card = html.Div([
-                header_row,
+                header,
+                # Similarity badge in the top-right corner
+                html.Div(f"Similarity Score: {similarity_score:.3f}", style={
+                    'position': 'absolute', 'top': '8px', 'right': '8px',
+                    'backgroundColor': 'rgba(255,255,255,0.95)', 'padding': '4px 8px',
+                    'borderRadius': '12px', 'fontSize': '0.85em', 'boxShadow': '0 1px 3px rgba(0,0,0,0.12)'
+                }),
                 dcc.Graph(figure=fig, className='three-d-plot')
             ], style={
                 'minWidth': '360px',
