@@ -7,47 +7,102 @@ import json
 import uuid
 import time
 import re
-from core.obj_parser import OBJParser
-from core.plotting import create_3d_plot
+import math
+import colorsys
 import plotly.graph_objects as go
-from core.file_index import get_file_tree, get_step_file_path, get_step_display_info, get_available_steps
-from core.analysis_cache import merge_analysis_data, get_analysis_data
-from core.dataset_cache import get_cached_dataset_data, get_available_datasets, preload_datasets
+
+from core.dataset_cache import get_cached_dataset_data
+from core.obj_parser import OBJParser
 from core.shapeMesh import ShapeMesh
-import json
+from core.file_index import get_step_file_path
+from core.file_index import get_available_steps, get_step_display_info
+from core.plotting import create_3d_plot
 
 
-def _parse_hist_and_bins(hist_str, bins_str):
-    """Parse semicolon-separated histogram and bins strings into lists of floats.
+def _parse_hist_and_bins(hist, bins=None):
+    """Parse histogram and bins stored in various formats into (mids, values).
 
-    Returns (midpoints, hist_vals) where midpoints has same length as hist_vals.
-    If parsing fails, returns (None, None).
+    Accepts lists, numpy arrays, JSON strings, or Python reprs. Returns (mids, vals)
+    where mids is list of bin centers (or 0..N-1 if bins missing) and vals is list of numbers.
     """
+    import ast
     try:
-        if hist_str is None or pd.isna(hist_str) or str(hist_str).strip() == "":
+        # None guard
+        if hist is None:
             return None, None
-        if bins_str is None or pd.isna(bins_str) or str(bins_str).strip() == "":
-            return None, None
 
-        hist_vals = [float(x) for x in str(hist_str).split(";") if x != ""]
-        bin_vals = [float(x) for x in str(bins_str).split(";") if x != ""]
+        # If it's a pandas Series or numpy array
+        if hasattr(hist, 'tolist'):
+            vals = list(hist.tolist())
+        elif isinstance(hist, (list, tuple)):
+            vals = list(hist)
+        elif isinstance(hist, str):
+            # Try JSON first
+            try:
+                parsed = json.loads(hist)
+                vals = list(parsed)
+            except Exception:
+                try:
+                    vals = list(ast.literal_eval(hist))
+                except Exception:
+                    # as last resort, try comma-split
+                    vals = [float(x.strip()) for x in hist.split(',') if x.strip()]
+        else:
+            # Fallback to single numeric
+            vals = [float(hist)]
 
-        # If bins give edges (N+1) and hist has N, compute midpoints
-        if len(bin_vals) == len(hist_vals) + 1:
-            b = np.array(bin_vals)
-            mids = (b[:-1] + b[1:]) / 2.0
-            return mids.tolist(), hist_vals
+        # parse bins similarly
+        bin_edges = None
+        if bins is not None:
+            if hasattr(bins, 'tolist'):
+                bin_edges = list(bins.tolist())
+            elif isinstance(bins, (list, tuple)):
+                bin_edges = list(bins)
+            elif isinstance(bins, str):
+                try:
+                    parsed = json.loads(bins)
+                    bin_edges = list(parsed)
+                except Exception:
+                    try:
+                        bin_edges = list(ast.literal_eval(bins))
+                    except Exception:
+                        bin_edges = None
 
-        # If bin_vals length equals hist_vals, treat bins as midpoints already
-        if len(bin_vals) == len(hist_vals):
-            return bin_vals, hist_vals
+        # compute mids
+        if bin_edges and len(bin_edges) >= 2:
+            # If edges length == vals length, assume they are centers already
+            if len(bin_edges) == len(vals):
+                mids = bin_edges
+            elif len(bin_edges) == len(vals) + 1:
+                mids = [(bin_edges[i] + bin_edges[i+1]) / 2.0 for i in range(len(bin_edges)-1)]
+            else:
+                # fallback to 0..N-1
+                mids = list(range(len(vals)))
+        else:
+            mids = list(range(len(vals)))
 
-        # Fallback: create simple x positions 0..N-1
-        return list(range(len(hist_vals))), hist_vals
+        # Ensure floats (be forgiving for NaN/None/strings)
+        def _to_float_list(seq):
+            out = []
+            for x in seq:
+                try:
+                    # pandas NA guard
+                    if pd.isna(x):
+                        out.append(0.0)
+                    else:
+                        out.append(float(x))
+                except Exception:
+                    try:
+                        out.append(float(str(x)))
+                    except Exception:
+                        out.append(0.0)
+            return out
+
+        mids = _to_float_list(mids)
+        vals = _to_float_list(vals)
+        return mids, vals
     except Exception:
         return None, None
-
-
 def create_toast_data(message, toast_type="info", icon="ℹ️"):
     """Create toast data for store"""
     import random
@@ -59,187 +114,13 @@ def create_toast_data(message, toast_type="info", icon="ℹ️"):
         "id": uuid.uuid4().hex[:8],
         "random": random.randint(1, 1000000)  # Extra randomness to force updates
     }
-
-
+ 
 def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
-    # Callback to update Vertices and Faces count based on slider step and selected dataset
-    @app.callback(
-        [Output('shape-vertices', 'children'), Output('shape-faces', 'children')],
-        [Input('processing-step-slider', 'value'), Input('dataset-selector', 'value')],
-        prevent_initial_call=True
-    )
-    def update_shape_info(step, dataset):
-        """Update only the vertices and faces numeric spans when the slider changes for UnifiedPreprocessed/Data.
+    """Register all Dash callbacks using the provided app and dataset info.
 
-        This avoids overwriting the entire `shape-info` card produced by other callbacks.
-        """
-        analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedpreprocessed_data.csv"
-        # fallback to the correctly named file if present
-        alt_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
-        if os.path.exists(analysis_results_path):
-            path = analysis_results_path
-        elif os.path.exists(alt_path):
-            path = alt_path
-        else:
-            return dash.no_update, dash.no_update
-
-        try:
-            analysis_df = pd.read_csv(path)
-        except Exception as e:
-            print(f"[update_shape_info] Failed to read analysis CSV '{path}': {e}")
-            return dash.no_update, dash.no_update
-
-        if dataset != "UnifiedPreprocessed/Data" or step is None or analysis_df.empty:
-            return dash.no_update, dash.no_update
-
-        # Normalize column names (case-insensitive) and map common variants
-        col_map = {c.lower(): c for c in analysis_df.columns}
-
-        # Common alternative names for logical fields in analysis CSVs
-        candidates = {
-            'step': ['step', 'processing_step', 'step_id', 'shape_file', 'filename'],
-            'vertices': ['num_vertices', 'vertices', 'verts', 'vertex_count'],
-            'faces': ['num_faces', 'faces', 'face_count']
-        }
-
-        found = {}
-        for logical, names in candidates.items():
-            for n in names:
-                if n in col_map:
-                    found[logical] = col_map[n]
-                    break
-
-        # If any logical column is missing, log and bail out gracefully
-        missing = [k for k in candidates.keys() if k not in found]
-        if missing:
-            print(f"[update_shape_info] Analysis CSV missing logical columns: {missing}. Available: {list(analysis_df.columns)}")
-            return dash.no_update, dash.no_update
-
-        step_col = found['step']
-        vert_col = found['vertices']
-        face_col = found['faces']
-
-        # Safely compare step values (allow numeric/string mismatch)
-        # If the step column contains filenames (e.g., 'shape_file' or 'filename'), match by the expected step suffix
-        step_col_lower = step_col.lower() if isinstance(step_col, str) else ''
-        if any(k in step_col_lower for k in ('shape', 'file', 'filename')):
-            # Expected processing step suffixes used in filenames
-            expected_steps = [
-                "00_original",
-                "01_remeshed",
-                "02_translated",
-                "03_aligned",
-                "04_flipped",
-                "05_scaled",
-                "06_fill_holes_and_orientation"
-            ]
-            try:
-                idx = int(step)
-                if 0 <= idx < len(expected_steps):
-                    suffix = expected_steps[idx]
-                    mask = analysis_df[step_col].astype(str).str.contains(rf"_{re.escape(suffix)}\.obj$", regex=True, na=False)
-                else:
-                    # Out-of-range numeric step: fallback to substring match
-                    mask = analysis_df[step_col].astype(str).str.contains(re.escape(str(step)), regex=True, na=False)
-            except Exception:
-                s = str(step)
-                if s in expected_steps:
-                    mask = analysis_df[step_col].astype(str).str.contains(rf"_{re.escape(s)}\.obj$", regex=True, na=False)
-                else:
-                    # Fallback: check if the filename contains the provided string
-                    mask = analysis_df[step_col].astype(str).str.contains(re.escape(s), regex=True, na=False)
-        else:
-            try:
-                # Try numeric comparison first
-                step_val = int(step)
-                mask = pd.to_numeric(analysis_df[step_col], errors='coerce') == step_val
-            except Exception:
-                # Fallback to string comparison
-                mask = analysis_df[step_col].astype(str) == str(step)
-
-        current_file_data = analysis_df[mask]
-        if current_file_data.empty:
-            print(f"[update_shape_info] No row for step={step} in '{path}'")
-            return dash.no_update, dash.no_update
-
-        vertices_count = current_file_data[vert_col].iloc[0]
-        faces_count = current_file_data[face_col].iloc[0]
-
-        # Format with commas like the rest of the UI
-        try:
-            vertices_str = f"{int(vertices_count):,}"
-        except Exception:
-            vertices_str = str(vertices_count)
-        try:
-            faces_str = f"{int(faces_count):,}"
-        except Exception:
-            faces_str = str(faces_count)
-
-        return vertices_str, faces_str
-
-    # Sort order button toggle - SAME PATTERN AS LOADING MESSAGE
-    @app.callback(
-        [Output('sort-order', 'children'),
-         Output('sort-order', 'title'),
-         Output('sort-order', 'data-order'),
-         Output('toast-store', 'data', allow_duplicate=True)],
-        [Input('sort-order', 'n_clicks')],
-        prevent_initial_call=True
-    )
-    def toggle_sort_order(n_clicks):
-        """Toggle between ascending and descending sort order"""
-        print(f"🔄 Sort button clicked! n_clicks: {n_clicks}")  # Debug
-        
-        if n_clicks is None:
-            n_clicks = 0
-        
-        # Even clicks = ascending, odd clicks = descending
-        if n_clicks % 2 == 0:
-            print(f"✅ Creating ascending sort")  # Debug
-            toast_data = create_toast_data("Sort order changed to Ascending", "info", "↑")
-            return "↑", "Sort Order: Ascending (click to change to Descending)", "asc", toast_data
-        else:
-            print(f"✅ Creating descending sort")  # Debug
-            toast_data = create_toast_data("Sort order changed to Descending", "info", "↓")
-            return "↓", "Sort Order: Descending (click to change to Ascending)", "desc", toast_data
-    
-    # Callback to open global descriptors modal for an auxiliary sample
-    @app.callback(
-        [Output('selected-file-store', 'data', allow_duplicate=True), Output('global-descriptors-open', 'data', allow_duplicate=True)],
-        [Input({'type': 'show-aux-descriptors', 'filename': dash.dependencies.ALL, 'dataset': dash.dependencies.ALL}, 'n_clicks')],
-        prevent_initial_call=True
-    )
-    def open_aux_descriptors(n_clicks_list):
-        ctx = dash.callback_context
-        if not ctx.triggered:
-            return no_update, no_update
-
-        # prop_id is like '{"type":"show-aux-descriptors","filename":"m123.obj","dataset":"DatasetName"}.n_clicks'
-        prop = ctx.triggered[0]['prop_id'].split('.')[0]
-        try:
-            payload = json.loads(prop)
-        except Exception:
-            return no_update, no_update
-
-        filename = payload.get('filename')
-        dataset = payload.get('dataset')
-
-        # Load dataset and find the row
-        try:
-            df = get_cached_dataset_data(dataset) if dataset else file_df
-        except Exception:
-            df = file_df
-
-        if df is None or df.empty or not filename:
-            return no_update, no_update
-
-        matched = df[df['filename'] == filename]
-        if matched.empty:
-            return no_update, no_update
-
-        row = matched.iloc[0].to_dict()
-        # Set selected-file-store to this row and open modal
-        return row, True
+    This function was unintentionally removed; restore it so callers can import
+    and register callbacks by passing the Dash `app` instance.
+    """
 
     # Show toast for filename filter changes
     app.clientside_callback(
@@ -2179,7 +2060,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         # Simple header used for early-return error messages (no shape selected / dataset errors)
         header = html.Div([
-            html.Div(html.H3("Global Descriptor Histograms", style={'margin': 0, 'color': '#fff'}), style={'flex': '1'}),
+            html.Div(html.H3("Global Descriptor Histograms", style={'margin': 0, 'color': '#000'}), style={'flex': '1'}),
             # In-modal Close button: plain Dash button (clicks are proxied by assets JS)
             html.Button('Close', n_clicks=0,
                         style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
@@ -2188,11 +2069,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         # If no shape selected, show helpful message
         if not selected_file_data or not isinstance(selected_file_data, dict):
             body = html.Div([
-                html.P("No shape selected. Please select a shape from the list first.", style={'color': '#fff'})
+                html.P("No shape selected. Please select a shape from the list first.", style={'color': '#000'})
             ])
-            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
             # Wrap content in the full-screen modal overlay style so it appears as a dialog
-            return html.Div(content, style=modal_style), modal_style
+            return html.Div(content_card, style=modal_style), modal_style
 
         selected_filename = selected_file_data.get('filename')
         dataset = selected_file_data.get('dataset', selected_dataset)
@@ -2203,20 +2084,20 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         try:
             df = get_cached_dataset_data(dataset)
         except Exception as e:
-            body = html.Div([html.P(f"Failed to load dataset: {e}", style={'color': '#fff'})])
-            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
-            return content, modal_style
+            body = html.Div([html.P(f"Failed to load dataset: {e}", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+            return html.Div(content_card, style=modal_style), modal_style
 
         if df is None or df.empty:
-            body = html.Div([html.P("Dataset is empty or unavailable.", style={'color': '#fff'})])
-            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
-            return html.Div(content, style=modal_style), modal_style
+            body = html.Div([html.P("Dataset is empty or unavailable.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+            return html.Div(content_card, style=modal_style), modal_style
 
         matching = df[df['filename'] == selected_filename]
         if matching.empty:
-            body = html.Div([html.P(f"Selected file '{selected_filename}' not found in dataset.", style={'color': '#fff'})])
-            content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
-            return html.Div(content, style=modal_style), modal_style
+            body = html.Div([html.P(f"Selected file '{selected_filename}' not found in dataset.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+            return html.Div(content_card, style=modal_style), modal_style
 
         row = matching.iloc[0]
 
@@ -2231,7 +2112,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         # Update header to include the shape name
         header = html.Div([
-            html.Div(html.H3(f"Global Descriptor Histograms — {display_name}", style={'margin': 0, 'color': '#fff'}), style={'flex': '1'}),
+            html.Div(html.H3(f"Global Descriptor Histograms — {display_name}", style={'margin': 0, 'color': '#000'}), style={'flex': '1'}),
             # In-modal Close button: plain Dash button (clicks are proxied by assets JS)
             html.Button('Close', n_clicks=0,
                         style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
@@ -2262,16 +2143,30 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     bins_val = row.get(key)
                     break
 
+            # Try robust parsing of stored histogram values
             mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+            # If parser failed, try a simple regex-based numeric extraction as a last resort
+            if (mids is None or hist_vals is None) and isinstance(hist_val, str):
+                try:
+                    nums = [float(x) for x in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", hist_val)]
+                    if nums:
+                        hist_vals = nums
+                        mids = list(range(len(nums)))
+                        print(f"[debug] Fallback parsed {len(nums)} histogram values for {title} from string for file {selected_filename}")
+                except Exception as e:
+                    print(f"[debug] Fallback parsing failed for {title}: {e}")
+            # Debug: log when histogram parsing fails for visibility in server logs
             if mids is None or hist_vals is None:
-                # Placeholder card for modal
+                print(f"[debug] _parse_hist_and_bins returned None for {title} on file {selected_filename}. hist_val repr: {repr(hist_val)} bins_val repr: {repr(bins_val)}")
+            if mids is None or hist_vals is None:
+                # Placeholder card for modal — give it an opaque white background and dark text
                 card = html.Div([
-                    html.H4(f"{title} - Data unavailable", style={'color': '#fff'}),
-                    html.P("Histogram or bins data missing for this shape.", style={'color': '#fff'})
-                ], style={'flex': '1', 'minWidth': '200px', 'padding': '12px'})
+                    html.H4(f"{title} - Data unavailable", style={'color': '#000'}),
+                    html.P("Histogram or bins data missing for this shape.", style={'color': '#333'})
+                ], style={'flex': '1', 'minWidth': '200px', 'padding': '12px', 'background': '#fff', 'borderRadius': '6px'})
                 # Inline placeholder (smaller)
                 inline_card = html.Div([
-                    html.H5(f"{title}", style={'margin': '6px 0'}),
+                    html.H5(f"{title}", style={'margin': '6px 0', 'color': '#000'}),
                     html.P("Data unavailable", style={'margin': 0, 'fontSize': '0.85em', 'color': '#666'})
                 ], style={'flex': '0 0 160px', 'minWidth': '140px', 'padding': '8px', 'background': '#fff', 'borderRadius': '6px', 'textAlign': 'center'})
             else:
@@ -2305,11 +2200,146 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             graphs_row
         ])
 
-        content = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto'})
+        content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
         # Ensure the returned content is wrapped in the full-screen modal overlay so it appears centered
-        return html.Div(content, style=modal_style), modal_style
+        return html.Div(content_card, style=modal_style), modal_style
 
     # Modal visibility is handled within the same server callback that returns children and style.
+
+    # Aux modal: separate builder so auxiliary sample info does not overwrite main selection
+    @app.callback(
+        [Output('aux-descriptors-modal', 'children'), Output('aux-descriptors-modal', 'style')],
+        Input('aux-descriptors-open', 'data'),
+        [State('aux-selected-file-store', 'data'), State('selected-dataset-store', 'data')],
+        prevent_initial_call=False
+    )
+    def show_aux_descriptors(is_open, aux_file_data, selected_dataset):
+        """Display or hide the auxiliary modal depending on its store value.
+
+        This mirrors `show_global_descriptors` but uses separate stores/modal ids so
+        opening aux info doesn't change the main `selected-file-store`.
+        """
+        if not is_open:
+            return [], {'display': 'none'}
+
+        modal_style = {
+            'display': 'block',
+            'position': 'fixed',
+            'left': '0',
+            'top': '0',
+            'width': '100%',
+            'height': '100%',
+            'backgroundColor': 'rgba(0,0,0,0.5)',
+            'zIndex': 9999,
+            'padding': '40px',
+            'boxSizing': 'border-box',
+            'overflow': 'auto'
+        }
+
+        header = html.Div([
+            html.Div(html.H3("Shape Info", style={'margin': 0, 'color': '#000'}), style={'flex': '1'}),
+            html.Button('Close', n_clicks=0,
+                        style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
+        ], style={'display': 'flex', 'alignItems': 'center', 'gap': '12px', 'marginBottom': '12px'})
+
+        if not aux_file_data or not isinstance(aux_file_data, dict):
+            body = html.Div([html.P("No sample selected.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        selected_filename = aux_file_data.get('filename')
+        dataset = aux_file_data.get('dataset', selected_dataset)
+        if not dataset:
+            dataset = 'Data'
+
+        try:
+            df = get_cached_dataset_data(dataset)
+        except Exception as e:
+            body = html.Div([html.P(f"Failed to load dataset: {e}", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        if df is None or df.empty:
+            body = html.Div([html.P("Dataset is empty or unavailable.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        matching = df[df['filename'] == selected_filename]
+        if matching.empty:
+            body = html.Div([html.P(f"Sample '{selected_filename}' not found in dataset.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        row = matching.iloc[0]
+
+        # Use the same Shape Info card used elsewhere so formatting matches exactly
+        try:
+            mesh = ShapeMesh.from_file_row(row)
+            info_card = mesh.get_card_header_html()
+            # Wrap mesh-provided card in an opaque white container so content is readable on the overlay
+            info_card = html.Div(info_card, style={'background': '#fff', 'color': '#000', 'padding': '12px', 'borderRadius': '6px', 'boxShadow': '0 6px 20px rgba(0,0,0,0.18)'})
+        except Exception as e:
+            info_card = html.Div([html.H4("❌ Error building Shape Info", style={'color': '#e74c3c'}), html.Div(str(e))])
+
+        # Render the five global descriptor histograms just like the main modal
+        descriptor_pairs = [
+            ('A3', 'A3_hist', 'A3_bins'),
+            ('D1', 'D1_hist', 'D1_bins'),
+            ('D2', 'D2_hist', 'D2_bins'),
+            ('D3', 'D3_hist', 'D3_bins'),
+            ('D4', 'D4_hist', 'D4_bins')
+        ]
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        graphs = []
+        for i, (title, hist_field, bins_field) in enumerate(descriptor_pairs):
+            hist_val = None
+            bins_val = None
+            for key in (hist_field, hist_field.lower(), 'analysis_' + hist_field, 'analysis_' + hist_field.lower()):
+                if key in row.index:
+                    hist_val = row.get(key)
+                    break
+            for key in (bins_field, bins_field.lower(), 'analysis_' + bins_field, 'analysis_' + bins_field.lower()):
+                if key in row.index:
+                    bins_val = row.get(key)
+                    break
+
+            mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+            # Fallback parsing for string-encoded histograms
+            if (mids is None or hist_vals is None) and isinstance(hist_val, str):
+                try:
+                    nums = [float(x) for x in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", hist_val)]
+                    if nums:
+                        hist_vals = nums
+                        mids = list(range(len(nums)))
+                        print(f"[debug] Fallback parsed {len(nums)} histogram values for {title} from string for aux file {selected_filename}")
+                except Exception as e:
+                    print(f"[debug] Aux fallback parsing failed for {title}: {e}")
+            if mids is None or hist_vals is None:
+                graphs.append(html.Div([html.H4(f"{title} - Data unavailable", style={'color': '#000'})], style={'minWidth': '180px', 'background': '#fff', 'padding': '8px', 'borderRadius': '6px'}))
+            else:
+                fig = go.Figure()
+                fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=colors[i] if i < len(colors) else colors[0]))
+                fig.update_layout(title=f"{title}", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                  xaxis_title='Value', yaxis_title='Frequency', margin=dict(l=30, r=10, t=30, b=30))
+                graphs.append(html.Div(dcc.Graph(figure=fig, config={'displayModeBar': False}, style={'height': '220px'}), style={'minWidth': '180px'}))
+
+        graphs_row = html.Div(graphs, style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap', 'justifyContent': 'center'})
+
+        body = html.Div([info_card, graphs_row])
+        content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.22)'})
+        return html.Div(content_card, style=modal_style), modal_style
+
+    # Close aux modal when hidden close trigger is fired (proxied from in-modal Close button)
+    @app.callback(
+        Output('aux-descriptors-open', 'data', allow_duplicate=True),
+        [Input('aux-descriptors-hidden-close-trigger', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def set_aux_descriptors_open(hidden_clicks):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update
+        return False
 
     @app.callback(
         Output('inline-global-descriptors', 'children', allow_duplicate=True),
@@ -2364,6 +2394,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                         break
 
                 mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+                # Fallback parsing for string-encoded histograms
+                if (mids is None or hist_vals is None) and isinstance(hist_val, str):
+                    try:
+                        nums = [float(x) for x in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", hist_val)]
+                        if nums:
+                            hist_vals = nums
+                            mids = list(range(len(nums)))
+                            print(f"[debug] Fallback parsed {len(nums)} inline histogram values for {title} from string for file {selected_filename}")
+                    except Exception as e:
+                        print(f"[debug] Inline fallback parsing failed for {title}: {e}")
                 if mids is None or hist_vals is None:
                     inline_card = html.Div([
                         html.Div(title, style={'fontWeight': '600', 'marginBottom': '6px', 'fontSize': '12px'}),
@@ -2457,6 +2497,99 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         except Exception as e:
             print(f"[DEBUG] Error updating category options: {e}")
             return [{'label': 'All Categories', 'value': 'all'}], 'all'
+    # Per-card info button: open auxiliary descriptors modal without overwriting main selection
+    @app.callback(
+        [Output('aux-selected-file-store', 'data', allow_duplicate=True), Output('aux-descriptors-open', 'data', allow_duplicate=True)],
+        [Input({'type': 'show-aux-descriptors', 'filename': dash.dependencies.ALL, 'dataset': dash.dependencies.ALL}, 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def open_aux_descriptors(n_clicks_list):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update, no_update
+
+        # find the first triggered pattern id with a truthy value
+        triggered_prop = None
+        for t in ctx.triggered:
+            pid = t.get('prop_id', '')
+            val = t.get('value')
+            if 'show-aux-descriptors' in pid and val:
+                triggered_prop = pid
+                break
+
+        if not triggered_prop:
+            return no_update, no_update
+
+        # extract JSON substring
+        try:
+            start = triggered_prop.find('{')
+            end = triggered_prop.rfind('}')
+            if start == -1 or end == -1:
+                return no_update, no_update
+            id_json = triggered_prop[start:end+1]
+            try:
+                payload = json.loads(id_json)
+            except Exception:
+                import ast
+                try:
+                    payload = ast.literal_eval(id_json)
+                except Exception:
+                    return no_update, no_update
+        except Exception:
+            return no_update, no_update
+
+        filename = payload.get('filename')
+        dataset = payload.get('dataset')
+
+        try:
+            df = get_cached_dataset_data(dataset) if dataset else file_df
+        except Exception:
+            df = file_df
+
+        if df is None or df.empty or not filename:
+            return no_update, no_update
+
+        matched = df[df['filename'] == filename]
+        if matched.empty:
+            return no_update, no_update
+
+        try:
+            row = matched.iloc[0].to_dict()
+            import pathlib as _pathlib
+            import pandas as _pd
+
+            def _sanitize_value(v):
+                try:
+                    if v is None:
+                        return None
+                    try:
+                        if _pd.isna(v):
+                            return None
+                    except Exception:
+                        pass
+                    if isinstance(v, (_pathlib.Path, os.PathLike)):
+                        return str(v)
+                    if isinstance(v, (np.generic,)):
+                        return v.item()
+                    if isinstance(v, (np.ndarray,)):
+                        return v.tolist()
+                    if isinstance(v, _pd.Timestamp):
+                        return v.isoformat()
+                    if isinstance(v, dict):
+                        return {str(k): _sanitize_value(val) for k, val in v.items()}
+                    if isinstance(v, (list, tuple, set)):
+                        return [_sanitize_value(x) for x in v]
+                    if isinstance(v, (str, int, float, bool)):
+                        return v
+                    return str(v)
+                except Exception:
+                    return str(v)
+
+            sanitized = {k: _sanitize_value(v) for k, v in row.items()}
+            return sanitized, True
+        except Exception as e:
+            print(f"[DEBUG] open_aux_descriptors failed to prepare row: {e}")
+            return no_update, no_update
 
     # Update normalization toggle options and value when file is selected
     @app.callback(

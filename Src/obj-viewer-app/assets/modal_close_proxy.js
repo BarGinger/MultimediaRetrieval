@@ -12,11 +12,13 @@ document.addEventListener('click', function (e) {
         const text = (btn.textContent || '').trim();
         if (text !== 'Close') return;
 
-        // Ensure the clicked button is inside the modal container
-        const modal = btn.closest && btn.closest('#global-descriptors-modal');
-        if (!modal) return;
+        // Ensure the clicked button is inside either modal container
+        const modalGlobal = btn.closest && btn.closest('#global-descriptors-modal');
+        const modalAux = btn.closest && btn.closest('#aux-descriptors-modal');
+        if (!modalGlobal && !modalAux) return;
 
-        const hidden = document.getElementById('global-descriptors-hidden-close-trigger');
+        // Prefer the matching hidden trigger (aux takes precedence if inside aux modal)
+        const hidden = modalAux ? document.getElementById('aux-descriptors-hidden-close-trigger') : document.getElementById('global-descriptors-hidden-close-trigger');
         if (hidden) {
             // Prefer dispatching a MouseEvent in case some frameworks expect event properties
             try {
