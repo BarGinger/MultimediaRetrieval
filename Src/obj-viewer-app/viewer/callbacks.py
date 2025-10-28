@@ -14,6 +14,7 @@ from core.file_index import get_file_tree, get_step_file_path, get_step_display_
 from core.analysis_cache import merge_analysis_data, get_analysis_data
 from core.dataset_cache import get_cached_dataset_data, get_available_datasets, preload_datasets
 from core.shapeMesh import ShapeMesh
+import json
 
 
 def _parse_hist_and_bins(hist_str, bins_str):
@@ -201,6 +202,44 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             print(f"✅ Creating descending sort")  # Debug
             toast_data = create_toast_data("Sort order changed to Descending", "info", "↓")
             return "↓", "Sort Order: Descending (click to change to Ascending)", "desc", toast_data
+    
+    # Callback to open global descriptors modal for an auxiliary sample
+    @app.callback(
+        [Output('selected-file-store', 'data', allow_duplicate=True), Output('global-descriptors-open', 'data', allow_duplicate=True)],
+        [Input({'type': 'show-aux-descriptors', 'filename': dash.dependencies.ALL, 'dataset': dash.dependencies.ALL}, 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def open_aux_descriptors(n_clicks_list):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update, no_update
+
+        # prop_id is like '{"type":"show-aux-descriptors","filename":"m123.obj","dataset":"DatasetName"}.n_clicks'
+        prop = ctx.triggered[0]['prop_id'].split('.')[0]
+        try:
+            payload = json.loads(prop)
+        except Exception:
+            return no_update, no_update
+
+        filename = payload.get('filename')
+        dataset = payload.get('dataset')
+
+        # Load dataset and find the row
+        try:
+            df = get_cached_dataset_data(dataset) if dataset else file_df
+        except Exception:
+            df = file_df
+
+        if df is None or df.empty or not filename:
+            return no_update, no_update
+
+        matched = df[df['filename'] == filename]
+        if matched.empty:
+            return no_update, no_update
+
+        row = matched.iloc[0].to_dict()
+        # Set selected-file-store to this row and open modal
+        return row, True
 
     # Show toast for filename filter changes
     app.clientside_callback(
@@ -1214,16 +1253,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     html.Span(f" | 📄 {item['filename']}", className="filename-text", style={'fontSize': '0.85em', 'color': '#555'})
                 ], style={'marginBottom': '2px'}),
                 html.Div([
-                    html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", 
-                            style={'marginRight': '8px', 'fontSize': '0.75em', 'color': '#888'}),
-                    html.Span(f"🔷 Faces: {faces_count}", className="stats-text", 
-                            style={'fontSize': '0.75em', 'color': '#888'})
+                    html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", style={'fontSize': '0.75em', 'color': '#888'}),
+                    html.Span(f"🔷 Faces: {faces_count}", className="stats-text", style={'fontSize': '0.75em', 'color': '#888', 'marginLeft': '8px'})
                 ])
             ]),
             id={'type': 'file-btn', 'filename': encoded_filename},
             className='file-button',
             n_clicks=0,
-            **{'data-filename': item['filename'], 'data-file-index': item['original_index'], 'data-category': item['category']}
+            **{'data-filename': item['filename'], 'data-file-index': item.get('original_index', 0), 'data-category': item.get('category', '')}
         )
 
     def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
@@ -1452,7 +1489,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     # 3) Click handler -> loads file, updates info + selected filename
     @app.callback(
         [Output('shape-info', 'children', allow_duplicate=True),
-         Output('selected-file-store', 'data')],
+         Output('selected-file-store', 'data', allow_duplicate=True)],
         [Input({'type': 'file-btn', 'filename': dash.dependencies.ALL}, 'n_clicks'),
          Input('category-filter', 'value'),
          Input('filename-filter', 'value'),
@@ -1862,9 +1899,44 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         
      # Compute similarity score between selected file and this sample
     def compute_similarity(sel_row, cand_row):
-        import random
-        # Placeholder: return a random similarity score between 0 and 1
-        return random.random()
+        try:
+            sims = []
+            hist_keys = ['A3', 'D1', 'D2', 'D3', 'D4']
+            for hk in hist_keys:
+                cand_hist = cand_row.get(f'{hk}_hist') or cand_row.get(f'analysis_{hk}_hist') or cand_row.get(hk.lower() + '_hist')
+                cand_bins = cand_row.get(f'{hk}_bins') or cand_row.get(f'analysis_{hk}_bins') or cand_row.get(hk.lower() + '_bins')
+                sel_hist = sel_row.get(f'{hk}_hist') or sel_row.get(f'analysis_{hk}_hist') or sel_row.get(hk.lower() + '_hist')
+                sel_bins = sel_row.get(f'{hk}_bins') or sel_row.get(f'analysis_{hk}_bins') or sel_row.get(hk.lower() + '_bins')
+
+                if not cand_hist or not sel_hist:
+                    continue
+
+                cand_vals = _parse_hist_and_bins(cand_hist, cand_bins)[1]
+                sel_vals = _parse_hist_and_bins(sel_hist, sel_bins)[1]
+                if cand_vals is None or sel_vals is None:
+                    continue
+
+                a = np.array(cand_vals, dtype=float)
+                b = np.array(sel_vals, dtype=float)
+                if a.size != b.size and a.size > 1 and b.size > 1:
+                    new_len = max(a.size, b.size)
+                    a = np.interp(np.linspace(0, 1, new_len), np.linspace(0, 1, a.size), a)
+                    b = np.interp(np.linspace(0, 1, new_len), np.linspace(0, 1, b.size), b)
+
+                denom = (np.linalg.norm(a) * np.linalg.norm(b))
+                if denom == 0:
+                    continue
+                sim = float(np.dot(a, b) / denom)
+                sims.append(sim)
+
+            if sims:
+                return float(np.mean(sims)) * 100.0
+            # Fallback: category match
+            if sel_row.get('category') and cand_row.get('category') and sel_row.get('category') == cand_row.get('category'):
+                return 100.0
+        except Exception:
+            pass
+        return 0.0
 
     # 5) Similar shapes rendering
     @app.callback(
@@ -1991,9 +2063,28 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     html.Span([badge, html.Strong(title)], style={'display': 'inline-flex', 'alignItems': 'center'}),
                     html.Span(category_name, style={'marginLeft': '8px', 'fontSize': '0.85em', 'color': '#666'})
                 ], className="shape-info-prop")
-            ], className="shape-info-header")
+            ], className="shape-info-header", style={'paddingLeft': '44px'})
+
+            # Small info button top-left to open the full shape info modal for this sample
+            # Determine dataset to include in the pattern-matching id
+            aux_dataset = sample_row.get('dataset') if isinstance(sample_row, dict) else None
+            if not aux_dataset and isinstance(selected_idx, dict):
+                aux_dataset = selected_idx.get('dataset')
+            if not aux_dataset:
+                aux_dataset = default_dataset
+
+            info_btn = html.Button('ℹ️', id={'type': 'show-aux-descriptors', 'filename': filename_str, 'dataset': aux_dataset},
+                                   title='Show shape info', n_clicks=0,
+                                   style={
+                                       'position': 'absolute', 'top': '8px', 'left': '8px',
+                                       'width': '28px', 'height': '28px', 'borderRadius': '14px',
+                                       'backgroundColor': 'rgba(255,255,255,0.95)', 'border': '1px solid #ddd',
+                                       'boxShadow': '0 1px 3px rgba(0,0,0,0.12)', 'zIndex': 20,
+                                       'fontSize': '14px', 'lineHeight': '20px', 'padding': '0'
+                                   })
 
             card = html.Div([
+                info_btn,
                 header,
                 # Similarity badge in the top-right corner
                 html.Div(f"Similarity Score: {similarity_score:.3f}", style={
@@ -2021,7 +2112,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Control the modal visibility via a persistent Store to avoid missing-id issues
     @app.callback(
-        Output('global-descriptors-open', 'data'),
+        Output('global-descriptors-open', 'data', allow_duplicate=True),
         [Input('show-global-descriptors-btn', 'n_clicks'), Input('global-descriptors-hidden-close-trigger', 'n_clicks')],
         prevent_initial_call=True
     )
