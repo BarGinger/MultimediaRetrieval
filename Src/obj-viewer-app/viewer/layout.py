@@ -75,8 +75,12 @@ def build_layout(file_df, dataset_options, selected_dataset):
     # Lazy loading system stores
     dcc.Store(id="file-data-store", data=[]),  # Complete filtered dataset
     dcc.Store(id='global-descriptors-open', data=False),  # Controls visibility of the global descriptors modal
+    dcc.Store(id='aux-selected-file-store', data=None),  # Holds aux/sample selection for the aux modal
+    dcc.Store(id='aux-descriptors-open', data=False),    # Controls visibility of the aux descriptors modal
     # Hidden Close trigger so callbacks that reference its n_clicks have a stable Input at registration time
     html.Button('Close hidden', id='global-descriptors-hidden-close-trigger', n_clicks=0, style={'display': 'none'}),
+    # Hidden close trigger for aux descriptors modal
+    html.Button('Close hidden', id='aux-descriptors-hidden-close-trigger', n_clicks=0, style={'display': 'none'}),
     dcc.Store(id="current-batch-store", data={"batch": 0, "batch_size": 150}),  # Current batch info
     dcc.Store(id="scroll-trigger-store", data=None),  # Scroll detection trigger
     
@@ -84,6 +88,8 @@ def build_layout(file_df, dataset_options, selected_dataset):
     html.Div(id="dummy-div", style={'display': 'none'}),
     # Modal placeholder for Global Descriptors (populated by callbacks)
     html.Div(id='global-descriptors-modal', style={'display': 'none'}),
+    # Modal placeholder for auxiliary Shape Info (aux modal)
+    html.Div(id='aux-descriptors-modal', style={'display': 'none'}),
     # (Modal close is handled via `global-descriptors-open` store and the
     # in-modal Close button; no persistent hidden button required.)
 
@@ -374,7 +380,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                         html.Div([
                             html.Span("🔷 ", className="shape-info-icon"), html.Span("Faces: ", className="shape-info-label"), html.Span("N/A", id='shape-faces', className="shape-info-prop"),
                         ], style={'display': 'none'}),
-                    ], className="shape-info-properties"),
+                    ], className="shape-info-properties", style={'background': '#fff', 'padding': '12px', 'borderRadius': '8px', 'boxShadow': '0 6px 20px rgba(0,0,0,0.06)', 'minHeight': '120px'}),
                     # Inline global descriptors (populated by callbacks) - placed below Shape Info
                     html.Div(id='inline-global-descriptors', children=[], style={'marginTop': '8px', 'marginBottom': '8px'}),
                     html.Div(id="display-options-container", children=[
