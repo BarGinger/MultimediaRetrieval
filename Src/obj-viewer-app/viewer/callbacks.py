@@ -1952,7 +1952,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 
             category_name = sample_row.get('category') or 'Unknown'
             distance = sample_row.get('distance', -1)
-            similarity_score = sample_row.get('similarity_score', -1)
+            distance = sample_row.get('distance', -1)
+            similarity_score = sample_row.get('distance', -1)
             try:
                 # get_step_file_path expects a pandas Series
                 import pandas as _pd
@@ -1991,21 +1992,53 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 'border': '1px solid rgba(0,0,0,0.12)'
             })
 
-            header = html.Div([
-                html.Div([
-                    html.Span([badge, html.Strong(title)], style={'display': 'inline-flex', 'alignItems': 'center'}),
-                    html.Span(category_name, style={'marginLeft': '8px', 'fontSize': '0.85em', 'color': '#666'})
-                ], className="shape-info-prop")
-            ], className="shape-info-header")
+                        # Determine dataset to include in the pattern-matching id for the info button
+            aux_dataset = sample_row.get('dataset') if isinstance(sample_row, dict) else None
+            if not aux_dataset and isinstance(selected_idx, dict):
+                aux_dataset = selected_idx.get('dataset')
+            if not aux_dataset:
+                aux_dataset = default_dataset
+
+            # Inline small info button (placed inside the header row)
+            info_btn_inline = html.Button('ℹ️', id={'type': 'show-aux-descriptors', 'filename': filename_str, 'dataset': aux_dataset},
+                                          title='Show shape info', n_clicks=0,
+                                          style={
+                                              'width': '22px', 'height': '22px', 'borderRadius': '11px',
+                                              'backgroundColor': 'rgba(255,255,255,0.98)', 'border': '1px solid #ddd',
+                                              'boxShadow': '0 1px 2px rgba(0,0,0,0.06)', 'marginRight': '6px',
+                                              'fontSize': '12px', 'lineHeight': '16px', 'padding': '0'
+                                          })
+
+            # Tighter badge for color
+            small_badge = html.Span(style={
+                'display': 'inline-block', 'width': '10px', 'height': '10px', 'backgroundColor': assigned_color,
+                'borderRadius': '6px', 'marginRight': '6px', 'border': '1px solid rgba(0,0,0,0.12)'
+            })
+
+            # Title span with ellipsis to avoid overflow
+            title_span = html.Span([small_badge, html.Strong(title)], style={
+                'display': 'inline-block', 'maxWidth': '320px', 'whiteSpace': 'nowrap', 'overflow': 'hidden', 'textOverflow': 'ellipsis', 'verticalAlign': 'middle', 'marginRight': '6px'
+            })
+
+            # Category small text
+            category_span = html.Span(category_name, style={'fontSize': '0.78em', 'color': '#666', 'marginLeft': '4px', 'flex': '0 0 auto'})
+
+            # Build header row with left (info+title+category) and right (similarity) areas
+            left_header = html.Div([
+                info_btn_inline,
+                title_span,
+                category_span
+            ], style={'display': 'flex', 'alignItems': 'center', 'gap': '6px', 'flex': '1 1 auto', 'minWidth': '0'})
+
+            similarity_div = html.Div(f"Similarity Score: {similarity_score:.3f}", style={
+                'backgroundColor': 'rgba(255,255,255,0.95)', 'padding': '4px 8px',
+                'borderRadius': '12px', 'fontSize': '0.82em', 'boxShadow': '0 1px 3px rgba(0,0,0,0.12)', 'flex': '0 0 110px', 'textAlign': 'right'
+            })
+
+            header_row = html.Div([left_header, similarity_div], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center', 'gap': '8px'})
 
             card = html.Div([
-                header,
-                # Similarity badge in the top-right corner
-                html.Div(f"Similarity Score: {similarity_score:.3f}", style={
-                    'position': 'absolute', 'top': '8px', 'right': '8px',
-                    'backgroundColor': 'rgba(255,255,255,0.95)', 'padding': '4px 8px',
-                    'borderRadius': '12px', 'fontSize': '0.85em', 'boxShadow': '0 1px 3px rgba(0,0,0,0.12)'
-                }),
+                header_row,
                 dcc.Graph(figure=fig, className='three-d-plot')
             ], style={
                 'minWidth': '360px',
@@ -2018,7 +2051,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 'position': 'relative',
                 'overflow': 'hidden'
             })
-
             cards.append(card)
 
         # Return just the cards here; the legend is now rendered statically in the layout
