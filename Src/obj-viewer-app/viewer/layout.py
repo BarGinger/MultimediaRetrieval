@@ -568,7 +568,19 @@ def build_layout(file_df, dataset_options, selected_dataset):
                     })
                 ], style={'width': '100%'}),
 
-                html.Div(id='aux-plots-row', className="aux-plots-row"),
+                dcc.Loading(
+                    id='loading-aux-plots',
+                    type='circle',
+                    color='#2563eb',
+                    children=html.Div(
+                        id='aux-plots-row',
+                        children=[
+                            # Content area that will be populated by the server callback
+                            html.Div(id='aux-plots-content', className="aux-plots-row")
+                        ]
+                    ),
+                    style={'display': 'block', 'width': '100%', 'minHeight': '60px'}
+                ),
             ], className="right-panel"),
         ], className="main-row")
     ])
