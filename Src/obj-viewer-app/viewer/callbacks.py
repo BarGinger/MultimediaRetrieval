@@ -14,6 +14,7 @@ from core.file_index import get_file_tree, get_step_file_path, get_step_display_
 from core.analysis_cache import merge_analysis_data, get_analysis_data
 from core.dataset_cache import get_cached_dataset_data, get_available_datasets, preload_datasets
 from core.shapeMesh import ShapeMesh
+import json
 
 
 def _parse_hist_and_bins(hist_str, bins_str):
@@ -201,6 +202,44 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             print(f"✅ Creating descending sort")  # Debug
             toast_data = create_toast_data("Sort order changed to Descending", "info", "↓")
             return "↓", "Sort Order: Descending (click to change to Ascending)", "desc", toast_data
+    
+    # Callback to open global descriptors modal for an auxiliary sample
+    @app.callback(
+        [Output('selected-file-store', 'data', allow_duplicate=True), Output('global-descriptors-open', 'data', allow_duplicate=True)],
+        [Input({'type': 'show-aux-descriptors', 'filename': dash.dependencies.ALL, 'dataset': dash.dependencies.ALL}, 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def open_aux_descriptors(n_clicks_list):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update, no_update
+
+        # prop_id is like '{"type":"show-aux-descriptors","filename":"m123.obj","dataset":"DatasetName"}.n_clicks'
+        prop = ctx.triggered[0]['prop_id'].split('.')[0]
+        try:
+            payload = json.loads(prop)
+        except Exception:
+            return no_update, no_update
+
+        filename = payload.get('filename')
+        dataset = payload.get('dataset')
+
+        # Load dataset and find the row
+        try:
+            df = get_cached_dataset_data(dataset) if dataset else file_df
+        except Exception:
+            df = file_df
+
+        if df is None or df.empty or not filename:
+            return no_update, no_update
+
+        matched = df[df['filename'] == filename]
+        if matched.empty:
+            return no_update, no_update
+
+        row = matched.iloc[0].to_dict()
+        # Set selected-file-store to this row and open modal
+        return row, True
 
     # Show toast for filename filter changes
     app.clientside_callback(
@@ -1214,16 +1253,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     html.Span(f" | 📄 {item['filename']}", className="filename-text", style={'fontSize': '0.85em', 'color': '#555'})
                 ], style={'marginBottom': '2px'}),
                 html.Div([
-                    html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", 
-                            style={'marginRight': '8px', 'fontSize': '0.75em', 'color': '#888'}),
-                    html.Span(f"🔷 Faces: {faces_count}", className="stats-text", 
-                            style={'fontSize': '0.75em', 'color': '#888'})
+                    html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", style={'fontSize': '0.75em', 'color': '#888'}),
+                    html.Span(f"🔷 Faces: {faces_count}", className="stats-text", style={'fontSize': '0.75em', 'color': '#888', 'marginLeft': '8px'})
                 ])
             ]),
             id={'type': 'file-btn', 'filename': encoded_filename},
             className='file-button',
             n_clicks=0,
-            **{'data-filename': item['filename'], 'data-file-index': item['original_index'], 'data-category': item['category']}
+            **{'data-filename': item['filename'], 'data-file-index': item.get('original_index', 0), 'data-category': item.get('category', '')}
         )
 
     def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
@@ -1452,7 +1489,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     # 3) Click handler -> loads file, updates info + selected filename
     @app.callback(
         [Output('shape-info', 'children', allow_duplicate=True),
-         Output('selected-file-store', 'data')],
+         Output('selected-file-store', 'data', allow_duplicate=True)],
         [Input({'type': 'file-btn', 'filename': dash.dependencies.ALL}, 'n_clicks'),
          Input('category-filter', 'value'),
          Input('filename-filter', 'value'),
@@ -2078,7 +2115,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             card = html.Div([
                 header,
                 # Similarity badge in the top-right corner
-                html.Div(f"Similarity Score: {distance:.3f}", style={
+                html.Div(f"Similarity Score: {similarity_score:.3f}", style={
                     'position': 'absolute', 'top': '8px', 'right': '8px',
                     'backgroundColor': 'rgba(255,255,255,0.95)', 'padding': '4px 8px',
                     'borderRadius': '12px', 'fontSize': '0.85em', 'boxShadow': '0 1px 3px rgba(0,0,0,0.12)'
@@ -2103,7 +2140,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Control the modal visibility via a persistent Store to avoid missing-id issues
     @app.callback(
-        Output('global-descriptors-open', 'data'),
+        Output('global-descriptors-open', 'data', allow_duplicate=True),
         [Input('show-global-descriptors-btn', 'n_clicks'), Input('global-descriptors-hidden-close-trigger', 'n_clicks')],
         prevent_initial_call=True
     )
