@@ -403,6 +403,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # NOTE: aux-plots-message removed; spinner-only loading remains for similar shapes
+
     # Show toast for shape loading when file button is clicked
     app.clientside_callback(
         """
@@ -1874,7 +1876,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # 5) Similar shapes rendering
     @app.callback(
-        Output('aux-plots-row', 'children'),
+        Output('aux-plots-content', 'children'),
         [Input('find-shapes-button', 'n_clicks'),
         Input('amount-plots-slider', 'value'),
         Input('selected-file-store', 'data'),
@@ -1892,11 +1894,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         - selected_idx: int or None, index of the selected file from the file list
         - display_opts: list of str, display options selected (e.g., 'wireframe', 'smooth_shading')
         - mesh_color: str, color selected for the mesh
-
         Returns:
         - List of HTML Div elements containing the auxiliary plots or no_update/empty list to clear
         """
-        
         ctx = dash.callback_context
         if not ctx.triggered:
             return no_update
@@ -1916,6 +1916,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         samples = retrieve_closest_shapes(selected_idx, total)
         if not samples:
+            # Return an empty list (the UI will hide the loading message when this content is set)
             return []
         # Build a category -> color dictionary (distinct colors)
         categories_list = [
