@@ -243,5 +243,3 @@ plt.title('Per-class retrieval accuracy vs random baseline')
 plt.legend()
 plt.tight_layout()
 plt.show()
-
-# %%
