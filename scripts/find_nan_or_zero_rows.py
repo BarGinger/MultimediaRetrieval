@@ -23,6 +23,13 @@ def main():
     mask_zero = (df[feature_cols] == 0).any(axis=1)
     mask = mask_nan | mask_zero
 
+    # find all unique categories in df
+    categories = df['class'].unique()
+    # drop nan values from categories
+    categories = categories[~pd.isna(categories)]
+    print("Unique categories found in 'class' column:")
+    print(sorted(categories))
+
     out_df = df.loc[mask]
     out_df.to_csv(OUTPUT_PATH, index=False)
     print(f"Found {len(out_df)} rows with NaN or 0 in any feature. Saved to {OUTPUT_PATH}")

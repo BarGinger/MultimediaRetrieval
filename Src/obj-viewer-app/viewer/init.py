@@ -23,7 +23,17 @@ def create_dash_app():
     # Use high-performance dataset discovery
     print("📁 Discovering available datasets...")
     DATASET_OPTIONS = get_available_datasets()
-    DEFAULT_DATASET = DATASET_OPTIONS[0] if DATASET_OPTIONS else 'Data'
+    # Prefer the UnifiedPreprocessed/Data dataset when available (either discovered or present on disk)
+    preferred = 'UnifiedPreprocessed/Data'
+    if preferred in DATASET_OPTIONS:
+        DEFAULT_DATASET = preferred
+    else:
+        # If dataset discovery didn't return the preferred name, check for the on-disk path
+        preferred_path = project_root.parent / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
+        if preferred_path.is_dir():
+            DEFAULT_DATASET = preferred
+        else:
+            DEFAULT_DATASET = DATASET_OPTIONS[0] if DATASET_OPTIONS else 'Data'
     print(f"✅ Found {len(DATASET_OPTIONS)} datasets: {DATASET_OPTIONS}")
     
     # Preload all datasets for instant switching
@@ -39,7 +49,9 @@ def create_dash_app():
     app.layout = html.Div([
         dcc.Store(id="selected-file-store"),
         dcc.Store(id="selected-dataset-store", data=DEFAULT_DATASET),
-        build_layout(file_df, DATASET_OPTIONS, DEFAULT_DATASET)
+    # Ensure a stable hidden Close button exists at top-level so callbacks referencing
+    # its `n_clicks` property validate correctly (prevents missing-input errors).
+    build_layout(file_df, DATASET_OPTIONS, DEFAULT_DATASET)
     ], style={'fontFamily': 'Arial, sans-serif'})
 
     # Register server callbacks

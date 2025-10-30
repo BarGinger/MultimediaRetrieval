@@ -50,7 +50,7 @@ def create_3d_plot(vertices: np.ndarray,
         fig.add_trace(go.Mesh3d(
             x=x, y=y, z=z,
             i=i, j=j, k=k,
-            color=mesh_color, opacity=1, name="Mesh",
+            color=mesh_color, opacity=0.85, name="Mesh",
             flatshading=not smooth_shading,
             lighting=dict(ambient=0.18, diffuse=1, fresnel=0.1, specular=1, roughness=0.05),
             lightposition=dict(x=100, y=200, z=0)
@@ -68,17 +68,37 @@ def create_3d_plot(vertices: np.ndarray,
                                    marker=dict(size=2, color=mesh_color),
                                    name="Point Cloud"))
 
-    # Always add a red dot at the origin (0,0,0) to highlight the barycenter
-    # Make it always visible by rendering it last and with special properties
+    # compute camera dict as in function
+    if camera_config:
+        eye = camera_config.get("eye", {"x": 1.5, "y": 1.5, "z": 1.5})
+        center = camera_config.get("center", {"x": 0, "y": 0, "z": 0})
+    else:
+        eye = {"x": 1.5, "y": 1.5, "z": 1.5}
+        center = {"x": 0, "y": 0, "z": 0}
+
+    eye_v = np.array([eye['x'], eye['y'], eye['z']], dtype=float)
+    center_v = np.array([center['x'], center['y'], center['z']], dtype=float)
+    view_dir = eye_v - center_v
+    norm = np.linalg.norm(view_dir)
+    if norm > 0:
+        view_dir /= norm
+        # choose offset magnitude relative to object size (peak-to-peak)
+        max_dim = np.max(np.ptp(vertices, axis=0)) if vertices.size else 1.0
+        offset = view_dir * (max_dim * 0.02)   # 2% of object size; tuneable
+    else:
+        offset = np.zeros(3)
+
+    bary_pos = np.array([0.0, 0.0, 0.0]) + offset
+
     fig.add_trace(go.Scatter3d(
-        x=[0], y=[0], z=[0],
+        x=[bary_pos[0]], y=[bary_pos[1]], z=[bary_pos[2]],
         mode="markers",
         marker=dict(
             size=8,
-            color="red", 
+            color="red",
             symbol="circle",
-            line=dict(color="darkred", width=2),  # Dark red outline for better visibility
-            opacity=0.9  # Slightly transparent so it's visible even when occluded
+            line=dict(color="darkred", width=2),
+            opacity=1
         ),
         name="Barycenter (Origin)",
         hovertemplate="<b>Barycenter</b><br>Position: (0, 0, 0)<extra></extra>",

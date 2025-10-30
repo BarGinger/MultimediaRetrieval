@@ -6,15 +6,103 @@ import pandas as pd
 import json
 import uuid
 import time
-from core.obj_parser import OBJParser
-from core.plotting import create_3d_plot
+import re
+import math
+import colorsys
 import plotly.graph_objects as go
-from core.file_index import get_file_tree, get_step_file_path, get_step_display_info, get_available_steps
-from core.analysis_cache import merge_analysis_data, get_analysis_data
-from core.dataset_cache import get_cached_dataset_data, get_available_datasets, preload_datasets
+
+from core.dataset_cache import get_cached_dataset_data
+from core.obj_parser import OBJParser
 from core.shapeMesh import ShapeMesh
+from core.file_index import get_step_file_path
+from core.file_index import get_available_steps, get_step_display_info
+from core.plotting import create_3d_plot
 
 
+def _parse_hist_and_bins(hist, bins=None):
+    """Parse histogram and bins stored in various formats into (mids, values).
+
+    Accepts lists, numpy arrays, JSON strings, or Python reprs. Returns (mids, vals)
+    where mids is list of bin centers (or 0..N-1 if bins missing) and vals is list of numbers.
+    """
+    import ast
+    try:
+        # None guard
+        if hist is None:
+            return None, None
+
+        # If it's a pandas Series or numpy array
+        if hasattr(hist, 'tolist'):
+            vals = list(hist.tolist())
+        elif isinstance(hist, (list, tuple)):
+            vals = list(hist)
+        elif isinstance(hist, str):
+            # Try JSON first
+            try:
+                parsed = json.loads(hist)
+                vals = list(parsed)
+            except Exception:
+                try:
+                    vals = list(ast.literal_eval(hist))
+                except Exception:
+                    # as last resort, try comma-split
+                    vals = [float(x.strip()) for x in hist.split(',') if x.strip()]
+        else:
+            # Fallback to single numeric
+            vals = [float(hist)]
+
+        # parse bins similarly
+        bin_edges = None
+        if bins is not None:
+            if hasattr(bins, 'tolist'):
+                bin_edges = list(bins.tolist())
+            elif isinstance(bins, (list, tuple)):
+                bin_edges = list(bins)
+            elif isinstance(bins, str):
+                try:
+                    parsed = json.loads(bins)
+                    bin_edges = list(parsed)
+                except Exception:
+                    try:
+                        bin_edges = list(ast.literal_eval(bins))
+                    except Exception:
+                        bin_edges = None
+
+        # compute mids
+        if bin_edges and len(bin_edges) >= 2:
+            # If edges length == vals length, assume they are centers already
+            if len(bin_edges) == len(vals):
+                mids = bin_edges
+            elif len(bin_edges) == len(vals) + 1:
+                mids = [(bin_edges[i] + bin_edges[i+1]) / 2.0 for i in range(len(bin_edges)-1)]
+            else:
+                # fallback to 0..N-1
+                mids = list(range(len(vals)))
+        else:
+            mids = list(range(len(vals)))
+
+        # Ensure floats (be forgiving for NaN/None/strings)
+        def _to_float_list(seq):
+            out = []
+            for x in seq:
+                try:
+                    # pandas NA guard
+                    if pd.isna(x):
+                        out.append(0.0)
+                    else:
+                        out.append(float(x))
+                except Exception:
+                    try:
+                        out.append(float(str(x)))
+                    except Exception:
+                        out.append(0.0)
+            return out
+
+        mids = _to_float_list(mids)
+        vals = _to_float_list(vals)
+        return mids, vals
+    except Exception:
+        return None, None
 def create_toast_data(message, toast_type="info", icon="ℹ️"):
     """Create toast data for store"""
     import random
@@ -26,35 +114,13 @@ def create_toast_data(message, toast_type="info", icon="ℹ️"):
         "id": uuid.uuid4().hex[:8],
         "random": random.randint(1, 1000000)  # Extra randomness to force updates
     }
-
-
+ 
 def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
+    """Register all Dash callbacks using the provided app and dataset info.
 
-    # Sort order button toggle - SAME PATTERN AS LOADING MESSAGE
-    @app.callback(
-        [Output('sort-order', 'children'),
-         Output('sort-order', 'title'),
-         Output('sort-order', 'data-order'),
-         Output('toast-store', 'data', allow_duplicate=True)],
-        [Input('sort-order', 'n_clicks')],
-        prevent_initial_call=True
-    )
-    def toggle_sort_order(n_clicks):
-        """Toggle between ascending and descending sort order"""
-        print(f"🔄 Sort button clicked! n_clicks: {n_clicks}")  # Debug
-        
-        if n_clicks is None:
-            n_clicks = 0
-        
-        # Even clicks = ascending, odd clicks = descending
-        if n_clicks % 2 == 0:
-            print(f"✅ Creating ascending sort")  # Debug
-            toast_data = create_toast_data("Sort order changed to Ascending", "info", "↑")
-            return "↑", "Sort Order: Ascending (click to change to Descending)", "asc", toast_data
-        else:
-            print(f"✅ Creating descending sort")  # Debug
-            toast_data = create_toast_data("Sort order changed to Descending", "info", "↓")
-            return "↓", "Sort Order: Descending (click to change to Ascending)", "desc", toast_data
+    This function was unintentionally removed; restore it so callers can import
+    and register callbacks by passing the Dash `app` instance.
+    """
 
     # Show toast for filename filter changes
     app.clientside_callback(
@@ -189,7 +255,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Clear filters button callback
     @app.callback(
-        [Output('category-filter', 'value', allow_duplicate=True),
+        [Output('dataset-selector', 'value', allow_duplicate=True),
+         Output('selected-dataset-store', 'data', allow_duplicate=True),
+         Output('category-filter', 'value', allow_duplicate=True),
          Output('filename-filter', 'value', allow_duplicate=True), 
          Output('vertices-operator', 'value', allow_duplicate=True),
          Output('vertices-value', 'value', allow_duplicate=True),
@@ -200,10 +268,18 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def clear_filters(n_clicks):
-        """Reset all filters to their default values"""
+        """Reset all filters to their default values, including dataset selection.
+
+        Uses the outer-scope `default_dataset` captured when `register_callbacks` was called so
+        the UI resets to the configured app default.
+        """
         if n_clicks and n_clicks > 0:
-            return 'all', '', 'gt', '', 'gt', '', 'category'
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            # Reset dataset selector and stored dataset to the default value
+            ds = default_dataset if default_dataset else dash.no_update
+            # Return order must match Outputs: dataset-selector, selected-dataset-store, category, filename, v-op, v-val, f-op, f-val, sort-field
+            return ds, ds, 'all', '', 'gt', '', 'gt', '', 'category'
+        return (dash.no_update, dash.no_update, dash.no_update, dash.no_update,
+                dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update)
 
     # Show toast for clear filters button
     app.clientside_callback(
@@ -327,6 +403,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # NOTE: aux-plots-message removed; spinner-only loading remains for similar shapes
+
     # Show toast for shape loading when file button is clicked
     app.clientside_callback(
         """
@@ -377,33 +455,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     )
 
     # Show global loading indicator when file button is clicked
-    app.clientside_callback(
-        """
-        function(n_clicks_list) {
-            const ctx = window.dash_clientside.callback_context;
-            if (!ctx.triggered.length) {
-                return window.dash_clientside.no_update;
-            }
-            
-            const trigger = ctx.triggered[0];
-            const propId = trigger.prop_id;
-            
-            // Check if it's a file button click
-            if (propId.includes('file-btn') && trigger.value > 0) {
-                const loadingIndicator = document.getElementById('global-loading-indicator');
-                if (loadingIndicator) {
-                    loadingIndicator.style.display = 'block';
-                }
-            }
-            
-            return window.dash_clientside.no_update;
-        }
-        """,
-        Output('global-loading-indicator', 'id', allow_duplicate=True),
-        Input({'type': 'file-btn', 'index': dash.dependencies.ALL}, 'n_clicks'),
-        prevent_initial_call=True
-    )
-
     # Hide global loading indicator when shape info is updated
     app.clientside_callback(
         """
@@ -1095,16 +1146,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     html.Span(f" | 📄 {item['filename']}", className="filename-text", style={'fontSize': '0.85em', 'color': '#555'})
                 ], style={'marginBottom': '2px'}),
                 html.Div([
-                    html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", 
-                            style={'marginRight': '8px', 'fontSize': '0.75em', 'color': '#888'}),
-                    html.Span(f"🔷 Faces: {faces_count}", className="stats-text", 
-                            style={'fontSize': '0.75em', 'color': '#888'})
+                    html.Span(f"🔺 Vertices: {vertices_count}", className="stats-text", style={'fontSize': '0.75em', 'color': '#888'}),
+                    html.Span(f"🔷 Faces: {faces_count}", className="stats-text", style={'fontSize': '0.75em', 'color': '#888', 'marginLeft': '8px'})
                 ])
             ]),
             id={'type': 'file-btn', 'filename': encoded_filename},
             className='file-button',
             n_clicks=0,
-            **{'data-filename': item['filename'], 'data-file-index': item['original_index'], 'data-category': item['category']}
+            **{'data-filename': item['filename'], 'data-file-index': item.get('original_index', 0), 'data-category': item.get('category', '')}
         )
 
     def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
@@ -1332,8 +1381,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # 3) Click handler -> loads file, updates info + selected filename
     @app.callback(
-        [Output('shape-info', 'children'),
-         Output('selected-file-store', 'data')],
+        [Output('shape-info', 'children', allow_duplicate=True),
+         Output('selected-file-store', 'data', allow_duplicate=True)],
         [Input({'type': 'file-btn', 'filename': dash.dependencies.ALL}, 'n_clicks'),
          Input('category-filter', 'value'),
          Input('filename-filter', 'value'),
@@ -1589,6 +1638,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return create_3d_plot(np.array([]), np.array([]), "No valid shape selected",
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
+        # Ensure all step files are included in the merge
+        if selected_dataset and 'UnifiedPreprocessed' in selected_dataset:
+            file_df = get_cached_dataset_data(selected_dataset)
+            if file_df is not None and not file_df.empty:
+                # Filter rows to include all steps
+                step_files = file_df[file_df['filename'].str.contains('_step')]
+                if not step_files.empty:
+                    file_df = pd.concat([file_df, step_files]).drop_duplicates()
+
+        # Proceed with existing logic to find matching rows
         matching_rows = file_df[file_df['filename'] == selected_filename]
         if matching_rows.empty:
             return create_3d_plot(np.array([]), np.array([]), f"File {selected_filename} not found",
@@ -1688,10 +1747,136 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 )
 
         return fig, regular_toast_data, step_toast_data
+    
+
+    # Similar shapes: sample random shapes from the (possibly selected) dataset
+    def retrieve_random_shapes(selected_file_data, n):
+        """Return up to n random rows (as dicts) from the selected dataset excluding the current file."""
+        try:
+            # Determine dataset to use
+            dataset = None
+            selected_filename = None
+            if isinstance(selected_file_data, dict):
+                selected_filename = selected_file_data.get('filename')
+                dataset = selected_file_data.get('dataset')
+
+            # Load dataset dataframe (fallback to closure file_df if dataset not provided)
+            df_candidates = None
+            if dataset:
+                try:
+                    df_candidates = get_cached_dataset_data(dataset)
+                except Exception:
+                    df_candidates = None
+
+            if df_candidates is None or df_candidates.empty:
+                df_candidates = file_df
+
+            if selected_filename:
+                df_candidates = df_candidates[df_candidates['filename'] != selected_filename]
+
+            if df_candidates is None or df_candidates.empty:
+                return []
+
+            n = int(n or 5)
+            if n <= 0:
+                return []
+
+            if n >= len(df_candidates):
+                sampled = df_candidates.sample(n=len(df_candidates))
+            else:
+                sampled = df_candidates.sample(n=n)
+
+            return sampled.to_dict('records')
+        except Exception:
+            return []
+        
+    def retrieve_closest_shapes(selected_file_data, n):
+        """
+        Return up to n closest shapes (as dicts) from the same dataset,
+        using the precomputed distance matrix at ../../scalability/.
+        Each dict includes all dataset info + 'distance' field.
+        """
+        try:
+            # --- Validate input ---
+            if not isinstance(selected_file_data, dict):
+                return []
+            selected_filename = selected_file_data.get('filename')
+            dataset = selected_file_data.get('dataset')
+            if not selected_filename:
+                return []
+
+            # --- Load the precomputed distance matrix ---
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            distance_path = os.path.join(base_dir, "..", "..", "scalability", "total_distances_597a37344657.csv")
+            distance_path = os.path.normpath(distance_path)
+
+            if not os.path.exists(distance_path):
+                print(f"⚠️ Distance file not found: {distance_path}")
+                return []
+
+            df = pd.read_csv(distance_path, index_col=0)
+
+            # --- Match by ID prefix ---
+            m = re.match(r"([A-Za-z0-9]+)_", selected_filename)
+            if not m:
+                print(f"⚠️ Could not extract ID prefix from {selected_filename}")
+                return []
+            shape_id = m.group(1)
+
+            matching_rows = [idx for idx in df.index if idx.startswith(shape_id + "_")]
+            if not matching_rows:
+                print(f"⚠️ No matching row found for ID {shape_id} in distance matrix.")
+                return []
+            row_name = matching_rows[0]
+            distances = df.loc[row_name]
+
+            # --- Sort and take n closest (excluding self) ---
+            closest = (
+                distances[distances.index != row_name]
+                .sort_values(ascending=True)
+                .head(int(n or 5))
+            )
+
+            # --- Load dataset (like retrieve_random_shapes does) ---
+            df_candidates = None
+            if dataset:
+                try:
+                    df_candidates = get_cached_dataset_data(dataset)
+                except Exception:
+                    df_candidates = None
+            if df_candidates is None or df_candidates.empty:
+                df_candidates = file_df
+
+            if df_candidates is None or df_candidates.empty:
+                return []
+
+            # --- Map closest filenames to unified format and dataset rows ---
+            results = []
+            for name, dist in closest.items():
+                m2 = re.match(r"([A-Za-z0-9]+)_", name)
+                if not m2:
+                    continue
+                other_id = m2.group(1)
+                unified_name = f"{other_id}_unified.obj"
+
+                row = df_candidates[df_candidates['filename'] == unified_name]
+                if not row.empty:
+                    rec = row.iloc[0].to_dict()
+                    rec['distance'] = float(dist)
+                    results.append(rec)
+
+            results.sort(key=lambda r: r.get('distance', float('inf')))
+            return results
+
+
+        except Exception as e:
+            print(f"❌ Error retrieving closest shapes: {e}")
+            return []
+
 
     # 5) Similar shapes rendering
     @app.callback(
-        Output('aux-plots-row', 'children'),
+        Output('aux-plots-content', 'children'),
         [Input('find-shapes-button', 'n_clicks'),
         Input('amount-plots-slider', 'value'),
         Input('selected-file-store', 'data'),
@@ -1709,11 +1894,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         - selected_idx: int or None, index of the selected file from the file list
         - display_opts: list of str, display options selected (e.g., 'wireframe', 'smooth_shading')
         - mesh_color: str, color selected for the mesh
-
         Returns:
         - List of HTML Div elements containing the auxiliary plots or no_update/empty list to clear
         """
-        
         ctx = dash.callback_context
         if not ctx.triggered:
             return no_update
@@ -1727,48 +1910,147 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if triggered_id != 'find-shapes-button' or not n_clicks or n_clicks <= 0 or selected_idx is None:
             return no_update
 
-        # For now, this function doesn't have access to file_df context 
-        # This is a placeholder implementation - similar shapes functionality
-        # would need significant refactoring to work with the new architecture 
-        
-        # Create a simple placeholder mesh for demonstration
-        try:
-            # Create dummy vertices for now (this would need proper similar shape logic)
-            vertices = np.random.rand(100, 3) * 2 - 1  # Random vertices from -1 to 1
-            faces = np.array([[0, 1, 2], [1, 2, 3]])  # Dummy faces
-        except Exception:
-            return []
-
         show_wire = 'wireframe' in (display_opts or [])
         smooth_shading = 'smooth_shading' in (display_opts or [])
         total = int(n_plots or 5)
-        title = "Similar Shape"
 
-        # Render cards with independent plot objects
+        samples = retrieve_closest_shapes(selected_idx, total)
+        if not samples:
+            # Return an empty list (the UI will hide the loading message when this content is set)
+            return []
+        # Build a category -> color dictionary (distinct colors)
+        categories_list = [
+            'AircraftBuoyant', 'Apartment', 'AquaticAnimal', 'Bed', 'Bicycle', 'Biplane', 'Bird', 'Bookset', 'Bottle',
+            'BuildingNonResidential', 'Bus', 'Car', 'Cellphone', 'Chess', 'City', 'ClassicPiano', 'Computer',
+            'ComputerKeyboard', 'Cup', 'DeskLamp', 'DeskPhone', 'Door', 'Drum', 'Fish', 'FloorLamp', 'Glasses',
+            'Guitar', 'Gun', 'Hand', 'Hat', 'Helicopter', 'House', 'HumanHead', 'Humanoid', 'Insect', 'Jet', 'Knife',
+            'MilitaryVehicle', 'Monitor', 'Monoplane', 'Motorcycle', 'Mug', 'MultiSeat', 'Musical_Instrument',
+            'NonWheelChair', 'PianoBoard', 'PlantIndoors', 'PlantWildNonTree', 'Quadruped', 'RectangleTable', 'Rocket',
+            'RoundTable', 'Shelf', 'Ship', 'Sign', 'Skyscraper', 'Spoon', 'Starship', 'SubmachineGun', 'Sword', 'Tool',
+            'Train', 'Tree', 'Truck', 'TruckNonContainer', 'Vase', 'Violin', 'Wheel', 'WheelChair'
+        ]
+
+        import colorsys
+        category_color_map = {}
+        # Stronger distinct palette: golden-ratio hue spacing + cycling saturation/value levels
+        n_cats = len(categories_list)
+        golden_angle = 137.508
+        sats = [0.92, 0.74, 0.56]
+        vals = [0.96, 0.82, 0.68]
+        for idx, cat in enumerate(categories_list):
+            hue = (idx * golden_angle) % 360.0
+            sat = sats[idx % len(sats)]
+            val = vals[(idx // len(sats)) % len(vals)]
+            r, g, b = colorsys.hsv_to_rgb(hue / 360.0, sat, val)
+            hex_color = '#%02x%02x%02x' % (int(r * 255), int(g * 255), int(b * 255))
+            category_color_map[cat] = hex_color
+
         cards = []
-        for i in range(total):
-            # Deep copy vertices and faces to ensure independence
-            v_copy = np.copy(vertices)
-            f_copy = np.copy(faces)
-            card_title = f"{title} (Aux {i+1})"
-            fig = create_3d_plot(v_copy, f_copy, card_title, show_wireframe=show_wire,
-                                mesh_color=mesh_color or 'lightblue',
+        for i, sample_row in enumerate(samples[:total]):
+
+            # Attempt to load actual mesh file for the sampled row
+            verts = None
+            faces = None
+            filename_str = sample_row.get('filename') or sample_row.get('file', None) or f"similar_{i+1}"
+            title = filename_str
+            # remove file suffix if present
+            if title.lower().endswith('_unified.obj'):
+                title = title.replace('_unified.obj', '')
+            elif title.lower().endswith('_06_fill_holes_and_orientation.obj'):
+                title = title.replace('_06_fill_holes_and_orientation.obj', '')
+            elif title.lower().endswith('.obj'):
+                title = title.replace('.obj', '')
+                
+            category_name = sample_row.get('category') or 'Unknown'
+            distance = sample_row.get('distance', -1)
+            distance = sample_row.get('distance', -1)
+            similarity_score = sample_row.get('distance', -1)
+            try:
+                # get_step_file_path expects a pandas Series
+                import pandas as _pd
+                row_series = _pd.Series(sample_row)
+                file_path, actual_step, step_info = get_step_file_path(row_series, 5)
+                if file_path:
+                    from pathlib import Path as _Path
+                    p = _Path(file_path)
+                    if p.exists():
+                        verts, faces = OBJParser.parse_obj_file(str(p))
+            except Exception:
+                verts = None
+                faces = None
+
+            # Fallback to small random mesh if loading failed
+            if verts is None or faces is None or len(verts) == 0:
+                verts = (np.random.rand(100, 3) * 2 - 1)
+                faces = np.array([[0, 1, 2], [1, 2, 3]])
+
+            # Choose color from category map, fallback to provided mesh_color or default
+            assigned_color = category_color_map.get(category_name, mesh_color or 'lightblue')
+
+            fig = create_3d_plot(np.copy(verts), np.copy(faces), title, show_wireframe=show_wire,
+                                mesh_color=assigned_color,
                                 smooth_shading=smooth_shading,
                                 camera_config=None,
                                 use_rotated_vertices=False)
+            # Header: show filename and a small color badge + category
+            badge = html.Span(style={
+                'display': 'inline-block',
+                'width': '12px',
+                'height': '12px',
+                'backgroundColor': assigned_color,
+                'borderRadius': '6px',
+                'marginRight': '8px',
+                'border': '1px solid rgba(0,0,0,0.12)'
+            })
 
-            # Create a simple header for aux plots
-            header = html.Div([
-                html.Div([
-                    html.Span("🔍 ", className="shape-info-icon"), 
-                    html.Strong(f"Similar Shape {i+1}")
-                ], className="shape-info-prop")
-            ], className="shape-info-header")
+                        # Determine dataset to include in the pattern-matching id for the info button
+            aux_dataset = sample_row.get('dataset') if isinstance(sample_row, dict) else None
+            if not aux_dataset and isinstance(selected_idx, dict):
+                aux_dataset = selected_idx.get('dataset')
+            if not aux_dataset:
+                aux_dataset = default_dataset
+
+            # Inline small info button (placed inside the header row)
+            info_btn_inline = html.Button('ℹ️', id={'type': 'show-aux-descriptors', 'filename': filename_str, 'dataset': aux_dataset},
+                                          title='Show shape info', n_clicks=0,
+                                          style={
+                                              'width': '22px', 'height': '22px', 'borderRadius': '11px',
+                                              'backgroundColor': 'rgba(255,255,255,0.98)', 'border': '1px solid #ddd',
+                                              'boxShadow': '0 1px 2px rgba(0,0,0,0.06)', 'marginRight': '6px',
+                                              'fontSize': '12px', 'lineHeight': '16px', 'padding': '0'
+                                          })
+
+            # Tighter badge for color
+            small_badge = html.Span(style={
+                'display': 'inline-block', 'width': '10px', 'height': '10px', 'backgroundColor': assigned_color,
+                'borderRadius': '6px', 'marginRight': '6px', 'border': '1px solid rgba(0,0,0,0.12)'
+            })
+
+            # Title span with ellipsis to avoid overflow
+            title_span = html.Span([small_badge, html.Strong(title)], style={
+                'display': 'inline-block', 'maxWidth': '320px', 'whiteSpace': 'nowrap', 'overflow': 'hidden', 'textOverflow': 'ellipsis', 'verticalAlign': 'middle', 'marginRight': '6px'
+            })
+
+            # Category small text
+            category_span = html.Span(category_name, style={'fontSize': '1em', 'font-weight': 'bold', 'color': '#666', 'marginLeft': '4px', 'flex': '0 0 auto'})
+
+            # Build header row with left (info+title+category) and right (similarity) areas
+            left_header = html.Div([
+                info_btn_inline,
+                title_span,
+                category_span
+            ], style={'display': 'flex', 'alignItems': 'center', 'gap': '6px', 'flex': '1 1 auto', 'minWidth': '0'})
+
+            similarity_div = html.Div(f"Similarity Score: {similarity_score:.3f}", style={
+                'backgroundColor': 'rgba(255,255,255,0.95)', 'padding': '4px 8px',
+                'borderRadius': '12px', 'fontSize': '0.82em', 'boxShadow': '0 1px 3px rgba(0,0,0,0.12)', 'flex': '0 0 110px', 'textAlign': 'right'
+            })
+
+            header_row = html.Div([left_header, similarity_div], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center', 'gap': '8px'})
 
             card = html.Div([
-                header,
-                dcc.Graph(figure=fig, 
-                          className='three-d-plot')
+                header_row,
+                dcc.Graph(figure=fig, className='three-d-plot')
             ], style={
                 'minWidth': '360px',
                 'height': '200px',
@@ -1776,13 +2058,439 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 'border': '1px solid #e1e1e1',
                 'borderRadius': '8px',
                 'boxShadow': '0 1px 4px rgba(0,0,0,0.06)',
-                'padding': '6px'
+                'padding': '6px',
+                'position': 'relative',
+                'overflow': 'hidden'
             })
-
             cards.append(card)
 
+        # Return just the cards here; the legend is now rendered statically in the layout
         return cards
-    
+
+    # Control the modal visibility via a persistent Store to avoid missing-id issues
+    @app.callback(
+        Output('global-descriptors-open', 'data', allow_duplicate=True),
+        [Input('show-global-descriptors-btn', 'n_clicks'), Input('global-descriptors-hidden-close-trigger', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def set_global_descriptors_open(show_clicks, hidden_close_clicks):
+        """Set the `global-descriptors-open` store based on which button triggered.
+
+        We listen to the persistent hidden close trigger (`global-descriptors-hidden-close-trigger`)
+        instead of any in-modal id to avoid missing-id validation errors in the renderer.
+        """
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update
+        triggered = ctx.triggered[0]['prop_id'].split('.')[0]
+        if triggered == 'show-global-descriptors-btn':
+            return True
+        if triggered == 'global-descriptors-hidden-close-trigger':
+            return False
+        return no_update
+
+    # Main modal builder: listens to the store and renders/hides the modal atomically
+    @app.callback(
+        [Output('global-descriptors-modal', 'children'), Output('global-descriptors-modal', 'style')],
+        Input('global-descriptors-open', 'data'),
+        [State('selected-file-store', 'data'), State('selected-dataset-store', 'data')],
+        prevent_initial_call=False
+    )
+    def show_global_descriptors(is_open, selected_file_data, selected_dataset):
+        """Display or hide the modal depending on the store value.
+
+        When is_open is True, build the modal content. When False or missing,
+        hide the modal. This avoids relying on combined n_clicks Inputs.
+        """
+        # If store indicates closed or missing, hide modal
+        if not is_open:
+            return [], {'display': 'none'}
+
+        # Modal base style (centered overlay)
+        modal_style = {
+            'display': 'block',
+            'position': 'fixed',
+            'left': '0',
+            'top': '0',
+            'width': '100%',
+            'height': '100%',
+            'backgroundColor': 'rgba(0,0,0,0.5)',
+            'zIndex': 9999,
+            'padding': '40px',
+            'boxSizing': 'border-box',
+            'overflow': 'auto'
+        }
+
+        # Simple header used for early-return error messages (no shape selected / dataset errors)
+        header = html.Div([
+            html.Div(html.H3("Global Descriptor Histograms", style={'margin': 0, 'color': '#000'}), style={'flex': '1'}),
+            # In-modal Close button: plain Dash button (clicks are proxied by assets JS)
+            html.Button('Close', n_clicks=0,
+                        style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
+        ], style={'display': 'flex', 'alignItems': 'center', 'gap': '12px', 'marginBottom': '12px'})
+
+        # If no shape selected, show helpful message
+        if not selected_file_data or not isinstance(selected_file_data, dict):
+            body = html.Div([
+                html.P("No shape selected. Please select a shape from the list first.", style={'color': '#000'})
+            ])
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+            # Wrap content in the full-screen modal overlay style so it appears as a dialog
+            return html.Div(content_card, style=modal_style), modal_style
+
+        selected_filename = selected_file_data.get('filename')
+        dataset = selected_file_data.get('dataset', selected_dataset)
+        if not dataset:
+            dataset = 'Data'
+
+        # Load file data
+        try:
+            df = get_cached_dataset_data(dataset)
+        except Exception as e:
+            body = html.Div([html.P(f"Failed to load dataset: {e}", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        if df is None or df.empty:
+            body = html.Div([html.P("Dataset is empty or unavailable.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        matching = df[df['filename'] == selected_filename]
+        if matching.empty:
+            body = html.Div([html.P(f"Selected file '{selected_filename}' not found in dataset.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        row = matching.iloc[0]
+
+        # Determine display name for the selected shape (try several possible fields)
+        display_name = None
+        for name_key in ('name', 'Name', 'analysis_name', 'display_name', 'shape_file'):
+            if name_key in row.index and pd.notna(row.get(name_key)) and str(row.get(name_key)).strip() != '':
+                display_name = str(row.get(name_key))
+                break
+        if not display_name:
+            display_name = selected_filename or 'Unknown'
+
+        # Update header to include the shape name
+        header = html.Div([
+            html.Div(html.H3(f"Global Descriptor Histograms — {display_name}", style={'margin': 0, 'color': '#000'}), style={'flex': '1'}),
+            # In-modal Close button: plain Dash button (clicks are proxied by assets JS)
+            html.Button('Close', n_clicks=0,
+                        style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
+        ], style={'display': 'flex', 'alignItems': 'center', 'gap': '12px', 'marginBottom': '12px'})
+
+        # Descriptor pairs to render
+        descriptor_pairs = [
+            ('A3', 'A3_hist', 'A3_bins'),
+            ('D1', 'D1_hist', 'D1_bins'),
+            ('D2', 'D2_hist', 'D2_bins'),
+            ('D3', 'D3_hist', 'D3_bins'),
+            ('D4', 'D4_hist', 'D4_bins')
+        ]
+        # Color palette for the five histograms (A3, D1, D2, D3, D4)
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        graphs = []
+        inline_graphs = []  # smaller versions for inline display
+        for title, hist_field, bins_field in descriptor_pairs:
+            # Accept several possible column name variants
+            hist_val = None
+            bins_val = None
+            for key in (hist_field, hist_field.lower(), 'analysis_' + hist_field, 'analysis_' + hist_field.lower()):
+                if key in row.index:
+                    hist_val = row.get(key)
+                    break
+            for key in (bins_field, bins_field.lower(), 'analysis_' + bins_field, 'analysis_' + bins_field.lower()):
+                if key in row.index:
+                    bins_val = row.get(key)
+                    break
+
+            # Try robust parsing of stored histogram values
+            mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+            # If parser failed, try a simple regex-based numeric extraction as a last resort
+            if (mids is None or hist_vals is None) and isinstance(hist_val, str):
+                try:
+                    nums = [float(x) for x in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", hist_val)]
+                    if nums:
+                        hist_vals = nums
+                        mids = list(range(len(nums)))
+                        print(f"[debug] Fallback parsed {len(nums)} histogram values for {title} from string for file {selected_filename}")
+                except Exception as e:
+                    print(f"[debug] Fallback parsing failed for {title}: {e}")
+            # Debug: log when histogram parsing fails for visibility in server logs
+            if mids is None or hist_vals is None:
+                print(f"[debug] _parse_hist_and_bins returned None for {title} on file {selected_filename}. hist_val repr: {repr(hist_val)} bins_val repr: {repr(bins_val)}")
+            if mids is None or hist_vals is None:
+                # Placeholder card for modal — give it an opaque white background and dark text
+                card = html.Div([
+                    html.H4(f"{title} - Data unavailable", style={'color': '#000'}),
+                    html.P("Histogram or bins data missing for this shape.", style={'color': '#333'})
+                ], style={'flex': '1', 'minWidth': '200px', 'padding': '12px', 'background': '#fff', 'borderRadius': '6px'})
+                # Inline placeholder (smaller)
+                inline_card = html.Div([
+                    html.H5(f"{title}", style={'margin': '6px 0', 'color': '#000'}),
+                    html.P("Data unavailable", style={'margin': 0, 'fontSize': '0.85em', 'color': '#666'})
+                ], style={'flex': '0 0 160px', 'minWidth': '140px', 'padding': '8px', 'background': '#fff', 'borderRadius': '6px', 'textAlign': 'center'})
+            else:
+                fig = go.Figure()
+                # choose color by index
+                idx = len(graphs) if len(graphs) < len(colors) else 0
+                color = colors[idx]
+                fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=color))
+                fig.update_layout(title=f"{title}", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                  xaxis_title='Value', yaxis_title='Frequency', margin=dict(l=30, r=10, t=30, b=30))
+
+                card = html.Div([
+                    dcc.Graph(figure=fig, config={'displayModeBar': False}, style={'height': '260px'})
+                ], style={'flex': '1', 'minWidth': '200px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
+                # Inline smaller thumbnail version
+                inline_fig = go.Figure()
+                inline_fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=color))
+                inline_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                         margin=dict(l=20, r=6, t=6, b=20), xaxis=dict(showticklabels=False), yaxis=dict(showticklabels=False))
+                inline_card = html.Div([
+                    dcc.Graph(figure=inline_fig, config={'displayModeBar': False}, style={'height': '160px', 'width': '180px'})
+                ], style={'flex': '0 0 180px', 'minWidth': '140px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
+
+            graphs.append(card)
+            inline_graphs.append(inline_card)
+
+        # Layout the five histograms in rows (wrap)
+        graphs_row = html.Div(graphs, style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap', 'justifyContent': 'center'})
+
+        body = html.Div([
+            graphs_row
+        ])
+
+        content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.25)'})
+        # Ensure the returned content is wrapped in the full-screen modal overlay so it appears centered
+        return html.Div(content_card, style=modal_style), modal_style
+
+    # Modal visibility is handled within the same server callback that returns children and style.
+
+    # Aux modal: separate builder so auxiliary sample info does not overwrite main selection
+    @app.callback(
+        [Output('aux-descriptors-modal', 'children'), Output('aux-descriptors-modal', 'style')],
+        Input('aux-descriptors-open', 'data'),
+        [State('aux-selected-file-store', 'data'), State('selected-dataset-store', 'data')],
+        prevent_initial_call=False
+    )
+    def show_aux_descriptors(is_open, aux_file_data, selected_dataset):
+        """Display or hide the auxiliary modal depending on its store value.
+
+        This mirrors `show_global_descriptors` but uses separate stores/modal ids so
+        opening aux info doesn't change the main `selected-file-store`.
+        """
+        if not is_open:
+            return [], {'display': 'none'}
+
+        modal_style = {
+            'display': 'block',
+            'position': 'fixed',
+            'left': '0',
+            'top': '0',
+            'width': '100%',
+            'height': '100%',
+            'backgroundColor': 'rgba(0,0,0,0.5)',
+            'zIndex': 9999,
+            'padding': '40px',
+            'boxSizing': 'border-box',
+            'overflow': 'auto'
+        }
+
+        header = html.Div([
+            html.Div(html.H3("Shape Info", style={'margin': 0, 'color': '#000'}), style={'flex': '1'}),
+            html.Button('Close', n_clicks=0,
+                        style={'background': '#fff', 'border': 'none', 'padding': '6px 10px', 'borderRadius': '6px', 'cursor': 'pointer'})
+        ], style={'display': 'flex', 'alignItems': 'center', 'gap': '12px', 'marginBottom': '12px'})
+
+        if not aux_file_data or not isinstance(aux_file_data, dict):
+            body = html.Div([html.P("No sample selected.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        selected_filename = aux_file_data.get('filename')
+        dataset = aux_file_data.get('dataset', selected_dataset)
+        if not dataset:
+            dataset = 'Data'
+
+        try:
+            df = get_cached_dataset_data(dataset)
+        except Exception as e:
+            body = html.Div([html.P(f"Failed to load dataset: {e}", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        if df is None or df.empty:
+            body = html.Div([html.P("Dataset is empty or unavailable.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        matching = df[df['filename'] == selected_filename]
+        if matching.empty:
+            body = html.Div([html.P(f"Sample '{selected_filename}' not found in dataset.", style={'color': '#000'})])
+            content_card = html.Div([header, body], style={'maxWidth': '900px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '14px', 'borderRadius': '8px', 'boxShadow': '0 8px 24px rgba(0,0,0,0.22)'})
+            return html.Div(content_card, style=modal_style), modal_style
+
+        row = matching.iloc[0]
+
+        # Use the same Shape Info card used elsewhere so formatting matches exactly
+        try:
+            mesh = ShapeMesh.from_file_row(row)
+            info_card = mesh.get_card_header_html()
+            # Wrap mesh-provided card in an opaque white container so content is readable on the overlay
+            info_card = html.Div(info_card, style={'background': '#fff', 'color': '#000', 'padding': '12px', 'borderRadius': '6px', 'boxShadow': '0 6px 20px rgba(0,0,0,0.18)'})
+        except Exception as e:
+            info_card = html.Div([html.H4("❌ Error building Shape Info", style={'color': '#e74c3c'}), html.Div(str(e))])
+
+        # Render the five global descriptor histograms just like the main modal
+        descriptor_pairs = [
+            ('A3', 'A3_hist', 'A3_bins'),
+            ('D1', 'D1_hist', 'D1_bins'),
+            ('D2', 'D2_hist', 'D2_bins'),
+            ('D3', 'D3_hist', 'D3_bins'),
+            ('D4', 'D4_hist', 'D4_bins')
+        ]
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        graphs = []
+        for i, (title, hist_field, bins_field) in enumerate(descriptor_pairs):
+            hist_val = None
+            bins_val = None
+            for key in (hist_field, hist_field.lower(), 'analysis_' + hist_field, 'analysis_' + hist_field.lower()):
+                if key in row.index:
+                    hist_val = row.get(key)
+                    break
+            for key in (bins_field, bins_field.lower(), 'analysis_' + bins_field, 'analysis_' + bins_field.lower()):
+                if key in row.index:
+                    bins_val = row.get(key)
+                    break
+
+            mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+            # Fallback parsing for string-encoded histograms
+            if (mids is None or hist_vals is None) and isinstance(hist_val, str):
+                try:
+                    nums = [float(x) for x in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", hist_val)]
+                    if nums:
+                        hist_vals = nums
+                        mids = list(range(len(nums)))
+                        print(f"[debug] Fallback parsed {len(nums)} histogram values for {title} from string for aux file {selected_filename}")
+                except Exception as e:
+                    print(f"[debug] Aux fallback parsing failed for {title}: {e}")
+            if mids is None or hist_vals is None:
+                graphs.append(html.Div([html.H4(f"{title} - Data unavailable", style={'color': '#000'})], style={'minWidth': '180px', 'background': '#fff', 'padding': '8px', 'borderRadius': '6px'}))
+            else:
+                fig = go.Figure()
+                fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=colors[i] if i < len(colors) else colors[0]))
+                fig.update_layout(title=f"{title}", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                  xaxis_title='Value', yaxis_title='Frequency', margin=dict(l=30, r=10, t=30, b=30))
+                graphs.append(html.Div(dcc.Graph(figure=fig, config={'displayModeBar': False}, style={'height': '220px'}), style={'minWidth': '180px'}))
+
+        graphs_row = html.Div(graphs, style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap', 'justifyContent': 'center'})
+
+        body = html.Div([info_card, graphs_row])
+        content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.22)'})
+        return html.Div(content_card, style=modal_style), modal_style
+
+    # Close aux modal when hidden close trigger is fired (proxied from in-modal Close button)
+    @app.callback(
+        Output('aux-descriptors-open', 'data', allow_duplicate=True),
+        [Input('aux-descriptors-hidden-close-trigger', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def set_aux_descriptors_open(hidden_clicks):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update
+        return False
+
+    @app.callback(
+        Output('inline-global-descriptors', 'children', allow_duplicate=True),
+        [Input('selected-file-store', 'data'), Input('selected-dataset-store', 'data'), Input('shape-info', 'children')],
+        prevent_initial_call='initial_duplicate'
+    )
+    def update_inline_descriptors(selected_file_data, selected_dataset, shape_info=None):
+        """Populate the inline thumbnails below Shape Info when a shape is selected.
+
+        This mirrors the inline part of the modal rendering but only returns the
+        inline children so it can be updated independently of the modal.
+        """
+        try:
+            if not selected_file_data or not isinstance(selected_file_data, dict):
+                return []
+
+            selected_filename = selected_file_data.get('filename')
+            dataset = selected_file_data.get('dataset', selected_dataset)
+            if not dataset:
+                dataset = 'Data'
+
+            df = get_cached_dataset_data(dataset)
+            if df is None or df.empty:
+                return []
+
+            matching = df[df['filename'] == selected_filename]
+            if matching.empty:
+                return []
+
+            row = matching.iloc[0]
+
+            descriptor_pairs = [
+                ('A3', 'A3_hist', 'A3_bins'),
+                ('D1', 'D1_hist', 'D1_bins'),
+                ('D2', 'D2_hist', 'D2_bins'),
+                ('D3', 'D3_hist', 'D3_bins'),
+                ('D4', 'D4_hist', 'D4_bins')
+            ]
+            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+
+            inline_graphs = []
+            for i, (title, hist_field, bins_field) in enumerate(descriptor_pairs):
+                hist_val = None
+                bins_val = None
+                for key in (hist_field, hist_field.lower(), 'analysis_' + hist_field, 'analysis_' + hist_field.lower()):
+                    if key in row.index:
+                        hist_val = row.get(key)
+                        break
+                for key in (bins_field, bins_field.lower(), 'analysis_' + bins_field, 'analysis_' + bins_field.lower()):
+                    if key in row.index:
+                        bins_val = row.get(key)
+                        break
+
+                mids, hist_vals = _parse_hist_and_bins(hist_val, bins_val)
+                # Fallback parsing for string-encoded histograms
+                if (mids is None or hist_vals is None) and isinstance(hist_val, str):
+                    try:
+                        nums = [float(x) for x in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", hist_val)]
+                        if nums:
+                            hist_vals = nums
+                            mids = list(range(len(nums)))
+                            print(f"[debug] Fallback parsed {len(nums)} inline histogram values for {title} from string for file {selected_filename}")
+                    except Exception as e:
+                        print(f"[debug] Inline fallback parsing failed for {title}: {e}")
+                if mids is None or hist_vals is None:
+                    inline_card = html.Div([
+                        html.Div(title, style={'fontWeight': '600', 'marginBottom': '6px', 'fontSize': '12px'}),
+                        html.Div("Data unavailable", style={'fontSize': '11px', 'color': '#666'})
+                    ], style={'flex': '0 0 140px', 'minWidth': '120px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px', 'textAlign': 'center'})
+                else:
+                    color = colors[i] if i < len(colors) else colors[0]
+                    inline_fig = go.Figure()
+                    inline_fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=color))
+                    inline_fig.update_layout(title={'text': title, 'x': 0.5, 'xanchor': 'center', 'font': {'size': 12}},
+                                             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                             margin=dict(l=8, r=6, t=24, b=6), xaxis=dict(showticklabels=False), yaxis=dict(showticklabels=False))
+                    inline_card = html.Div([
+                        dcc.Graph(figure=inline_fig, config={'displayModeBar': False}, style={'height': '120px', 'width': '140px'})
+                    ], style={'flex': '0 0 140px', 'minWidth': '120px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
+
+                inline_graphs.append(inline_card)
+
+            graphs_row = html.Div(inline_graphs, style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap', 'justifyContent': 'center'})
+            return graphs_row
+        except Exception:
+            # On any error, return empty so the UI doesn't break
+            return []
+
      # Store current dataset in dcc.Store and clear selection when dataset changes
     @app.callback(
         [Output('selected-dataset-store', 'data'),
@@ -1852,6 +2560,99 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         except Exception as e:
             print(f"[DEBUG] Error updating category options: {e}")
             return [{'label': 'All Categories', 'value': 'all'}], 'all'
+    # Per-card info button: open auxiliary descriptors modal without overwriting main selection
+    @app.callback(
+        [Output('aux-selected-file-store', 'data', allow_duplicate=True), Output('aux-descriptors-open', 'data', allow_duplicate=True)],
+        [Input({'type': 'show-aux-descriptors', 'filename': dash.dependencies.ALL, 'dataset': dash.dependencies.ALL}, 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def open_aux_descriptors(n_clicks_list):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update, no_update
+
+        # find the first triggered pattern id with a truthy value
+        triggered_prop = None
+        for t in ctx.triggered:
+            pid = t.get('prop_id', '')
+            val = t.get('value')
+            if 'show-aux-descriptors' in pid and val:
+                triggered_prop = pid
+                break
+
+        if not triggered_prop:
+            return no_update, no_update
+
+        # extract JSON substring
+        try:
+            start = triggered_prop.find('{')
+            end = triggered_prop.rfind('}')
+            if start == -1 or end == -1:
+                return no_update, no_update
+            id_json = triggered_prop[start:end+1]
+            try:
+                payload = json.loads(id_json)
+            except Exception:
+                import ast
+                try:
+                    payload = ast.literal_eval(id_json)
+                except Exception:
+                    return no_update, no_update
+        except Exception:
+            return no_update, no_update
+
+        filename = payload.get('filename')
+        dataset = payload.get('dataset')
+
+        try:
+            df = get_cached_dataset_data(dataset) if dataset else file_df
+        except Exception:
+            df = file_df
+
+        if df is None or df.empty or not filename:
+            return no_update, no_update
+
+        matched = df[df['filename'] == filename]
+        if matched.empty:
+            return no_update, no_update
+
+        try:
+            row = matched.iloc[0].to_dict()
+            import pathlib as _pathlib
+            import pandas as _pd
+
+            def _sanitize_value(v):
+                try:
+                    if v is None:
+                        return None
+                    try:
+                        if _pd.isna(v):
+                            return None
+                    except Exception:
+                        pass
+                    if isinstance(v, (_pathlib.Path, os.PathLike)):
+                        return str(v)
+                    if isinstance(v, (np.generic,)):
+                        return v.item()
+                    if isinstance(v, (np.ndarray,)):
+                        return v.tolist()
+                    if isinstance(v, _pd.Timestamp):
+                        return v.isoformat()
+                    if isinstance(v, dict):
+                        return {str(k): _sanitize_value(val) for k, val in v.items()}
+                    if isinstance(v, (list, tuple, set)):
+                        return [_sanitize_value(x) for x in v]
+                    if isinstance(v, (str, int, float, bool)):
+                        return v
+                    return str(v)
+                except Exception:
+                    return str(v)
+
+            sanitized = {k: _sanitize_value(v) for k, v in row.items()}
+            return sanitized, True
+        except Exception as e:
+            print(f"[DEBUG] open_aux_descriptors failed to prepare row: {e}")
+            return no_update, no_update
 
     # Update normalization toggle options and value when file is selected
     @app.callback(
@@ -1913,19 +2714,24 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Step slider control callbacks
     @app.callback(
-        Output('display-step-panel', 'style'),
-        Input('selected-dataset-store', 'data'),
-        prevent_initial_call=True
+        [Output('display-step-panel', 'style'), Output('center-action-buttons', 'style'), Output('inline-global-descriptors', 'style')],
+        Input('selected-dataset-store', 'data')
     )
     def update_step_panel_visibility(selected_dataset):
         """
-        Show/hide the step panel based on dataset type.
+        Show/hide the step panel and center action buttons based on dataset type.
         Only show for datasets that contain processed step files.
         """
         if selected_dataset and ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
-            return {'display': 'block'}
+            visible = {'display': 'block'}
+            center_style = {'display': 'flex', 'flexDirection': 'row', 'justifyContent': 'center', 'alignItems': 'center', 'gap': '8px'}
+            inline_style = {'display': 'flex', 'gap': '12px', 'alignItems': 'flex-start'}
         else:
-            return {'display': 'none'}
+            visible = {'display': 'none'}
+            center_style = {'display': 'none'}
+            inline_style = {'display': 'none'}
+
+        return visible, center_style, inline_style
 
     @app.callback(
         [Output('processing-step-slider', 'disabled'),
@@ -2049,22 +2855,27 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     from core.file_index import get_available_steps
                     available_steps_info = get_available_steps(row)
                     available_steps = available_steps_info.get('available_step_indices', [])
-                    print(f"� Available steps for {filename}: {available_steps}")
-                    
+                    print(f"🟢 Available steps for {filename}: {available_steps}")
+
+                    # Ensure all step files are included in the merge
+                    if selected_dataset and 'UnifiedPreprocessed' in selected_dataset:
+                        file_df = get_cached_dataset_data(selected_dataset)
+                        if file_df is not None and not file_df.empty:
+                            # Filter rows to include all steps
+                            step_files = file_df[file_df['filename'].str.contains('_step')]
+                            if not step_files.empty:
+                                file_df = pd.concat([file_df, step_files]).drop_duplicates()
+
+                    # Update slider and step info dynamically
                     class_names = []
                     for i in range(7):
                         if i not in available_steps:
-                            # This step is missing
                             class_names.append("step-label missing")
-                            print(f"🔴 Step {i} is MISSING")
                         elif i == step_value:
                             class_names.append("step-label active")
-                            print(f"🟢 Step {i} is ACTIVE")
                         else:
                             class_names.append("step-label")
-                            print(f"⚪ Step {i} is NORMAL")
-                    
-                    print(f"🎯 Final class names: {class_names}")
+
                     return class_names
                     
             except Exception as e:
@@ -2082,7 +2893,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             else:
                 class_names.append("step-label")
         
-        print(f"📋 Default class names: {class_names}")
         return class_names
 
     @app.callback(
