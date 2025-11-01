@@ -1807,7 +1807,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
             # --- Load the precomputed distance matrix ---
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            distance_path = os.path.join(base_dir, "..", "..", "scalability", "total_distances_597a37344657.csv")
+            distance_path = os.path.join(base_dir, "..", "..", "scalability", "total_distances_optimized.csv")
             distance_path = os.path.normpath(distance_path)
 
             if not os.path.exists(distance_path):
