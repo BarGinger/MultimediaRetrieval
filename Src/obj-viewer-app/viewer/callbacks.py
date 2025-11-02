@@ -18,6 +18,48 @@ from core.file_index import get_step_file_path
 from core.file_index import get_available_steps, get_step_display_info
 from core.plotting import create_3d_plot
 
+# Global cache for distance matrix (loaded once at startup)
+_DISTANCE_MATRIX_CACHE = None
+_DISTANCE_MATRIX_PATH = None
+
+def get_cached_distance_matrix():
+    """Load and cache the distance matrix in memory for fast KNN queries.
+    
+    Returns the distance matrix DataFrame or None if not available.
+    Caches result globally to avoid reloading CSV on every query.
+    """
+    global _DISTANCE_MATRIX_CACHE, _DISTANCE_MATRIX_PATH
+    
+    # Return cached matrix if already loaded
+    if _DISTANCE_MATRIX_CACHE is not None:
+        return _DISTANCE_MATRIX_CACHE
+    
+    # Determine path to distance matrix
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    distance_path = os.path.join(base_dir, "..", "..", "matching", "matrix_rank_based_optimized.csv")
+    distance_path = os.path.normpath(distance_path)
+    
+    # Check if file exists
+    if not os.path.exists(distance_path):
+        print(f"⚠️ Distance matrix not found at: {distance_path}")
+        print(f"   KNN retrieval will not be available.")
+        return None
+    
+    try:
+        print(f"📊 Loading distance matrix from: {distance_path}")
+        # Load matrix with first column as index
+        df = pd.read_csv(distance_path, index_col=0)
+        print(f"✅ Distance matrix loaded: {df.shape[0]} × {df.shape[1]} = {df.shape[0] * df.shape[1]:,} distances")
+        
+        # Cache for future use
+        _DISTANCE_MATRIX_CACHE = df
+        _DISTANCE_MATRIX_PATH = distance_path
+        
+        return df
+    except Exception as e:
+        print(f"❌ Error loading distance matrix: {e}")
+        return None
+
 
 def _parse_hist_and_bins(hist, bins=None):
     """Parse histogram and bins stored in various formats into (mids, values).
@@ -1547,6 +1589,121 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             empty_info = html.P("🔍 Select a 3D shape from the list to view details", className="shape-info-hint")
             return empty_info, None
 
+    # Callback to update Vertices and Faces count based on slider step and selected dataset
+    @app.callback(
+        [Output('shape-vertices', 'children'), Output('shape-faces', 'children')],
+        [Input('processing-step-slider', 'value'), Input('dataset-selector', 'value')],
+        prevent_initial_call=True
+    )
+    def update_shape_info(step, dataset):
+        """Update only the vertices and faces numeric spans when the slider changes for UnifiedPreprocessed/Data.
+
+        This avoids overwriting the entire `shape-info` card produced by other callbacks.
+        """
+        analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedpreprocessed_data.csv"
+        # fallback to the correctly named file if present
+        alt_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
+        if os.path.exists(analysis_results_path):
+            path = analysis_results_path
+        elif os.path.exists(alt_path):
+            path = alt_path
+        else:
+            return dash.no_update, dash.no_update
+
+        try:
+            analysis_df = pd.read_csv(path)
+        except Exception as e:
+            print(f"[update_shape_info] Failed to read analysis CSV '{path}': {e}")
+            return dash.no_update, dash.no_update
+
+        if dataset != "UnifiedPreprocessed/Data" or step is None or analysis_df.empty:
+            return dash.no_update, dash.no_update
+
+        # Normalize column names (case-insensitive) and map common variants
+        col_map = {c.lower(): c for c in analysis_df.columns}
+
+        # Common alternative names for logical fields in analysis CSVs
+        candidates = {
+            'step': ['step', 'processing_step', 'step_id', 'shape_file', 'filename'],
+            'vertices': ['num_vertices', 'vertices', 'verts', 'vertex_count'],
+            'faces': ['num_faces', 'faces', 'face_count']
+        }
+
+        found = {}
+        for logical, names in candidates.items():
+            for n in names:
+                if n in col_map:
+                    found[logical] = col_map[n]
+                    break
+
+        # If any logical column is missing, log and bail out gracefully
+        missing = [k for k in candidates.keys() if k not in found]
+        if missing:
+            print(f"[update_shape_info] Analysis CSV missing logical columns: {missing}. Available: {list(analysis_df.columns)}")
+            return dash.no_update, dash.no_update
+
+        step_col = found['step']
+        vert_col = found['vertices']
+        face_col = found['faces']
+
+        # Safely compare step values (allow numeric/string mismatch)
+        # If the step column contains filenames (e.g., 'shape_file' or 'filename'), match by the expected step suffix
+        step_col_lower = step_col.lower() if isinstance(step_col, str) else ''
+        if any(k in step_col_lower for k in ('shape', 'file', 'filename')):
+            # Expected processing step suffixes used in filenames
+            expected_steps = [
+                "00_original",
+                "01_remeshed",
+                "02_translated",
+                "03_aligned",
+                "04_flipped",
+                "05_scaled",
+                "06_fill_holes_and_orientation"
+            ]
+            try:
+                idx = int(step)
+                if 0 <= idx < len(expected_steps):
+                    suffix = expected_steps[idx]
+                    mask = analysis_df[step_col].astype(str).str.contains(rf"_{re.escape(suffix)}\.obj$", regex=True, na=False)
+                else:
+                    # Out-of-range numeric step: fallback to substring match
+                    mask = analysis_df[step_col].astype(str).str.contains(re.escape(str(step)), regex=True, na=False)
+            except Exception:
+                s = str(step)
+                if s in expected_steps:
+                    mask = analysis_df[step_col].astype(str).str.contains(rf"_{re.escape(s)}\.obj$", regex=True, na=False)
+                else:
+                    # Fallback: check if the filename contains the provided string
+                    mask = analysis_df[step_col].astype(str).str.contains(re.escape(s), regex=True, na=False)
+        else:
+            try:
+                # Try numeric comparison first
+                step_val = int(step)
+                mask = pd.to_numeric(analysis_df[step_col], errors='coerce') == step_val
+            except Exception:
+                # Fallback to string comparison
+                mask = analysis_df[step_col].astype(str) == str(step)
+
+        current_file_data = analysis_df[mask]
+        if current_file_data.empty:
+            print(f"[update_shape_info] No row for step={step} in '{path}'")
+            return dash.no_update, dash.no_update
+
+        vertices_count = current_file_data[vert_col].iloc[0]
+        faces_count = current_file_data[face_col].iloc[0]
+
+        # Format with commas like the rest of the UI
+        try:
+            vertices_str = f"{int(vertices_count):,}"
+        except Exception:
+            vertices_str = str(vertices_count)
+        try:
+            faces_str = f"{int(faces_count):,}"
+        except Exception:
+            faces_str = str(faces_count)
+
+        return vertices_str, faces_str
+
     # 4) 3D viewer update
     @app.callback(
         [Output('3d-plot', 'figure'),
@@ -1793,7 +1950,13 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     def retrieve_closest_shapes(selected_file_data, n):
         """
         Return up to n closest shapes (as dicts) from the same dataset,
-        using the precomputed distance matrix at ../../scalability/.
+        using the precomputed distance matrix with optimized KNN.
+        
+        Optimizations:
+        - Distance matrix cached in memory (loaded once)
+        - Uses numpy for fast sorting
+        - Efficient ID-based lookup
+        
         Each dict includes all dataset info + 'distance' field.
         """
         try:
@@ -1805,39 +1968,54 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             if not selected_filename:
                 return []
 
-            # --- Load the precomputed distance matrix ---
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            distance_path = os.path.join(base_dir, "..", "..", "scalability", "total_distances_optimized.csv")
-            distance_path = os.path.normpath(distance_path)
+            # --- Load the cached distance matrix (fast!) ---
+            distance_matrix = get_cached_distance_matrix()
+            if distance_matrix is None:
+                print(f"⚠️ Distance matrix not available - falling back to random sampling")
+                return retrieve_random_shapes(selected_file_data, n)
 
-            if not os.path.exists(distance_path):
-                print(f"⚠️ Distance file not found: {distance_path}")
-                return []
-
-            df = pd.read_csv(distance_path, index_col=0)
-
-            # --- Match by ID prefix ---
+            # --- Match query shape by ID prefix ---
             m = re.match(r"([A-Za-z0-9]+)_", selected_filename)
             if not m:
                 print(f"⚠️ Could not extract ID prefix from {selected_filename}")
                 return []
             shape_id = m.group(1)
 
-            matching_rows = [idx for idx in df.index if idx.startswith(shape_id + "_")]
+            # Find matching row in distance matrix (any processing step of this shape)
+            matching_rows = [idx for idx in distance_matrix.index if idx.startswith(shape_id + "_")]
             if not matching_rows:
                 print(f"⚠️ No matching row found for ID {shape_id} in distance matrix.")
                 return []
+            
+            # Use first matching row (typically the _06 or _unified version)
             row_name = matching_rows[0]
-            distances = df.loc[row_name]
+            
+            # --- Fast KNN using numpy ---
+            # Get distance vector as numpy array for speed
+            distances_series = distance_matrix.loc[row_name]
+            
+            # Remove self-match
+            distances_series = distances_series[distances_series.index != row_name]
+            
+            # Convert to numpy for fast sorting
+            distances_array = distances_series.values
+            indices_array = distances_series.index.values
+            
+            # Get top-k indices using argpartition (faster than full sort for large k)
+            k = int(n or 5)
+            if k >= len(distances_array):
+                # If k >= array size, just sort everything
+                sorted_indices = np.argsort(distances_array)
+            else:
+                # Partial sort: O(n) instead of O(n log n)
+                partition_indices = np.argpartition(distances_array, k)[:k]
+                sorted_indices = partition_indices[np.argsort(distances_array[partition_indices])]
+            
+            # Get top-k closest shapes
+            top_k_indices = indices_array[sorted_indices]
+            top_k_distances = distances_array[sorted_indices]
 
-            # --- Sort and take n closest (excluding self) ---
-            closest = (
-                distances[distances.index != row_name]
-                .sort_values(ascending=True)
-                .head(int(n or 5))
-            )
-
-            # --- Load dataset (like retrieve_random_shapes does) ---
+            # --- Load dataset and map to unified filenames ---
             df_candidates = None
             if dataset:
                 try:
@@ -1852,7 +2030,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
             # --- Map closest filenames to unified format and dataset rows ---
             results = []
-            for name, dist in closest.items():
+            for idx, (name, dist) in enumerate(zip(top_k_indices, top_k_distances)):
                 m2 = re.match(r"([A-Za-z0-9]+)_", name)
                 if not m2:
                     continue
@@ -1864,13 +2042,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     rec = row.iloc[0].to_dict()
                     rec['distance'] = float(dist)
                     results.append(rec)
+                
+                # Stop once we have k results
+                if len(results) >= k:
+                    break
 
-            results.sort(key=lambda r: r.get('distance', float('inf')))
             return results
-
 
         except Exception as e:
             print(f"❌ Error retrieving closest shapes: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
 
@@ -2028,7 +2210,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
             # Title span with ellipsis to avoid overflow
             title_span = html.Span([small_badge, html.Strong(title)], style={
-                'display': 'inline-block', 'maxWidth': '320px', 'whiteSpace': 'nowrap', 'overflow': 'hidden', 'textOverflow': 'ellipsis', 'verticalAlign': 'middle', 'marginRight': '6px'
+                'display': 'inline-block', 'maxWidth': '320px', 'min-width': 'fit-content', 'whiteSpace': 'nowrap', 'overflow': 'hidden', 'textOverflow': 'ellipsis', 'verticalAlign': 'middle', 'marginRight': '6px'
             })
 
             # Category small text
@@ -2340,7 +2522,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             mesh = ShapeMesh.from_file_row(row)
             info_card = mesh.get_card_header_html()
             # Wrap mesh-provided card in an opaque white container so content is readable on the overlay
-            info_card = html.Div(info_card, style={'background': '#fff', 'color': '#000', 'padding': '12px', 'borderRadius': '6px', 'boxShadow': '0 6px 20px rgba(0,0,0,0.18)'})
+            info_card = html.Div(info_card, style={'background': 'rgb(241 237 225)', 'color': '#000', 'padding': '12px', 'margin-bottom': '1.2rem', 'borderRadius': '6px', 'boxShadow': '0 6px 20px rgba(0,0,0,0.18)'})
         except Exception as e:
             info_card = html.Div([html.H4("❌ Error building Shape Info", style={'color': '#e74c3c'}), html.Div(str(e))])
 

@@ -439,31 +439,7 @@ def build_layout(file_df, dataset_options, selected_dataset):
                                         'gap': '2px',
                                     }
                                 ),
-                                html.Button([
-                                    html.Span('🧬', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
-                                    html.Span('Cluster', style={'verticalAlign': 'middle'})
-                                ],
-                                    id='show-clustering-btn',
-                                    n_clicks=0,
-                                    className='center-action-btn pretty-action-btn',
-                                    style={
-                                        'background': 'linear-gradient(90deg, #583191 0%, #C3A1F3 100%)',
-                                        'width': 'auto',
-                                        'color': 'white',
-                                        'border': 'none',
-                                        'borderRadius': '6px',
-                                        'padding': '2px 12px',
-                                        'fontWeight': 500,
-                                        'fontSize': '12px',
-                                        'boxShadow': '0 1px 4px rgba(190,24,93,0.10)',
-                                        'cursor': 'pointer',
-                                        'transition': 'background 0.2s',
-                                        'outline': 'none',
-                                        'display': 'flex',
-                                        'alignItems': 'center',
-                                        'gap': '2px',
-                                    }
-                                )
+                               
                             ], id='center-action-buttons', style={'display': 'none', 'flexDirection': 'row', 'display': 'flex', 'justifyContent': 'center', 'alignItems': 'center', 'margin': '0 0 0 0', 'gap': '8px'}),
 
 
@@ -536,20 +512,53 @@ def build_layout(file_df, dataset_options, selected_dataset):
             html.Div([
                 html.H3("📊 Additional Plots", className="panel-title aux-title"),
 
-                html.Button(
-                    'Find similar shapes',
-                    id='find-shapes-button',
-                    n_clicks=0,
-                    className="aux-btn"
-                ),
+                html.Div(id='similar-shapes-controllers', children=[  
+                    dcc.Slider(
+                        id='amount-plots-slider',
+                        min=1, max=10, step=1, value=5,
+                        marks={1:'1', 2:'2', 3:'3', 4:'4', 5:'5',6:'6',7:'7',8:'8',9:'9',10:'10'},
+                        tooltip={'always_visible': False},
+                        className="aux-slider"
+                    ),
 
-                dcc.Slider(
-                    id='amount-plots-slider',
-                    min=1, max=10, step=1, value=5,
-                    marks={1:'1', 2:'2', 3:'3', 4:'4', 5:'5',6:'6',7:'7',8:'8',9:'9',10:'10'},
-                    tooltip={'always_visible': False},
-                    className="aux-slider"
-                ),
+                     html.Button(
+                        [
+                            html.Span('🔍', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                            html.Span('Find similar shapes', style={'verticalAlign': 'middle'})
+                        ],      
+                        id='find-shapes-button',
+                        n_clicks=0,
+                        className="aux-btn"
+                    ),
+
+                     html.Button([
+                                    html.Span('🧬', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                                    html.Span('Show t-SNE Plot', style={'verticalAlign': 'middle'})
+                                ],
+                                    id='show-clustering-btn',
+                                    n_clicks=0,
+                                    className='cluster-btn',
+                                    # className='center-action-btn pretty-action-btn',
+                                    # style={
+                                    #     'background': 'linear-gradient(90deg, #583191 0%, #C3A1F3 100%)',
+                                    #     'width': 'auto',
+                                    #     'color': 'white',
+                                    #     'border': 'none',
+                                    #     'borderRadius': '6px',
+                                    #     'padding': '2px 12px',
+                                    #     'fontWeight': 500,
+                                    #     'fontSize': '12px',
+                                    #     'boxShadow': '0 1px 4px rgba(190,24,93,0.10)',
+                                    #     'cursor': 'pointer',
+                                    #     'transition': 'background 0.2s',
+                                    #     'outline': 'none',
+                                    #     'display': 'flex',
+                                    #     'alignItems': 'center',
+                                    #     'gap': '2px',
+                                    # }
+                                )
+
+                ], style={'width': '100%', 'display': 'flex', 'flexDirection': 'row', 'alignItems': 'space-between', 'gap': '30px'}),
 
                 # Static legend placed below the amount-plots-slider so it is always visible
                 # Build category list and color mapping (same scheme as callbacks)
