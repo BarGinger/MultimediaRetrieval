@@ -43,7 +43,8 @@ COPY_COLS = [
     "D3_bins",
     "D4_hist",
     "D4_bins",
-    "shape_file",
+    # NOTE: shape_file is NOT copied - we preserve the original filename for each processing step
+    # "shape_file",  # REMOVED - keep original filenames (m1337_00_original.obj, m1337_01_remeshed.obj, etc.)
     "name",
     "class_b",
 ]
