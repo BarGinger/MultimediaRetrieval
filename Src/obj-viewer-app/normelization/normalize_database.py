@@ -2570,7 +2570,7 @@ class UnifiedPreprocessingProcessor:
         print("\n📊 ANALYZING ORIGINAL DATASETS")
         print("-" * 40)
 
-        original_datasets = ["Data", "Data_sampled", "Data_resampled", "Jet"]
+        original_datasets = [] # ["Data", "Data_sampled", "Data_resampled", "Jet"]
 
         for dataset_name in original_datasets:
             try:
@@ -2660,23 +2660,23 @@ def main():
     processor = UnifiedPreprocessingProcessor(target_vertices=7500)
     processor.stats['start_time'] = time.time()
     
-    # Setup directories
-    processor.setup_output_directories(datasets)
+    # # Setup directories
+    # processor.setup_output_directories(datasets)
     
-    # Process each dataset (process_dataset has its own smart skip/regeneration logic)
-    for dataset in datasets:
-        try:
-            processor.process_dataset(dataset)
-        except Exception as e:
-            print(f"❌ Failed to process dataset {dataset}: {str(e)}")
+    # # Process each dataset (process_dataset has its own smart skip/regeneration logic)
+    # for dataset in datasets:
+    #     try:
+    #         processor.process_dataset(dataset)
+    #     except Exception as e:
+    #         print(f"❌ Failed to process dataset {dataset}: {str(e)}")
     
-    # Generate and save processing report if any processing occurred
-    if processor.stats['total_processed'] > 0 or (hasattr(processor, 'all_validations') and processor.all_validations):
-        report = processor.save_processing_report()
-        processor.print_summary(report)
+    # # Generate and save processing report if any processing occurred
+    # if processor.stats['total_processed'] > 0 or (hasattr(processor, 'all_validations') and processor.all_validations):
+    #     report = processor.save_processing_report()
+    #     processor.print_summary(report)
     
     # Always generate analysis CSV files (with their own smart skip logic)
-    # processor.generate_analysis_for_all_datasets()
+    processor.generate_analysis_for_all_datasets()
 
 if __name__ == "__main__":
     main()

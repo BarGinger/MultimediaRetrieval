@@ -385,9 +385,10 @@ def evaluate_distance_matrix(dist_df: pd.DataFrame, analysis_df: pd.DataFrame, t
     # Build mapping id -> class and id -> filenames list
     analysis_df = analysis_df.copy()
     id_to_class = analysis_df.set_index('id')['class'].to_dict()
-    # class sizes (count of rows per class)
-    class_sizes = analysis_df.groupby('class').size().to_dict()
-    total_shapes = len(analysis_df)
+    # class sizes (count of UNIQUE base shapes per class, not total rows)
+    # Since analysis CSV has multiple rows per shape (processing steps), count unique base IDs only
+    class_sizes = analysis_df.groupby('class')['id'].nunique().to_dict()
+    total_shapes = analysis_df['id'].nunique()
 
     # Prepare column ids for dist_df
     df = dist_df.copy()
@@ -727,9 +728,10 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         # Build combined per-class DataFrame: index=class, columns=(approach, metric)
-        # Include core assignment metrics (accuracy, precision/recall, specificity/sensitivity)
+        # Include core assignment metrics (accuracy, precision/recall)
         # plus additional retrieval metrics (AP, NDCG, etc.)
-        metrics_to_plot = ['ACC', 'PPV', 'TPR', 'TNR', 'F1', 'AP', 'ROC_AUC', 'MCC', 'NDCG', 'NDCG_top{}'.format(top_n)]
+        # Note: TNR (Specificity) and MCC excluded as they're not meaningful for top-N retrieval (TN=0)
+        metrics_to_plot = ['ACC', 'PPV', 'TPR', 'F1', 'AP', 'ROC_AUC', 'NDCG', 'NDCG_top{}'.format(top_n)]
         classes = set()
         for df in all_summary.values():
             classes.update(df['class'].tolist())
@@ -752,31 +754,25 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
             n_classes = len(classes)
             n_approaches = len(approaches)
             
-            # Use consistent colormap across all heatmaps for easier comparison
-            # Collect all values across all metrics to determine global vmin/vmax
-            all_metric_values = []
-            for m in metrics_to_plot:
-                for approach in approaches:
-                    sub = combined_df[combined_df['approach'] == approach]
-                    for cls in classes:
-                        vals = sub[sub['class'] == cls][m]
-                        if not vals.empty and pd.notna(vals.values[0]):
-                            all_metric_values.append(float(vals.values[0]))
-            
-            # Use global min/max for consistent colormap (but still allow per-metric override for special cases)
-            global_vmin = min(all_metric_values) if all_metric_values else 0.0
-            global_vmax = max(all_metric_values) if all_metric_values else 1.0
+            # Map metric codes to readable names (same as bar chart)
+            metric_names = {
+                'ACC': 'Accuracy',
+                'PPV': 'Precision',
+                'TPR': 'Recall (Sensitivity)',
+                'F1': 'F1-Score',
+                'AP': 'Average Precision',
+                'ROC_AUC': 'ROC AUC',
+                'NDCG': 'NDCG (Full)',
+                'NDCG_top10': 'NDCG@10'
+            }
             
             for m in metrics_to_plot:
-                # Per-metric normalization and colormap choices
-                # Use global scale for most metrics, but keep MCC with diverging colormap
-                if m == 'MCC':
-                    vmin, vmax = -1.0, 1.0
-                    cmap_name = 'RdBu_r'  # reversed so blue=negative, red=positive
-                else:
-                    # Use consistent viridis colormap with global scale
-                    vmin, vmax = global_vmin, global_vmax
-                    cmap_name = 'viridis'
+                # Use per-metric normalization for better visual discrimination
+                # Each metric gets its own color scale based on actual values in that metric
+                # Use YlGnBu colormap: Light yellow (low) → Green (medium) → Deep blue (high)
+                # Pleasant, professional, and intuitive (darker = better)
+                cmap_name = 'YlGnBu'
+                vmin, vmax = None, None  # Will be auto-scaled per metric
 
                 # build matrix (classes x approaches)
                 mat = np.full((n_classes, n_approaches), np.nan, dtype=float)
@@ -789,6 +785,9 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
 
                 # display labels: capitalize and replace underscores
                 display_classes = [str(c).replace('_', ' ').title() for c in classes]
+                
+                # Use readable metric name in title
+                metric_display_name = metric_names.get(m, m)
 
                 fig, ax = plt.subplots(figsize=(3 + n_approaches * 1.2, max(5, n_classes * 0.35)))
                 im = ax.imshow(mat, aspect='auto', interpolation='nearest', cmap=cmap_name, vmin=vmin, vmax=vmax)
@@ -796,7 +795,7 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                 ax.set_yticklabels(display_classes, fontsize=9)
                 ax.set_xticks(np.arange(n_approaches))
                 ax.set_xticklabels([a.replace('_', ' ').title() for a in approaches], rotation=45, ha='right', fontsize=10)
-                ax.set_title(f'Per-class comparison — {m}', fontsize=12, weight='bold')
+                ax.set_title(f'Per-class comparison — {metric_display_name}', fontsize=12, weight='bold')
                 cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 cbar.ax.tick_params(labelsize=10)
                 # annotate values inside cells with contrast-aware text color
@@ -823,25 +822,29 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                 fig.savefig(out_dir / f'heatmap_per_class_vs_approach_{m}.png', bbox_inches='tight', dpi=200)
                 plt.close(fig)
 
-            # Overall comparison using the overall rows
+            # Overall comparison using both micro (by query) and macro (by class) aggregations
+            # Micro-average: Each query weighted equally (naturally favors large classes)
+            # Macro-average: Each class weighted equally (fair comparison across classes)
             overall_rows = []
             for approach, df in all_summary.items():
                 overall = df[df['class'].isin(['__overall_by_query__', '__macro_by_class__'])]
-                # pick overall_by_query
-                if not overall.empty:
-                    row = overall[overall['class'] == '__overall_by_query__']
-                    if row.empty:
-                        row = overall.iloc[[0]]
-                else:
-                    row = None
-                vals = {'approach': approach}
-                if row is not None and not row.empty:
+                
+                # Micro-average (by query)
+                micro_row = overall[overall['class'] == '__overall_by_query__']
+                if not micro_row.empty:
+                    vals_micro = {'approach': approach, 'aggregation': 'micro (by query)'}
                     for m in metrics_to_plot:
-                        vals[m] = float(row.iloc[0].get(m)) if pd.notna(row.iloc[0].get(m)) else np.nan
-                else:
+                        vals_micro[m] = float(micro_row.iloc[0].get(m)) if pd.notna(micro_row.iloc[0].get(m)) else np.nan
+                    overall_rows.append(vals_micro)
+                
+                # Macro-average (by class) - treats all classes equally
+                macro_row = overall[overall['class'] == '__macro_by_class__']
+                if not macro_row.empty:
+                    vals_macro = {'approach': approach, 'aggregation': 'macro (by class)'}
                     for m in metrics_to_plot:
-                        vals[m] = np.nan
-                overall_rows.append(vals)
+                        vals_macro[m] = float(macro_row.iloc[0].get(m)) if pd.notna(macro_row.iloc[0].get(m)) else np.nan
+                    overall_rows.append(vals_macro)
+                
             overall_df = pd.DataFrame(overall_rows)
             overall_csv = out_dir / 'combined_overall_summary.csv'
             overall_df.to_csv(overall_csv, index=False)
@@ -852,61 +855,70 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                 'ACC': 'Accuracy',
                 'PPV': 'Precision',
                 'TPR': 'Recall (Sensitivity)',
-                'TNR': 'Specificity',
                 'F1': 'F1-Score',
                 'AP': 'Average Precision',
                 'ROC_AUC': 'ROC AUC',
-                'MCC': 'Matthews Correlation',
                 'NDCG': 'NDCG (Full)',
                 'NDCG_top10': 'NDCG@10'
             }
             
-            fig, ax = plt.subplots(figsize=(14, 6))
-            x = np.arange(len(overall_df)) * 2.5  # Increase spacing between approach groups
-            width = 0.18  # Slightly wider bars
-            bars_collection = []
-            for i, m in enumerate(metrics_to_plot):
-                vals = overall_df[m].astype(float).values
-                # Use readable name in legend
-                label = metric_names.get(m, m)
-                bars = ax.bar(x + i * width, vals, width=width, label=label)
-                bars_collection.append(bars)
+            # Create separate plots for micro and macro aggregations
+            for agg_type in ['micro (by query)', 'macro (by class)']:
+                agg_df = overall_df[overall_df['aggregation'] == agg_type].copy()
+                if agg_df.empty:
+                    continue
+                    
+                agg_label = 'Micro-average (by query)' if agg_type == 'micro (by query)' else 'Macro-average (by class)'
                 
-                # Compute ranking for this metric (1=best, higher value is better for all our metrics)
-                ranks = []
-                for val in vals:
-                    if np.isnan(val):
-                        ranks.append('')
-                    else:
-                        # Count how many values are strictly greater (rank = number of better + 1)
-                        rank = 1 + sum(1 for v in vals if not np.isnan(v) and v > val)
-                        ranks.append(f'({rank})')
-                
-                # annotate values on bars with ranking
-                for bar, rank in zip(bars, ranks):
-                    h = bar.get_height()
-                    if not np.isnan(h):
-                        # Show value and rank
-                        label_text = f'{h:.3f}\n{rank}' if rank else f'{h:.3f}'
-                        ax.annotate(label_text, xy=(bar.get_x() + bar.get_width() / 2, h), 
-                                    xytext=(0, 3), textcoords='offset points', 
-                                    ha='center', va='bottom', fontsize=8)
+                fig, ax = plt.subplots(figsize=(14, 6))
+                x = np.arange(len(agg_df)) * 2.5  # Increase spacing between approach groups
+                width = 0.18  # Slightly wider bars
+                bars_collection = []
+                for i, m in enumerate(metrics_to_plot):
+                    vals = agg_df[m].astype(float).values
+                    # Use readable name in legend
+                    label = metric_names.get(m, m)
+                    bars = ax.bar(x + i * width, vals, width=width, label=label)
+                    bars_collection.append(bars)
+                    
+                    # Compute ranking for this metric (1=best, higher value is better for all our metrics)
+                    ranks = []
+                    for val in vals:
+                        if np.isnan(val):
+                            ranks.append('')
+                        else:
+                            # Count how many values are strictly greater (rank = number of better + 1)
+                            rank = 1 + sum(1 for v in vals if not np.isnan(v) and v > val)
+                            ranks.append(f'({rank})')
+                    
+                    # annotate values on bars with ranking
+                    for bar, rank in zip(bars, ranks):
+                        h = bar.get_height()
+                        if not np.isnan(h):
+                            # Show value and rank
+                            label_text = f'{h:.3f}\n{rank}' if rank else f'{h:.3f}'
+                            ax.annotate(label_text, xy=(bar.get_x() + bar.get_width() / 2, h), 
+                                        xytext=(0, 3), textcoords='offset points', 
+                                        ha='center', va='bottom', fontsize=8)
 
-            ax.set_xticks(x + width * (len(metrics_to_plot) - 1) / 2)
-            ax.set_xticklabels(overall_df['approach'], rotation=45, ha='right', fontsize=10)
-            ax.set_title('Overall comparison across approaches', fontsize=12, weight='bold')
-            ax.tick_params(axis='y', labelsize=10)
-            
-            # Adjust y-axis limits to prevent label cutoff
-            # Get current limits and add 15% padding at the top for labels
-            ylim = ax.get_ylim()
-            ax.set_ylim(ylim[0], ylim[1] * 1.15)
-            
-            leg = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            for text in leg.get_texts():
-                text.set_fontsize(10)
-            fig.savefig(out_dir / 'comparison_overall_metrics.png', bbox_inches='tight', dpi=200)
-            plt.close(fig)
+                ax.set_xticks(x + width * (len(metrics_to_plot) - 1) / 2)
+                ax.set_xticklabels(agg_df['approach'], rotation=45, ha='right', fontsize=10)
+                ax.set_title(f'Overall comparison — {agg_label}', fontsize=12, weight='bold')
+                ax.tick_params(axis='y', labelsize=10)
+                
+                # Adjust y-axis limits to prevent label cutoff
+                # Get current limits and add 15% padding at the top for labels
+                ylim = ax.get_ylim()
+                ax.set_ylim(ylim[0], ylim[1] * 1.15)
+                
+                leg = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+                for text in leg.get_texts():
+                    text.set_fontsize(10)
+                
+                # Save with descriptive filename
+                filename = f'comparison_overall_metrics_{agg_type.split()[0]}.png'
+                fig.savefig(out_dir / filename, bbox_inches='tight', dpi=200)
+                plt.close(fig)
         else:
             print('matplotlib not available: skipping combined plots')
 
