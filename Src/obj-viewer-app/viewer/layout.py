@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import os
 from core.plotting import create_3d_plot
-import colorsys
+from .category_colors import CATEGORIES_LIST, CATEGORY_COLOR_MAP
 
 
 def _category_options(file_df):
@@ -18,30 +18,9 @@ def build_layout(file_df, dataset_options, selected_dataset):
     analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
     analysis_df = pd.read_csv(analysis_results_path)
 
-    # Prepare a full category list and color mapping for the legend
-    categories_list = [
-        'AircraftBuoyant', 'Apartment', 'AquaticAnimal', 'Bed', 'Bicycle', 'Biplane', 'Bird', 'Bookset', 'Bottle',
-        'BuildingNonResidential', 'Bus', 'Car', 'Cellphone', 'Chess', 'City', 'ClassicPiano', 'Computer',
-        'ComputerKeyboard', 'Cup', 'DeskLamp', 'DeskPhone', 'Door', 'Drum', 'Fish', 'FloorLamp', 'Glasses',
-        'Guitar', 'Gun', 'Hand', 'Hat', 'Helicopter', 'House', 'HumanHead', 'Humanoid', 'Insect', 'Jet', 'Knife',
-        'MilitaryVehicle', 'Monitor', 'Monoplane', 'Motorcycle', 'Mug', 'MultiSeat', 'Musical_Instrument',
-        'NonWheelChair', 'PianoBoard', 'PlantIndoors', 'PlantWildNonTree', 'Quadruped', 'RectangleTable', 'Rocket',
-        'RoundTable', 'Shelf', 'Ship', 'Sign', 'Skyscraper', 'Spoon', 'Starship', 'SubmachineGun', 'Sword', 'Tool',
-        'Train', 'Tree', 'Truck', 'TruckNonContainer', 'Vase', 'Violin', 'Wheel', 'WheelChair'
-    ]
-
-    # Generate stronger distinct colors using golden-ratio spacing + sat/val cycles
-    category_color_map = {}
-    golden_angle = 137.508
-    sats = [0.92, 0.74, 0.56]
-    vals = [0.96, 0.82, 0.68]
-    for idx, cat in enumerate(categories_list):
-        hue = (idx * golden_angle) % 360.0
-        sat = sats[idx % len(sats)]
-        val = vals[(idx // len(sats)) % len(vals)]
-        r, g, b = colorsys.hsv_to_rgb(hue / 360.0, sat, val)
-        hex_color = '#%02x%02x%02x' % (int(r * 255), int(g * 255), int(b * 255))
-        category_color_map[cat] = hex_color
+    # Use shared category list and color map
+    categories_list = CATEGORIES_LIST
+    category_color_map = CATEGORY_COLOR_MAP
 
     # Build legend item children
     legend_items = []
@@ -95,8 +74,11 @@ def build_layout(file_df, dataset_options, selected_dataset):
     html.Button('Close hidden', id='global-descriptors-hidden-close-trigger', n_clicks=0, style={'display': 'none'}),
     # Hidden close trigger for aux descriptors modal
     html.Button('Close hidden', id='aux-descriptors-hidden-close-trigger', n_clicks=0, style={'display': 'none'}),
+    # Hidden close trigger for clustering modal
+    html.Button('Close hidden', id='clustering-modal-hidden-close-trigger', n_clicks=0, style={'display': 'none'}),
     dcc.Store(id="current-batch-store", data={"batch": 0, "batch_size": 150}),  # Current batch info
     dcc.Store(id="scroll-trigger-store", data=None),  # Scroll detection trigger
+    dcc.Store(id='clustering-modal-open', data=False),  # Controls visibility of clustering modal
     
     # Dummy div for clientside callbacks
     html.Div(id="dummy-div", style={'display': 'none'}),
@@ -104,6 +86,8 @@ def build_layout(file_df, dataset_options, selected_dataset):
     html.Div(id='global-descriptors-modal', style={'display': 'none'}),
     # Modal placeholder for auxiliary Shape Info (aux modal)
     html.Div(id='aux-descriptors-modal', style={'display': 'none'}),
+    # Modal placeholder for clustering visualization
+    html.Div(id='clustering-modal', style={'display': 'none'}),
     # (Modal close is handled via `global-descriptors-open` store and the
     # in-modal Close button; no persistent hidden button required.)
 

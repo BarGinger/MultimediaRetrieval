@@ -10,6 +10,9 @@ import re
 import math
 import colorsys
 import plotly.graph_objects as go
+import plotly.express as px
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import LabelEncoder
 
 from core.dataset_cache import get_cached_dataset_data
 from core.obj_parser import OBJParser
@@ -17,10 +20,15 @@ from core.shapeMesh import ShapeMesh
 from core.file_index import get_step_file_path
 from core.file_index import get_available_steps, get_step_display_info
 from core.plotting import create_3d_plot
+from .category_colors import CATEGORIES_LIST, CATEGORY_COLOR_MAP
 
 # Global cache for distance matrix (loaded once at startup)
 _DISTANCE_MATRIX_CACHE = None
 _DISTANCE_MATRIX_PATH = None
+
+# Global cache for t-SNE embedding (loaded once at startup)
+_TSNE_EMBEDDING_CACHE = None
+_TSNE_LABELS_CACHE = None
 
 def get_cached_distance_matrix():
     """Load and cache the distance matrix in memory for fast KNN queries.
@@ -59,6 +67,60 @@ def get_cached_distance_matrix():
     except Exception as e:
         print(f"❌ Error loading distance matrix: {e}")
         return None
+
+
+def get_cached_tsne_data():
+    """Load and cache the t-SNE embedding and class labels for clustering visualization.
+    
+    Returns tuple: (embedding_df, labels_df) or (None, None) if not available.
+    Caches result globally to avoid reloading CSVs on every modal open.
+    """
+    global _TSNE_EMBEDDING_CACHE, _TSNE_LABELS_CACHE
+    
+    # Return cached data if already loaded
+    if _TSNE_EMBEDDING_CACHE is not None and _TSNE_LABELS_CACHE is not None:
+        return _TSNE_EMBEDDING_CACHE, _TSNE_LABELS_CACHE
+    
+    # Determine paths
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    scalability_dir = os.path.join(base_dir, "..", "..", "scalability")
+    embedding_path = os.path.join(scalability_dir, "topology_graph.csv")
+    labels_path = os.path.join(scalability_dir, "class_labels.csv")
+    
+    embedding_path = os.path.normpath(embedding_path)
+    labels_path = os.path.normpath(labels_path)
+    
+    # Check if files exist
+    if not os.path.exists(embedding_path):
+        print(f"⚠️ t-SNE embedding not found at: {embedding_path}")
+        return None, None
+    
+    if not os.path.exists(labels_path):
+        print(f"⚠️ Class labels not found at: {labels_path}")
+        return None, None
+    
+    try:
+        print(f"📊 Loading t-SNE embedding from: {embedding_path}")
+        embedding_df = pd.read_csv(embedding_path, header=0, index_col=0)
+        print(f"✅ t-SNE embedding loaded: {len(embedding_df)} points")
+        
+        print(f"📊 Loading class labels from: {labels_path}")
+        labels_df = pd.read_csv(labels_path, header=0, index_col=0)
+        
+        # Ensure 'shape' column exists
+        if "shape" not in labels_df.columns:
+            labels_df = labels_df.reset_index().rename(columns={"index": "shape"})
+        
+        print(f"✅ Class labels loaded: {len(labels_df)} shapes")
+        
+        # Cache for future use
+        _TSNE_EMBEDDING_CACHE = embedding_df
+        _TSNE_LABELS_CACHE = labels_df
+        
+        return embedding_df, labels_df
+    except Exception as e:
+        print(f"❌ Error loading t-SNE data: {e}")
+        return None, None
 
 
 def _parse_hist_and_bins(hist, bins=None):
@@ -2146,32 +2208,9 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 'borderRadius': '6px',
                 'display': 'block'
             }
-        # Build a category -> color dictionary (distinct colors)
-        categories_list = [
-            'AircraftBuoyant', 'Apartment', 'AquaticAnimal', 'Bed', 'Bicycle', 'Biplane', 'Bird', 'Bookset', 'Bottle',
-            'BuildingNonResidential', 'Bus', 'Car', 'Cellphone', 'Chess', 'City', 'ClassicPiano', 'Computer',
-            'ComputerKeyboard', 'Cup', 'DeskLamp', 'DeskPhone', 'Door', 'Drum', 'Fish', 'FloorLamp', 'Glasses',
-            'Guitar', 'Gun', 'Hand', 'Hat', 'Helicopter', 'House', 'HumanHead', 'Humanoid', 'Insect', 'Jet', 'Knife',
-            'MilitaryVehicle', 'Monitor', 'Monoplane', 'Motorcycle', 'Mug', 'MultiSeat', 'Musical_Instrument',
-            'NonWheelChair', 'PianoBoard', 'PlantIndoors', 'PlantWildNonTree', 'Quadruped', 'RectangleTable', 'Rocket',
-            'RoundTable', 'Shelf', 'Ship', 'Sign', 'Skyscraper', 'Spoon', 'Starship', 'SubmachineGun', 'Sword', 'Tool',
-            'Train', 'Tree', 'Truck', 'TruckNonContainer', 'Vase', 'Violin', 'Wheel', 'WheelChair'
-        ]
-
-        import colorsys
-        category_color_map = {}
-        # Stronger distinct palette: golden-ratio hue spacing + cycling saturation/value levels
-        n_cats = len(categories_list)
-        golden_angle = 137.508
-        sats = [0.92, 0.74, 0.56]
-        vals = [0.96, 0.82, 0.68]
-        for idx, cat in enumerate(categories_list):
-            hue = (idx * golden_angle) % 360.0
-            sat = sats[idx % len(sats)]
-            val = vals[(idx // len(sats)) % len(vals)]
-            r, g, b = colorsys.hsv_to_rgb(hue / 360.0, sat, val)
-            hex_color = '#%02x%02x%02x' % (int(r * 255), int(g * 255), int(b * 255))
-            category_color_map[cat] = hex_color
+        
+        # Use shared category color map for consistency
+        category_color_map = CATEGORY_COLOR_MAP
 
         cards = []
         for i, sample_row in enumerate(samples[:total]):
@@ -2184,7 +2223,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             # remove file suffix if present
             if title.lower().endswith('_unified.obj'):
                 title = title.replace('_unified.obj', '')
-            elif title.lower().endswith('_06_fill_holes_and_orientation.obj'):
+            elif title.lower().endswith('_fill_holes_and_orientation_06.obj'):
                 title = title.replace('_06_fill_holes_and_orientation.obj', '')
             elif title.lower().endswith('.obj'):
                 title = title.replace('.obj', '')
@@ -2294,6 +2333,396 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         # Return cards, accuracy text, and accuracy style
         return cards, accuracy_text, accuracy_style
+
+    # 6) Clustering modal (t-SNE visualization)
+    @app.callback(
+        Output('clustering-modal-open', 'data', allow_duplicate=True),
+        [Input('show-clustering-btn', 'n_clicks'), Input('clustering-modal-hidden-close-trigger', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def set_clustering_modal_open(show_clicks, hidden_close_clicks):
+        """Set the clustering-modal-open store based on which button triggered."""
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update
+        triggered = ctx.triggered[0]['prop_id'].split('.')[0]
+        if triggered == 'show-clustering-btn':
+            return True
+        if triggered == 'clustering-modal-hidden-close-trigger':
+            return False
+        return no_update
+
+    @app.callback(
+        [Output('clustering-modal', 'children'), Output('clustering-modal', 'style')],
+        Input('clustering-modal-open', 'data'),
+        [State('selected-file-store', 'data'), State('amount-plots-slider', 'value')],
+        prevent_initial_call=False
+    )
+    def show_clustering_modal(is_open, selected_file_data, n_neighbors):
+        """Build and display the clustering modal with interactive t-SNE plot."""
+        if not is_open:
+            return [], {'display': 'none'}
+        
+        # Default background opacity
+        bg_opacity = 0.1
+        
+        # Helper function to clean shape names
+        def clean_shape_name(filename):
+            """Remove processing step suffixes from filenames for display."""
+            if not filename:
+                return filename
+            # Remove common suffixes
+            name = filename
+            suffixes_to_remove = [
+                '_06_fill_holes_and_orientation.obj',
+                '_fill_holes_and_orientation_06.obj',
+                '_unified.obj',
+                '.obj'
+            ]
+            for suffix in suffixes_to_remove:
+                if name.endswith(suffix):
+                    name = name[:-len(suffix)]
+                    break
+            return name
+        
+        # Load t-SNE data
+        embedding_df, labels_df = get_cached_tsne_data()
+        
+        if embedding_df is None or labels_df is None:
+            error_content = html.Div([
+                html.Div([
+                    html.H3("❌ t-SNE Data Not Available", style={'color': '#e74c3c', 'marginBottom': '15px'}),
+                    html.P("The t-SNE embedding files were not found. Please ensure the following files exist:"),
+                    html.Ul([
+                        html.Li("Src/scalability/topology_graph.csv"),
+                        html.Li("Src/scalability/class_labels.csv")
+                    ]),
+                    html.P("You may need to run the topology graph generation script first."),
+                    html.Button('Close', n_clicks=0,
+                               className='modal-close-btn',
+                               style={'marginTop': '20px', 'padding': '8px 20px',
+                                     'backgroundColor': '#e74c3c', 'color': 'white',
+                                     'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'})
+                ], className='modal-content', style={'padding': '30px', 'maxWidth': '600px'})
+            ], className='modal-backdrop', style={'display': 'flex'})
+            
+            return error_content, {'display': 'flex'}
+        
+        # Merge embedding with labels
+        merged = embedding_df.merge(labels_df, left_index=True, right_on="shape", how="left")
+        
+        # Encode classes for consistent coloring
+        merged["class"] = merged["class"].astype(str)
+        ordered_classes = sorted(merged["class"].dropna().unique())
+        
+        # Use shared category color map for consistency across the app
+        color_map = CATEGORY_COLOR_MAP
+        
+        # Determine focus mode if shape selected
+        target_shape = None
+        target_class = None
+        neighbors_list = []
+        
+        if selected_file_data and isinstance(selected_file_data, dict):
+            filename = selected_file_data.get('filename')
+            if filename:
+                # Try exact match first
+                if filename in merged['shape'].values:
+                    target_shape = filename
+                else:
+                    # Try matching by ID prefix (e.g., m1338 from m1338_unified.obj or m1338_06_*.obj)
+                    import re
+                    m = re.match(r"([A-Za-z0-9]+)_", filename)
+                    if m:
+                        shape_id = m.group(1)
+                        # Find any shape with this ID prefix
+                        matching_shapes = [s for s in merged['shape'].values if s.startswith(shape_id + "_")]
+                        if matching_shapes:
+                            target_shape = matching_shapes[0]  # Use first match (typically _06 version)
+                            print(f"🎯 Matched {filename} to {target_shape} for t-SNE focus mode")
+                
+                if target_shape:
+                    target_row = merged.loc[merged['shape'] == target_shape].iloc[0]
+                    target_class = target_row['class']
+                    
+                    # Get neighbors from distance matrix
+                    dist_matrix = get_cached_distance_matrix()
+                    if dist_matrix is not None and target_shape in dist_matrix.index:
+                        row = dist_matrix.loc[target_shape].copy().drop(labels=[target_shape], errors="ignore")
+                        row = pd.to_numeric(row, errors='coerce').replace([np.inf, -np.inf], np.nan).dropna()
+                        n_neigh = max(0, int(n_neighbors or 5))
+                        neighbors_list = row.nsmallest(n_neigh).index.tolist() if n_neigh > 0 else []
+                        print(f"✅ Found {len(neighbors_list)} neighbors for {target_shape}")
+        
+        # Create plot data with different opacity/marker settings
+        if target_shape:
+            # Focus mode: match topology_graph.py behavior
+            # - Background (all points): 10% opacity
+            # - Same class (not neighbors): 80% opacity
+            # - Neighbors (both same and diff class): triangles with black edge
+            # - Target: square with black edge
+            
+            base_size = 15  # Uniform size like topology_graph.py
+            
+            # All background points (10% opacity)
+            background_mask = ~merged['shape'].isin([target_shape] + neighbors_list) & (merged['class'] != target_class)
+            
+            # Same class (not target, not neighbors) - 100% opacity
+            same_class_mask = (merged['class'] == target_class) & (merged['shape'] != target_shape) & ~merged['shape'].isin(neighbors_list)
+            
+            # Neighbors (both same and different class)
+            neighbors_same_class_mask = merged['shape'].isin(neighbors_list) & (merged['class'] == target_class)
+            neighbors_diff_class_mask = merged['shape'].isin(neighbors_list) & (merged['class'] != target_class)
+            
+            # Target
+            target_mask = merged['shape'] == target_shape
+            
+            fig = go.Figure()
+            
+            # Add background points with configurable opacity
+            if background_mask.any():
+                for cls in merged.loc[background_mask, 'class'].unique():
+                    if cls not in color_map:
+                        continue
+                    cls_mask = background_mask & (merged['class'] == cls)
+                    # Clean shape names for hover tooltips
+                    hover_texts = [clean_shape_name(s) for s in merged.loc[cls_mask, 'shape']]
+                    fig.add_trace(go.Scatter(
+                        x=merged.loc[cls_mask, 'x'],
+                        y=merged.loc[cls_mask, 'y'],
+                        mode='markers',
+                        name=cls,
+                        text=hover_texts,
+                        hovertemplate='<b>%{text}</b><br>Class: ' + cls + '<extra></extra>',
+                        marker=dict(size=base_size, color=color_map[cls], opacity=bg_opacity),
+                        showlegend=True,
+                        legendgroup=cls
+                    ))
+            
+            # Add same class points (80% opacity)
+            if same_class_mask.any():
+                hover_texts = [clean_shape_name(s) for s in merged.loc[same_class_mask, 'shape']]
+                fig.add_trace(go.Scatter(
+                    x=merged.loc[same_class_mask, 'x'],
+                    y=merged.loc[same_class_mask, 'y'],
+                    mode='markers',
+                    name=f"{target_class} (same class)",
+                    text=hover_texts,
+                    hovertemplate='<b>%{text}</b><br>Class: ' + target_class + '<extra></extra>',
+                    marker=dict(size=base_size, color=color_map.get(target_class, '#999999'), opacity=0.8),
+                    showlegend=False,
+                    legendgroup=target_class
+                ))
+            # Add same-class neighbors (triangles, 100% opacity, black edge)
+            if neighbors_same_class_mask.any():
+                hover_texts = [clean_shape_name(s) for s in merged.loc[neighbors_same_class_mask, 'shape']]
+                fig.add_trace(go.Scatter(
+                    x=merged.loc[neighbors_same_class_mask, 'x'],
+                    y=merged.loc[neighbors_same_class_mask, 'y'],
+                    mode='markers',
+                    name=f"Same-class neighbors",
+                    text=hover_texts,
+                    hovertemplate='<b>%{text}</b><br>Class: ' + target_class + ' (neighbor)<extra></extra>',
+                    marker=dict(size=base_size, color=color_map.get(target_class, '#999999'), opacity=1.0, 
+                               symbol='triangle-up', line=dict(width=0.4, color='black')),
+                    showlegend=True
+                ))
+            
+            # Add different-class neighbors (triangles, 100% opacity, black edge)
+            if neighbors_diff_class_mask.any():
+                for cls in merged.loc[neighbors_diff_class_mask, 'class'].unique():
+                    if cls not in color_map:
+                        continue
+                    cls_neigh_mask = neighbors_diff_class_mask & (merged['class'] == cls)
+                    hover_texts = [clean_shape_name(s) for s in merged.loc[cls_neigh_mask, 'shape']]
+                    fig.add_trace(go.Scatter(
+                        x=merged.loc[cls_neigh_mask, 'x'],
+                        y=merged.loc[cls_neigh_mask, 'y'],
+                        mode='markers',
+                        name=f"{cls} (neighbor)",
+                        text=hover_texts,
+                        hovertemplate='<b>%{text}</b><br>Class: ' + cls + ' (neighbor)<extra></extra>',
+                        marker=dict(size=base_size, color=color_map[cls], opacity=1.0,
+                                   symbol='triangle-up', line=dict(width=0.4, color='black')),
+                        showlegend=True,
+                        legendgroup=cls
+                    ))
+            
+            # Add target point (square, 100% opacity, black edge)
+            if target_mask.any():
+                hover_texts = [clean_shape_name(s) for s in merged.loc[target_mask, 'shape']]
+                fig.add_trace(go.Scatter(
+                    x=merged.loc[target_mask, 'x'],
+                    y=merged.loc[target_mask, 'y'],
+                    mode='markers',
+                    name=f"{clean_shape_name(target_shape)} (target)",
+                    text=hover_texts,
+                    hovertemplate='<b>%{text}</b><br>Class: ' + target_class + ' (TARGET)<extra></extra>',
+                    marker=dict(size=base_size, color=color_map.get(target_class, '#999999'), opacity=1.0,
+                               symbol='square', line=dict(width=0.6, color='black')),
+                    showlegend=True
+                ))
+            
+            title_text = f"t-SNE Embedding • Focus: {clean_shape_name(target_shape)} (n={len(neighbors_list)})"
+            # title_text = f"t-SNE Embedding • Focus: {target_shape} (n={len(neighbors_list)})"
+        else:
+            # Normal mode: show all points by class with consistent colors
+            base_size = 15
+            fig = go.Figure()
+            
+            for cls in ordered_classes:
+                if cls not in color_map:
+                    continue
+                cls_mask = merged['class'] == cls
+                hover_texts = [clean_shape_name(s) for s in merged.loc[cls_mask, 'shape']]
+                fig.add_trace(go.Scatter(
+                    x=merged.loc[cls_mask, 'x'],
+                    y=merged.loc[cls_mask, 'y'],
+                    mode='markers',
+                    name=cls,
+                    text=hover_texts,
+                    hovertemplate='<b>%{text}</b><br>Class: ' + cls + '<extra></extra>',
+                    marker=dict(size=base_size, color=color_map[cls], opacity=0.8),
+                    showlegend=True
+                ))
+            
+            title_text = "t-SNE Embedding of 3D Shapes"
+        
+        fig.update_layout(
+            title=title_text,
+            xaxis_title="t-SNE Dimension 1",
+            yaxis_title="t-SNE Dimension 2",
+            hovermode='closest',
+            width=1200,
+            height=800,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=1.01,
+                bgcolor="rgba(255, 255, 255, 0.9)",
+                bordercolor="rgba(0, 0, 0, 0.2)",
+                borderwidth=1
+            ),
+            margin=dict(l=50, r=250, t=80, b=50)
+        )
+        
+        # Build modal content
+        modal_content = html.Div([
+            html.Div([
+                html.Div([
+                    html.H3("🧬 t-SNE Clustering Visualization", style={'margin': '0 0 20px 0', 'color': '#2c3e50'}),
+                    html.Button('✕', n_clicks=0,
+                               className='modal-close-x',
+                               style={
+                                   'position': 'absolute', 'top': '15px', 'right': '15px',
+                                   'background': 'none', 'border': 'none', 'fontSize': '24px',
+                                   'cursor': 'pointer', 'color': '#7f8c8d', 'lineHeight': '1'
+                               })
+                ], style={'position': 'relative', 'borderBottom': '2px solid #ecf0f1', 'paddingBottom': '15px', 'marginBottom': '20px'}),
+                
+                # Opacity control (only in focus mode)
+                html.Div([
+                    html.Label("Background Opacity:", style={'marginRight': '10px', 'fontWeight': 'bold', 'fontSize': '14px'}),
+                    dcc.RadioItems(
+                        id='tsne-background-opacity-toggle',
+                        options=[
+                            {'label': ' Low (0.1)', 'value': 0.1},
+                            {'label': ' Medium (0.35)', 'value': 0.35},
+                            {'label': ' Full (1.0)', 'value': 1.0}
+                        ],
+                        value=0.1,
+                        inline=True,
+                        style={'fontSize': '14px'}
+                    )
+                ], style={
+                    'marginBottom': '15px',
+                    'padding': '10px',
+                    'backgroundColor': '#f8f9fa',
+                    'borderRadius': '6px',
+                    'display': 'flex',
+                    'alignItems': 'center'
+                }) if target_shape else None,
+                
+                dcc.Graph(id='tsne-plot-graph', figure=fig, config={'displayModeBar': True, 'displaylogo': False}),
+                
+                html.Div([
+                    html.P([
+                        html.Strong("💡 Tip: "),
+                        "Hover over points to see shape names. ",
+                        "Select a shape from the left panel and click this button again to focus on it and its neighbors!"
+                    ], style={'color': '#7f8c8d', 'fontSize': '14px', 'marginTop': '15px'})
+                ])
+            ], className='modal-content', style={
+                'backgroundColor': 'white',
+                'padding': '30px',
+                'borderRadius': '12px',
+                'boxShadow': '0 10px 40px rgba(0,0,0,0.2)',
+                'maxWidth': '95vw',
+                'maxHeight': '95vh',
+                'overflow': 'auto',
+                'position': 'relative'
+            })
+        ], className='modal-backdrop', style={
+            'position': 'fixed',
+            'top': 0,
+            'left': 0,
+            'width': '100%',
+            'height': '100%',
+            'backgroundColor': 'rgba(0, 0, 0, 0.7)',
+            'display': 'flex',
+            'justifyContent': 'center',
+            'alignItems': 'center',
+            'zIndex': 2000
+        })
+        
+        return modal_content, {'display': 'flex'}
+
+    @app.callback(
+        Output('tsne-plot-graph', 'figure'),
+        Input('tsne-background-opacity-toggle', 'value'),
+        [State('tsne-plot-graph', 'figure'), State('selected-file-store', 'data')],
+        prevent_initial_call=True
+    )
+    def update_tsne_opacity(new_opacity, current_figure, selected_file_data):
+        """Update background point opacity in the t-SNE plot."""
+        if current_figure is None or new_opacity is None:
+            return no_update
+        
+        # Get selected shape if any
+        selected_shape = None
+        if selected_file_data and 'filename' in selected_file_data:
+            selected_shape = selected_file_data['filename']
+        elif selected_file_data and 'file_path' in selected_file_data:
+            selected_shape = os.path.basename(selected_file_data['file_path'])
+        
+        # Only update if in focus mode (selected_shape exists)
+        if not selected_shape:
+            return no_update
+        
+        # Create a new figure with updated opacities
+        import plotly.graph_objects as go
+        fig = go.Figure(current_figure)
+        
+        # Update background traces (those without special markers or keywords)
+        for i, trace in enumerate(fig.data):
+            trace_name = trace.name if trace.name else ''
+            marker_symbol = trace.marker.symbol if hasattr(trace, 'marker') and hasattr(trace.marker, 'symbol') else None
+            
+            # Background traces are those that don't have special markers
+            # and don't have "neighbor", "target", or "same class" in the name
+            is_background = (
+                'neighbor' not in trace_name.lower() and 
+                'target' not in trace_name.lower() and 
+                'same class' not in trace_name.lower() and
+                marker_symbol not in ['triangle-up', 'square']
+            )
+            
+            if is_background and hasattr(trace, 'marker'):
+                # Update opacity for background trace
+                fig.data[i].marker.opacity = new_opacity
+        
+        return fig
 
     # Control the modal visibility via a persistent Store to avoid missing-id issues
     @app.callback(

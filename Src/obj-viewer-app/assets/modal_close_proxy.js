@@ -8,17 +8,25 @@ document.addEventListener('click', function (e) {
         const btn = target.closest && target.closest('button');
         if (!btn) return;
 
-        // Only handle buttons whose visible text is exactly 'Close' (trimmed)
+        // Only handle buttons whose visible text is exactly 'Close' or '✕' (trimmed)
         const text = (btn.textContent || '').trim();
-        if (text !== 'Close') return;
+        if (text !== 'Close' && text !== '✕') return;
 
-        // Ensure the clicked button is inside either modal container
+        // Ensure the clicked button is inside one of the modal containers
         const modalGlobal = btn.closest && btn.closest('#global-descriptors-modal');
         const modalAux = btn.closest && btn.closest('#aux-descriptors-modal');
-        if (!modalGlobal && !modalAux) return;
+        const modalClustering = btn.closest && btn.closest('#clustering-modal');
+        if (!modalGlobal && !modalAux && !modalClustering) return;
 
-        // Prefer the matching hidden trigger (aux takes precedence if inside aux modal)
-        const hidden = modalAux ? document.getElementById('aux-descriptors-hidden-close-trigger') : document.getElementById('global-descriptors-hidden-close-trigger');
+        // Prefer the matching hidden trigger (priority: aux > clustering > global)
+        let hidden = null;
+        if (modalAux) {
+            hidden = document.getElementById('aux-descriptors-hidden-close-trigger');
+        } else if (modalClustering) {
+            hidden = document.getElementById('clustering-modal-hidden-close-trigger');
+        } else {
+            hidden = document.getElementById('global-descriptors-hidden-close-trigger');
+        }
         if (hidden) {
             // Prefer dispatching a MouseEvent in case some frameworks expect event properties
             try {
