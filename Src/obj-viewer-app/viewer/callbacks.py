@@ -2593,7 +2593,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             xaxis_title="t-SNE Dimension 1",
             yaxis_title="t-SNE Dimension 2",
             hovermode='closest',
-            width=1200,
+            width=1400,
             height=800,
             legend=dict(
                 yanchor="top",
@@ -2621,30 +2621,98 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                                })
                 ], style={'position': 'relative', 'borderBottom': '2px solid #ecf0f1', 'paddingBottom': '15px', 'marginBottom': '20px'}),
                 
-                # Opacity control (only in focus mode)
+                # Controls row: Opacity and Family Filter
                 html.Div([
-                    html.Label("Background Opacity:", style={'marginRight': '10px', 'fontWeight': 'bold', 'fontSize': '14px'}),
-                    dcc.RadioItems(
-                        id='tsne-background-opacity-toggle',
-                        options=[
-                            {'label': ' Low (0.1)', 'value': 0.1},
-                            {'label': ' Medium (0.35)', 'value': 0.35},
-                            {'label': ' Full (1.0)', 'value': 1.0}
-                        ],
-                        value=0.1,
-                        inline=True,
-                        style={'fontSize': '14px'}
-                    )
+                    # Opacity control (only in focus mode)
+                    html.Div([
+                        html.Label("Background Opacity:", style={'marginRight': '10px', 'fontWeight': 'bold', 'fontSize': '14px'}),
+                        dcc.RadioItems(
+                            id='tsne-background-opacity-toggle',
+                            options=[
+                                {'label': ' Low (0.1)', 'value': 0.1},
+                                {'label': ' Medium (0.35)', 'value': 0.35},
+                                {'label': ' Full (1.0)', 'value': 1.0}
+                            ],
+                            value=0.1,
+                            inline=True,
+                            style={'fontSize': '14px'}
+                        )
+                    ], style={
+                        'padding': '10px',
+                        'backgroundColor': '#f8f9fa',
+                        'borderRadius': '6px',
+                        'display': 'inline-flex',
+                        'alignItems': 'center',
+                        'marginRight': '15px'
+                    }) if target_shape else None,
+                    
+                    # Family filter with select all/clear all buttons
+                    html.Div([
+                        html.Label("Filter Families:", style={'marginRight': '10px', 'fontWeight': 'bold', 'fontSize': '14px', 'whiteSpace': 'nowrap'}),
+                        html.Div([
+                            dcc.Dropdown(
+                                id='tsne-family-filter',
+                                options=[
+                                    {'label': '🛩️ Aircraft', 'value': 'aircraft'},
+                                    {'label': '🚗 Ground Vehicles', 'value': 'ground_vehicles'},
+                                    {'label': '🚢 Water Vessels', 'value': 'water'},
+                                    {'label': '🏢 Buildings', 'value': 'buildings'},
+                                    {'label': '🪑 Furniture', 'value': 'furniture'},
+                                    {'label': '🎵 Music', 'value': 'music'},
+                                    {'label': '💻 Electronics', 'value': 'electronics'},
+                                    {'label': '💡 Lighting', 'value': 'lighting'},
+                                    {'label': '🍶 Small Objects', 'value': 'small_objects'},
+                                    {'label': '🔫 Weapons & Tools', 'value': 'weapons_tools'},
+                                    {'label': '🌳 Nature', 'value': 'nature'},
+                                    {'label': '👤 Living', 'value': 'living'},
+                                    {'label': '♟️ Misc', 'value': 'misc'}
+                                ],
+                                value=['aircraft', 'ground_vehicles', 'water', 'buildings', 'furniture', 'music', 
+                                       'electronics', 'lighting', 'small_objects', 'weapons_tools', 'nature', 'living', 'misc'],
+                                multi=True,
+                                placeholder="Select families to display...",
+                                style={'fontSize': '13px', 'width': '400px'}
+                            ),
+                            html.Div([
+                                html.Button('Select All', id='tsne-select-all-families', n_clicks=0,
+                                           style={
+                                               'padding': '4px 12px',
+                                               'fontSize': '12px',
+                                               'backgroundColor': '#3498db',
+                                               'color': 'white',
+                                               'border': 'none',
+                                               'borderRadius': '4px',
+                                               'cursor': 'pointer',
+                                               'marginRight': '5px'
+                                           }),
+                                html.Button('Clear All', id='tsne-clear-all-families', n_clicks=0,
+                                           style={
+                                               'padding': '4px 12px',
+                                               'fontSize': '12px',
+                                               'backgroundColor': '#95a5a6',
+                                               'color': 'white',
+                                               'border': 'none',
+                                               'borderRadius': '4px',
+                                               'cursor': 'pointer'
+                                           })
+                            ], style={'marginLeft': '10px', 'display': 'flex', 'alignItems': 'center'})
+                        ], style={'display': 'flex', 'alignItems': 'center'})
+                    ], style={
+                        'padding': '10px',
+                        'backgroundColor': '#f8f9fa',
+                        'borderRadius': '6px',
+                        'display': 'inline-flex',
+                        'alignItems': 'center',
+                        'flex': '1'
+                    })
                 ], style={
                     'marginBottom': '15px',
-                    'padding': '10px',
-                    'backgroundColor': '#f8f9fa',
-                    'borderRadius': '6px',
                     'display': 'flex',
-                    'alignItems': 'center'
-                }) if target_shape else None,
+                    'alignItems': 'center',
+                    'width': '100%'
+                }),
                 
-                dcc.Graph(id='tsne-plot-graph', figure=fig, config={'displayModeBar': True, 'displaylogo': False}),
+                dcc.Graph(id='tsne-plot-graph', figure=fig, config={'displayModeBar': True, 'displaylogo': False}, style={'width': '100%'}),
                 
                 html.Div([
                     html.P([
@@ -2658,6 +2726,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 'padding': '30px',
                 'borderRadius': '12px',
                 'boxShadow': '0 10px 40px rgba(0,0,0,0.2)',
+                'width': '1500px',
                 'maxWidth': '95vw',
                 'maxHeight': '95vh',
                 'overflow': 'auto',
@@ -2723,6 +2792,78 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 fig.data[i].marker.opacity = new_opacity
         
         return fig
+
+    @app.callback(
+        Output('tsne-plot-graph', 'figure', allow_duplicate=True),
+        Input('tsne-family-filter', 'value'),
+        [State('tsne-plot-graph', 'figure')],
+        prevent_initial_call=True
+    )
+    def update_tsne_family_filter(selected_families, current_figure):
+        """Filter t-SNE plot traces based on selected family groups."""
+        if current_figure is None or selected_families is None:
+            return no_update
+        
+        # Import category groups
+        from .category_colors import CATEGORY_GROUPS
+        
+        # Build set of categories to show based on selected families
+        categories_to_show = set()
+        for family in selected_families:
+            if family in CATEGORY_GROUPS:
+                categories_to_show.update(CATEGORY_GROUPS[family])
+        
+        # Create a new figure with filtered traces
+        import plotly.graph_objects as go
+        fig = go.Figure(current_figure)
+        
+        # Update visibility for each trace based on whether its category is in the selected families
+        for i, trace in enumerate(fig.data):
+            trace_name = trace.name if trace.name else ''
+            
+            # Special traces (neighbors, target) are always visible
+            is_special = (
+                'neighbor' in trace_name.lower() or 
+                'target' in trace_name.lower() or
+                'same class' in trace_name.lower()
+            )
+            
+            if is_special:
+                # Always show special traces
+                fig.data[i].visible = True
+            else:
+                # For regular category traces, check if category is in selected families
+                # The trace name is the category name (unless it has special suffixes)
+                category_name = trace_name.split(' (')[0].strip()  # Remove any suffixes like " (neighbor)"
+                
+                # Show trace if its category is in the allowed set
+                fig.data[i].visible = category_name in categories_to_show
+        
+        return fig
+
+    @app.callback(
+        Output('tsne-family-filter', 'value'),
+        [Input('tsne-select-all-families', 'n_clicks'),
+         Input('tsne-clear-all-families', 'n_clicks')],
+        prevent_initial_call=True
+    )
+    def update_family_selection(select_all_clicks, clear_all_clicks):
+        """Handle Select All and Clear All buttons for family filter."""
+        ctx = callback_context
+        if not ctx.triggered:
+            return no_update
+        
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        if trigger_id == 'tsne-select-all-families':
+            # Select all families
+            return ['aircraft', 'ground_vehicles', 'water', 'buildings', 'furniture', 'music', 
+                    'electronics', 'lighting', 'small_objects', 'weapons_tools', 'nature', 'living', 'misc']
+        elif trigger_id == 'tsne-clear-all-families':
+            # Clear all families
+            return []
+        
+        return no_update
 
     # Control the modal visibility via a persistent Store to avoid missing-id issues
     @app.callback(
