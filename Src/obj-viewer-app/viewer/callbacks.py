@@ -2058,48 +2058,94 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # 5) Similar shapes rendering
     @app.callback(
-        Output('aux-plots-content', 'children'),
+        [Output('aux-plots-content', 'children'),
+         Output('similar-shapes-accuracy', 'children'),
+         Output('similar-shapes-accuracy', 'style')],
         [Input('find-shapes-button', 'n_clicks'),
         Input('amount-plots-slider', 'value'),
         Input('selected-file-store', 'data'),
-        Input('display-options', 'value'),
+        Input('aux-display-options', 'value'),
         Input('color-selector', 'value')],
+        [State('selected-dataset-store', 'data')],
         prevent_initial_call=True
     )
-    def render_or_clear_aux_plots(n_clicks, n_plots, selected_idx, display_opts, mesh_color):
+    def render_or_clear_aux_plots(n_clicks, n_plots, selected_idx, aux_display_opts, mesh_color, selected_dataset):
         """
         Render auxiliary plots of similar shapes when the button is clicked.
 
         Parameters:
         - n_clicks: int, number of times the "Find Similar Shapes" button was clicked
         - n_plots: int, number of similar shapes to display
-        - selected_idx: int or None, index of the selected file from the file list
-        - display_opts: list of str, display options selected (e.g., 'wireframe', 'smooth_shading')
+        - selected_idx: dict, selected file data with 'filename' and 'dataset' keys
+        - aux_display_opts: list of str, display options for aux plots (e.g., 'wireframe', 'smooth_shading')
         - mesh_color: str, color selected for the mesh
+        - selected_dataset: str, name of the selected dataset
         Returns:
-        - List of HTML Div elements containing the auxiliary plots or no_update/empty list to clear
+        - Tuple: (list of plot divs, accuracy text, accuracy style dict)
         """
         ctx = dash.callback_context
         if not ctx.triggered:
-            return no_update
+            return no_update, no_update, no_update
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
         # Clear the row when a new shape is selected
         if triggered_id == 'selected-file-store':
-            return []
+            return [], [], {'display': 'none'}
 
-        # Only render after button click
-        if triggered_id != 'find-shapes-button' or not n_clicks or n_clicks <= 0 or selected_idx is None:
-            return no_update
+        # Check if we should render (button click OR display options changed while we have shapes)
+        # If display options or color changed, we need to have a valid selection and prior button click
+        if triggered_id in ['aux-display-options', 'color-selector', 'amount-plots-slider']:
+            # Only re-render if we have a selected shape and button was clicked at least once
+            if not selected_idx or not n_clicks or n_clicks <= 0:
+                return no_update, no_update, no_update
+            # Continue to render with new display options
+        elif triggered_id == 'find-shapes-button':
+            # Button click - proceed normally
+            if not n_clicks or n_clicks <= 0 or selected_idx is None:
+                return no_update, no_update, no_update
+        else:
+            # Unknown trigger, don't update
+            return no_update, no_update, no_update
 
-        show_wire = 'wireframe' in (display_opts or [])
-        smooth_shading = 'smooth_shading' in (display_opts or [])
+        # Get current shape's category
+        current_category = None
+        try:
+            if isinstance(selected_idx, dict):
+                filename = selected_idx.get('filename')
+                dataset = selected_idx.get('dataset', selected_dataset)
+                if filename and dataset:
+                    file_df = get_cached_dataset_data(dataset)
+                    matching_rows = file_df[file_df['filename'] == filename]
+                    if not matching_rows.empty:
+                        current_category = matching_rows.iloc[0]['category']
+        except Exception as e:
+            print(f"Error getting current shape category: {e}")
+
+        show_wire = 'wireframe' in (aux_display_opts or [])
+        smooth_shading = 'smooth_shading' in (aux_display_opts or [])
         total = int(n_plots or 5)
 
         samples = retrieve_closest_shapes(selected_idx, total)
         if not samples:
             # Return an empty list (the UI will hide the loading message when this content is set)
-            return []
+            return [], [], {'display': 'none'}
+        
+        # Calculate accuracy if we have current category
+        accuracy_text = []
+        accuracy_style = {'display': 'none'}
+        if current_category:
+            same_category_count = sum(1 for sample in samples if sample.get('category') == current_category)
+            accuracy_percentage = (same_category_count / len(samples)) * 100
+            accuracy_text = f"Accuracy: {accuracy_percentage:.1f}%"
+            accuracy_style = {
+                'fontSize': '14px',
+                'fontWeight': 'bold',
+                'color': '#2563eb',
+                'padding': '4px 12px',
+                'backgroundColor': 'rgba(37, 99, 235, 0.1)',
+                'borderRadius': '6px',
+                'display': 'block'
+            }
         # Build a category -> color dictionary (distinct colors)
         categories_list = [
             'AircraftBuoyant', 'Apartment', 'AquaticAnimal', 'Bed', 'Bicycle', 'Biplane', 'Bird', 'Bookset', 'Bottle',
@@ -2246,8 +2292,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             })
             cards.append(card)
 
-        # Return just the cards here; the legend is now rendered statically in the layout
-        return cards
+        # Return cards, accuracy text, and accuracy style
+        return cards, accuracy_text, accuracy_style
 
     # Control the modal visibility via a persistent Store to avoid missing-id issues
     @app.callback(
