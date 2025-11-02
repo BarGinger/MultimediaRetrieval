@@ -508,9 +508,21 @@ def build_layout(file_df, dataset_options, selected_dataset):
                 ])
             ], className="center-panel"),
 
-            # Right panel: Additional Plots
+            # Right panel: Similar Shapes
             html.Div([
-                html.H3("📊 Additional Plots", className="panel-title aux-title"),
+                # Header row with title on left and accuracy on right
+                html.Div([
+                    html.H3("📊 Similar Shapes", className="panel-title aux-title", style={'margin': 0}),
+                    html.Div(id='similar-shapes-accuracy', children=[], style={
+                        'fontSize': '14px',
+                        'fontWeight': 'bold',
+                        'color': '#2563eb',
+                        'padding': '4px 12px',
+                        'backgroundColor': 'rgba(37, 99, 235, 0.1)',
+                        'borderRadius': '6px',
+                        'display': 'none'  # Hidden by default
+                    })
+                ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center', 'marginBottom': '12px'}),
 
                 html.Div(id='similar-shapes-controllers', children=[  
                     dcc.Slider(
@@ -576,6 +588,30 @@ def build_layout(file_df, dataset_options, selected_dataset):
                         'padding': '6px'
                     })
                 ], style={'width': '100%'}),
+
+                # Display options for similar shapes (below legend)
+                html.Div([
+                    html.Label("Display Options:", style={'fontSize': '12px', 'fontWeight': 'bold', 'marginRight': '12px'}),
+                    dcc.Checklist(
+                        id='aux-display-options',
+                        options=[
+                            {'label': ' Show edges', 'value': 'wireframe'},
+                            {'label': ' Smooth shading', 'value': 'smooth_shading'}
+                        ],
+                        value=[],
+                        style={'display': 'inline-block'},
+                        labelStyle={'display': 'inline-block', 'marginRight': '15px'}
+                    )
+                ], style={
+                    'width': '100%',
+                    'marginTop': '8px',
+                    'padding': '8px',
+                    'backgroundColor': '#f8f9fa',
+                    'borderRadius': '6px',
+                    'border': '1px solid rgba(0,0,0,0.08)',
+                    'display': 'flex',
+                    'alignItems': 'center'
+                }),
 
                 dcc.Loading(
                     id='loading-aux-plots',
