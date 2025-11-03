@@ -607,7 +607,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     @app.callback(
         [Output('selected-file-store', 'data', allow_duplicate=True),
          Output('shape-info', 'children', allow_duplicate=True),
-         Output('toast-store', 'data', allow_duplicate=True)],
+         Output('toast-store', 'data', allow_duplicate=True),
+         Output('current-batch-store', 'data', allow_duplicate=True)],
         [Input('avg-vertices-btn', 'n_clicks'),
          Input('avg-faces-btn', 'n_clicks')],
         [State('category-filter', 'value'),
@@ -618,14 +619,15 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          State('faces-value', 'value'),
          State('sort-field', 'value'),
          State('sort-order', 'data-order'),
-         State('selected-dataset-store', 'data')],
+         State('selected-dataset-store', 'data'),
+         State('current-batch-store', 'data')],
         prevent_initial_call=True
     )
-    def navigate_to_average(avg_vertices_clicks, avg_faces_clicks, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):
+    def navigate_to_average(avg_vertices_clicks, avg_faces_clicks, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset, current_batch):
         """Navigate to the item closest to average vertices or faces in the currently displayed list"""
         ctx = callback_context
         if not ctx.triggered:
-            return no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update
         
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
         
@@ -635,7 +637,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             file_df = get_cached_dataset_data(selected_dataset)
         except Exception as e:
             print(f"Error loading dataset {selected_dataset}: {e}")
-            return no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update
         
         # Cached data already includes analysis columns (num_vertices, num_faces)
         print(f"✅ Using cached data for average navigation with {len(file_df)} shapes")
@@ -644,7 +646,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if 'num_vertices' not in file_df.columns or 'num_faces' not in file_df.columns:
             print(f"⚠️ No analysis data in cached dataset {selected_dataset} - cannot find average")
             toast_data = create_toast_data("No analysis data available for average calculation", "warning", "⚠️")
-            return no_update, no_update, toast_data
+            return no_update, no_update, toast_data, no_update
         
         # Apply category filter (same as file list)
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
@@ -714,23 +716,29 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         if selected_idx is not None:
             # Get the selected row and create shape info
             row = df.iloc[selected_idx]
-            # No toast here - handled by client-side callbacks
+            
+            # IMPORTANT: Calculate if we need to load more files to show this item
+            batch_size = 150
+            # Ensure we load enough files to show the target (add 1 because index is 0-based)
+            required_batch = ((selected_idx + 1) // batch_size + 1) * batch_size
+            new_batch = max(current_batch, required_batch)
+            
+            print(f"🎯 Average item at index {selected_idx}, current batch: {current_batch}, required: {required_batch}, setting to: {new_batch}")
             
             try:
                 mesh = ShapeMesh.from_file_row(row)
                 info = mesh.get_card_header_html()
-                # Return in correct order: selected-file-store, shape-info, toast-store
-                return {'filename': row['filename'], 'dataset': selected_dataset}, info, dash.no_update
+                # Return in correct order: selected-file-store, shape-info, toast-store, current-batch-store
+                return {'filename': row['filename'], 'dataset': selected_dataset}, info, dash.no_update, new_batch
             except Exception as e:
                 err_info = html.Div([
                     html.H4("❌ Error Loading Average Shape", style={'color': '#e74c3c', 'marginBottom': '15px'}),
                     html.Div([html.Strong("📄 File: "), row['filepath']], style={'marginBottom': '8px'}),
                     html.Div([html.Strong("⚠️ Error: "), str(e)], style={'color': '#e74c3c'})
                 ])
-                error_toast_data = dash.no_update  # No old toast system
-                return {'filename': row['filename'], 'dataset': selected_dataset}, err_info, error_toast_data
+                return {'filename': row['filename'], 'dataset': selected_dataset}, err_info, dash.no_update, new_batch
         
-        return no_update, no_update, no_update
+        return no_update, no_update, no_update, no_update
 
     # Show loading indicator immediately when average buttons are clicked
     app.clientside_callback(
@@ -1110,6 +1118,41 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # Sort order button toggle
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (!n_clicks || n_clicks === 0) {
+                return window.dash_clientside.no_update;
+            }
+            
+            const sortBtn = document.getElementById('sort-order');
+            if (!sortBtn) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Get current order
+            const currentOrder = sortBtn.getAttribute('data-order') || 'asc';
+            const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            
+            // Update button
+            sortBtn.setAttribute('data-order', newOrder);
+            sortBtn.textContent = newOrder === 'asc' ? '↑' : '↓';
+            sortBtn.title = newOrder === 'asc' ? 
+                'Sort Order: Ascending (click to change to Descending)' : 
+                'Sort Order: Descending (click to change to Ascending)';
+            
+            console.log('Sort order toggled to:', newOrder);
+            
+            // Return new order to trigger file list update
+            return newOrder;
+        }
+        """,
+        Output('sort-order', 'data-order'),
+        Input('sort-order', 'n_clicks'),
+        prevent_initial_call=True
+    )
+
     # Toast system using stores (no DOM conflicts)
     @app.callback(
         [Output('toast-container', 'children'),
@@ -1433,6 +1476,53 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         has_more_attr = 'true' if has_more_files else 'false'
         
         return file_items, new_batch, load_more_style, file_count_info, has_more_attr
+
+    # Handle batch updates from average navigation (ensures files are loaded before scrolling)
+    @app.callback(
+        [Output('file-list', 'children', allow_duplicate=True),
+         Output('load-more-btn', 'style', allow_duplicate=True),
+         Output('file-count-info', 'children', allow_duplicate=True),
+         Output('load-more-btn', 'data-has-more', allow_duplicate=True)],
+        [Input('current-batch-store', 'data')],
+        [State('file-data-store', 'data')],
+        prevent_initial_call=True
+    )
+    def update_files_on_batch_change(new_batch, full_data):
+        """Update file list when batch size changes (e.g., from average navigation)"""
+        if not full_data or new_batch is None:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        
+        # Extract batch value if it's a dict
+        if isinstance(new_batch, dict):
+            batch_value = new_batch.get('batch', 150)
+        else:
+            batch_value = new_batch
+        
+        total_files = len(full_data)
+        
+        # Get all files up to the new batch
+        files_to_show = full_data[:batch_value]
+        
+        # Create file items
+        file_items = []
+        for item in files_to_show:
+            file_items.append(create_file_button(item))
+        
+        # Update file count info
+        remaining_files = total_files - batch_value
+        if remaining_files > 0:
+            file_count_info = f"📊 {batch_value} of {total_files:,} files"
+        else:
+            file_count_info = f"📊 All {total_files:,} files"
+        
+        # Show load-more button if there are more files
+        has_more_files = remaining_files > 0
+        load_more_style = {'display': 'block', 'margin': '10px auto'} if has_more_files else {'display': 'none'}
+        has_more_attr = 'true' if has_more_files else 'false'
+        
+        print(f"📂 Updated file list to show {batch_value} files (triggered by batch change)")
+        
+        return file_items, load_more_style, file_count_info, has_more_attr
 
     # Client-side infinite scroll detection - TEMPORARILY DISABLED
     # app.clientside_callback(

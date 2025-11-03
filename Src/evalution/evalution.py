@@ -789,16 +789,29 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                 # Use readable metric name in title
                 metric_display_name = metric_names.get(m, m)
 
-                fig, ax = plt.subplots(figsize=(3 + n_approaches * 1.2, max(5, n_classes * 0.35)))
+                # Much larger figure to accommodate large text
+                fig_width = 10 + n_approaches * 2
+                fig_height = max(15, n_classes * 0.4)
+                fig, ax = plt.subplots(figsize=(fig_width, fig_height))
                 im = ax.imshow(mat, aspect='auto', interpolation='nearest', cmap=cmap_name, vmin=vmin, vmax=vmax)
+                
+                # Y-axis (classes): Much larger font
                 ax.set_yticks(np.arange(n_classes))
-                ax.set_yticklabels(display_classes, fontsize=9)
+                ax.set_yticklabels(display_classes, fontsize=22, rotation=0, va='center', ha='right', fontweight='bold')
+                
+                # X-axis (approaches): Much larger font, rotated 45 degrees
                 ax.set_xticks(np.arange(n_approaches))
-                ax.set_xticklabels([a.replace('_', ' ').title() for a in approaches], rotation=45, ha='right', fontsize=10)
-                ax.set_title(f'Per-class comparison — {metric_display_name}', fontsize=12, weight='bold')
+                ax.set_xticklabels([a.replace('_', ' ').title() for a in approaches], 
+                                   rotation=45, ha='right', fontsize=22, fontweight='bold')
+                
+                # Much larger title
+                ax.set_title(f'Per-class comparison — {metric_display_name}', fontsize=24, weight='bold', pad=25)
+
+                # Colorbar with larger ticks
                 cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-                cbar.ax.tick_params(labelsize=10)
-                # annotate values inside cells with contrast-aware text color
+                cbar.ax.tick_params(labelsize=20)
+                
+                # annotate values inside cells with contrast-aware text color and larger font
                 # determine threshold from colormap midpoint
                 import matplotlib
                 cmap_obj = matplotlib.colormaps.get_cmap(cmap_name)
@@ -816,9 +829,12 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                             r, g, b = rgba[0], rgba[1], rgba[2]
                             lum = 0.299 * r + 0.587 * g + 0.114 * b
                             text_color = 'white' if lum < 0.6 else 'black'
-                            ax.text(j, i, f'{val:.3f}', ha='center', va='center', fontsize=8, color=text_color)
-                ax.tick_params(axis='y', which='both', labelsize=9)
-                ax.tick_params(axis='x', which='both', labelsize=10)
+                            # Much larger cell values
+                            ax.text(j, i, f'{val:.3f}', ha='center', va='center', fontsize=14, color=text_color, weight='bold')
+                
+                # Increase padding for tick labels
+                ax.tick_params(axis='y', which='both', labelsize=20, pad=8, labelcolor="#000080")
+                ax.tick_params(axis='x', which='both', labelsize=20, pad=8, labelcolor="#000080")
                 fig.savefig(out_dir / f'heatmap_per_class_vs_approach_{m}.png', bbox_inches='tight', dpi=200)
                 plt.close(fig)
 
@@ -913,7 +929,7 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                 
                 leg = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
                 for text in leg.get_texts():
-                    text.set_fontsize(10)
+                    text.set_fontsize(22)
                 
                 # Save with descriptive filename
                 filename = f'comparison_overall_metrics_{agg_type.split()[0]}.png'
