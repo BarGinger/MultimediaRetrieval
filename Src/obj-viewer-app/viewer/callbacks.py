@@ -1110,6 +1110,41 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
+    # Sort order button toggle
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (!n_clicks || n_clicks === 0) {
+                return window.dash_clientside.no_update;
+            }
+            
+            const sortBtn = document.getElementById('sort-order');
+            if (!sortBtn) {
+                return window.dash_clientside.no_update;
+            }
+            
+            // Get current order
+            const currentOrder = sortBtn.getAttribute('data-order') || 'asc';
+            const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            
+            // Update button
+            sortBtn.setAttribute('data-order', newOrder);
+            sortBtn.textContent = newOrder === 'asc' ? '↑' : '↓';
+            sortBtn.title = newOrder === 'asc' ? 
+                'Sort Order: Ascending (click to change to Descending)' : 
+                'Sort Order: Descending (click to change to Ascending)';
+            
+            console.log('Sort order toggled to:', newOrder);
+            
+            // Return new order to trigger file list update
+            return newOrder;
+        }
+        """,
+        Output('sort-order', 'data-order'),
+        Input('sort-order', 'n_clicks'),
+        prevent_initial_call=True
+    )
+
     # Toast system using stores (no DOM conflicts)
     @app.callback(
         [Output('toast-container', 'children'),
