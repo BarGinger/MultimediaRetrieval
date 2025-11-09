@@ -50,7 +50,7 @@ def create_3d_plot(vertices: np.ndarray,
         fig.add_trace(go.Mesh3d(
             x=x, y=y, z=z,
             i=i, j=j, k=k,
-            color=mesh_color, opacity=0.85, name="Mesh",
+            color=mesh_color, opacity=1, name="Mesh",
             flatshading=not smooth_shading,
             lighting=dict(ambient=0.18, diffuse=1, fresnel=0.1, specular=1, roughness=0.05),
             lightposition=dict(x=100, y=200, z=0)
