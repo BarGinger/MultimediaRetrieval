@@ -14,7 +14,6 @@ class MeshTransformations:
         Create the convex hull of `mesh_obj` and return it as a new ShapeMesh.
         """
         vertices = mesh.vertices
-        # create convex hull
         try:
             hull = ConvexHull(vertices)
         except QhullError as e:
@@ -39,7 +38,7 @@ class MeshTransformations:
             bounding_box=None,
             size=None,
             filepath=None,
-            base_mesh=None,  # keep None; wrap in trimesh if you want downstream features
+            base_mesh=None,
         )
     
     def __fill_holes(mesh: ShapeMesh) -> ShapeMesh:
@@ -192,7 +191,7 @@ class MeshTransformations:
 
         keep = np.ones(len(faces), dtype=bool)
 
-        # 1) removing degenerate faces (repeated indices or near-zero area)
+        # removing degenerate faces (repeated indices or near-zero area)
         non_repeated = np.array([len({int(a), int(b), int(c)}) == 3 for a, b, c in faces])
         keep &= non_repeated
 
@@ -210,7 +209,7 @@ class MeshTransformations:
 
         faces = faces[keep]
 
-        # 2) removing duplicate faces (ignoring orientation)
+        # removing duplicate faces (ignoring orientation)
         if len(faces) > 0:
             seen = set()
             unique_rows = []
@@ -222,7 +221,7 @@ class MeshTransformations:
                 unique_rows.append(face)
             faces = np.array(unique_rows, dtype=np.int32)
 
-        # 3) Drop unreferenced vertices and reindex faces        
+        # drop unreferenced vertices and reindex faces        
         used = np.unique(faces.ravel())
         remap = -np.ones(vertices.shape[0], dtype=np.int32)
         remap[used] = np.arange(used.size, dtype=np.int32)
@@ -250,7 +249,7 @@ class MeshTransformations:
             2) remove duplicate/degenerate faces and drop unused vertices,
             3) orient faces consistently.
         """
-        # fill_holes mutates; make a lightweight copy first to avoid side-effects
+        # fill_holes mutates. make a  copy first to avoid side-effects
         tmp = ShapeMesh(
             vertices=mesh.vertices.copy(),
             faces=mesh.faces.copy(),

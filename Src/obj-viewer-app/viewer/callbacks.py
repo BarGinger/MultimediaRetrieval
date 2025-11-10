@@ -2383,7 +2383,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         smooth_shading = 'smooth_shading' in (aux_display_opts or [])
         total = int(n_plots or 5)
 
-        samples = retrieve_closest_shapes_using_euclidian(selected_idx, total)
+        samples = retrieve_closest_shapes(selected_idx, total)
         if not samples:
             # Return an empty list (the UI will hide the loading message when this content is set)
             return [], [], {'display': 'none'}

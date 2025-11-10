@@ -25,7 +25,7 @@ tsne = TSNE(
     metric='precomputed',
     perplexity=30,
     learning_rate='auto',
-    init='random',     # <-- change here
+    init='random',
     random_state=42,
     verbose=1
 )
@@ -53,7 +53,7 @@ plt.figure(figsize=(8,8))
 sc = plt.scatter(
     merged['x'], merged['y'],
     c=merged['class_code'],
-    cmap='hsv',   # hsv cycles smoothly through hues
+    cmap='hsv',
     s=15,
     alpha=0.8
 )
@@ -109,13 +109,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Inputs:
-# - df: square distance matrix (index = shape names, columns = shape names)
-# - labels: DataFrame with columns ['shape', 'class']
-
 K = 10  # number of nearest neighbours to evaluate
 
-# 1) Align labels to df index order
+# Align labels to df index order
 df = df.loc[df.index, df.index]
 lab = labels.set_index('shape').reindex(df.index)['class']
 
@@ -123,28 +119,27 @@ if lab.isna().any():
     missing = lab[lab.isna()].index.tolist()[:5]
     raise ValueError(f"Missing class labels for some shapes, e.g. {missing}")
 
-# 2) Prepare distance matrix (exclude self-distances)
+# Prepare distance matrix (exclude self-distances)
 D = df.to_numpy(dtype=float)
 np.fill_diagonal(D, np.inf)  # so self never selected among neighbours
 
 n = D.shape[0]
 classes = lab.to_numpy()
 
-# 3) For each row, get indices of K nearest neighbours
-#    argpartition is O(n) per row and much faster than full argsort
-nn_idx = np.argpartition(D, K, axis=1)[:, :K]  # (n, K) unordered among K
-# Optionally sort those K by actual distance for neatness (not strictly needed)
+# For each row, get indices of K nearest neighbours
+nn_idx = np.argpartition(D, K, axis=1)[:, :K]
+
 row_indices = np.arange(n)[:, None]
 nn_dists = D[row_indices, nn_idx]
 order_within_k = np.argsort(nn_dists, axis=1)
 nn_idx = nn_idx[row_indices, order_within_k]    # now sorted (n, K)
 
-# 4) Compute correctness@K per sample
+# Compute correctness@K per sample
 nn_classes = classes[nn_idx]                    # (n, K) class of each neighbour
 same_class = (nn_classes == classes[:, None])   # (n, K) boolean
 correct_k = same_class.sum(axis=1)              # (n,) count of correct neighbours
 
-# 5) Aggregate per class
+# aggregate per class
 results = pd.DataFrame({
     'shape': df.index,
     'class': classes,
@@ -163,7 +158,7 @@ per_class = (results
 
 print(per_class.head(10))
 
-# 6) Plot: one bar per class (average % correct out of 10)
+# Plot
 plt.figure(figsize=(max(10, len(per_class)*0.18), 5))
 plt.bar(per_class.index.astype(str), per_class[f'avg_perc@{K}%'])
 plt.ylabel(f'Average precision@{K} (%)')
@@ -211,11 +206,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-# ---- 1️⃣  Per-class precision results (from your earlier computation)
-# Make sure you already have `per_class` with 'avg_perc@10%' column
-# and `labels` with ['shape', 'class']
-
-# ---- 2️⃣  Random baseline probability
+# random baseline probability
 class_counts = labels['class'].value_counts()
 total = len(labels)
 random_baseline = pd.DataFrame({
@@ -223,13 +214,13 @@ random_baseline = pd.DataFrame({
     'random_prob_%': class_counts.values / total * 100
 }).set_index('class')
 
-# ---- 3️⃣  Combine both
+# Combine both
 comparison = per_class.join(random_baseline, how='left')
 
-# ---- 4️⃣  Sort by highest actual accuracy
+# Sort by highest actual accuracy
 comparison = comparison.sort_values(by='avg_perc@10%', ascending=False)
 
-# ---- 5️⃣  Plot
+# Plot
 x = np.arange(len(comparison))
 width = 0.4
 

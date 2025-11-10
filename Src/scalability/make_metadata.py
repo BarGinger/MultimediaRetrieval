@@ -28,7 +28,6 @@ meta = pd.DataFrame({
     # ...
 })
 
-# De-dup on filename so your retriever's .set_index('filename') is happy
 meta = meta.drop_duplicates(subset=["filename"])
 meta.to_csv(OUT, index=False)
 print(f"Wrote {OUT} with {len(meta)} rows")
