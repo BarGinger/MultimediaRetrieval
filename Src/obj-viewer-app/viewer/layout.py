@@ -509,52 +509,54 @@ def build_layout(file_df, dataset_options, selected_dataset):
                 ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center', 'marginBottom': '12px'}),
 
                 html.Div(id='similar-shapes-controllers', children=[  
-                    dcc.Slider(
-                        id='amount-plots-slider',
-                        min=1, max=10, step=1, value=5,
-                        marks={1:'1', 2:'2', 3:'3', 4:'4', 5:'5',6:'6',7:'7',8:'8',9:'9',10:'10'},
-                        tooltip={'always_visible': False},
-                        className="aux-slider"
-                    ),
-
-                     html.Button(
-                        [
-                            html.Span('🔍', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
-                            html.Span('Find similar shapes', style={'verticalAlign': 'middle'})
-                        ],      
-                        id='find-shapes-button',
-                        n_clicks=0,
-                        className="aux-btn"
-                    ),
-
-                     html.Button([
-                                    html.Span('🧬', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
-                                    html.Span('Show t-SNE Plot', style={'verticalAlign': 'middle'})
+                    html.Div([
+                        dcc.Slider(
+                            id='amount-plots-slider',
+                            min=1, max=10, step=1, value=5,
+                            marks={1:'1', 2:'2', 3:'3', 4:'4', 5:'5',6:'6',7:'7',8:'8',9:'9',10:'10'},
+                            tooltip={'always_visible': False},
+                            className="aux-slider"
+                        ),
+                        html.Div([
+                            html.Label("Retrieval Method:", style={'fontSize': '16px', 'fontWeight': 'bold', 'marginBottom': '4px', 'marginTop': '8px'}),
+                            dcc.RadioItems(
+                                id='retrieval-method-radio',
+                                options=[
+                                    {'label': ' Closest (Matrix)', 'value': 'closest'},                                    
+                                    {'label': ' KNN (Euclidean)', 'value': 'knn'},
+                                    {'label': ' Random', 'value': 'random'}
                                 ],
-                                    id='show-clustering-btn',
-                                    n_clicks=0,
-                                    className='cluster-btn',
-                                    # className='center-action-btn pretty-action-btn',
-                                    # style={
-                                    #     'background': 'linear-gradient(90deg, #583191 0%, #C3A1F3 100%)',
-                                    #     'width': 'auto',
-                                    #     'color': 'white',
-                                    #     'border': 'none',
-                                    #     'borderRadius': '6px',
-                                    #     'padding': '2px 12px',
-                                    #     'fontWeight': 500,
-                                    #     'fontSize': '12px',
-                                    #     'boxShadow': '0 1px 4px rgba(190,24,93,0.10)',
-                                    #     'cursor': 'pointer',
-                                    #     'transition': 'background 0.2s',
-                                    #     'outline': 'none',
-                                    #     'display': 'flex',
-                                    #     'alignItems': 'center',
-                                    #     'gap': '2px',
-                                    # }
-                                )
+                                value='closest',
+                                labelStyle={'display': 'inline-block', 'marginRight': '14px'},
+                                style={'fontSize': '14px'}
+                            )
+                        ], style={'display': 'flex', 'flexDirection': 'column'})
+                    ], style={'display': 'flex', 'flexDirection': 'column', 'flex': '1'}),
 
-                ], style={'width': '100%', 'display': 'flex', 'flexDirection': 'row', 'alignItems': 'space-between', 'gap': '30px'}),
+                    html.Div([
+                        html.Button(
+                            [
+                                html.Span('🔍', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                                html.Span('Find similar shapes', style={'verticalAlign': 'middle'})
+                            ],      
+                            id='find-shapes-button',
+                            n_clicks=0,
+                            className="aux-btn",
+                            style={'height': '36px', 'padding': '6px 12px'}
+                        ),
+
+                        html.Button([
+                                        html.Span('🧬', style={'marginRight': '4px', 'fontSize': '14px', 'verticalAlign': 'middle'}),
+                                        html.Span('Show t-SNE Plot', style={'verticalAlign': 'middle'})
+                                    ],
+                                        id='show-clustering-btn',
+                                        n_clicks=0,
+                                        className='cluster-btn',
+                                        style={'height': '36px', 'padding': '6px 12px'}
+                                    )
+                    ], style={'display': 'flex', 'flexDirection': 'column', 'gap': '8px', 'alignItems': 'flex-start'})
+
+                ], style={'width': '100%', 'display': 'flex', 'flexDirection': 'row', 'alignItems': 'flex-start', 'gap': '30px'}),
 
                 # Static legend placed below the amount-plots-slider so it is always visible
                 # Build category list and color mapping (same scheme as callbacks)

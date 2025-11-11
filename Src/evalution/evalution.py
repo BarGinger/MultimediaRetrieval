@@ -14,6 +14,7 @@ The script writes per-approach CSV summaries into `Reports/evaluation/` and prin
 from __future__ import annotations
 import os
 import math
+import re
 from pathlib import Path
 import argparse
 from typing import Dict, List, Tuple, Optional
@@ -22,6 +23,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import joblib
 
 
 def progress_iterable(iterable, desc: Optional[str] = None):
@@ -55,7 +57,16 @@ DEFAULT_MATCHING = [
     "Src/matching/matrix_minmax_optimized.csv",
     "Src/matching/matrix_rank_based_optimized.csv",
     "Src/matching/matrix_weighted_sum.csv",
+    "kdtree.joblib",  # KNN approach using KDTree
 ]
+
+# Display names for approaches (maps file stem to readable name)
+APPROACH_DISPLAY_NAMES = {
+    "matrix_minmax_optimized": "MinMax Normalization",
+    "matrix_rank_based_optimized": "Rank-Based Transformation",
+    "matrix_weighted_sum": "Standardization (Z-score)",
+    "kdtree": "KNN (Euclidean Distance)",
+}
 
 DEFAULT_ANALYSIS = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
 
@@ -109,7 +120,13 @@ def load_distance_matrix(path: str) -> pd.DataFrame:
 
     Accepts either a full matrix (rows and columns are filenames) or a table with
     a leading filename column and distance columns.
+    
+    For KDTree files (.joblib), converts to distance matrix format on-the-fly.
     """
+    # Check if this is a KDTree file
+    if path.endswith('.joblib'):
+        return load_kdtree_as_distance_matrix(path)
+    
     df = pd.read_csv(path, index_col=None)
     # If DataFrame seems square and header parsed as columns, return as-is
     if df.shape[0] == df.shape[1] and df.columns.dtype == object:
@@ -123,6 +140,55 @@ def load_distance_matrix(path: str) -> pd.DataFrame:
     except Exception:
         pass
     return df
+
+
+def load_kdtree_as_distance_matrix(kdtree_path: str) -> pd.DataFrame:
+    """Load a KDTree file and convert it to a distance matrix format.
+    
+    This computes all pairwise distances using the KDTree, which can be memory intensive
+    for large datasets. The resulting matrix has the same format as CSV distance matrices.
+    
+    Args:
+        kdtree_path: Path to the .joblib file containing KDTree data
+        
+    Returns:
+        DataFrame with shape names as both index and columns, containing pairwise distances
+    """
+    print(f"   Loading KDTree from {kdtree_path}...")
+    kdtree_data = joblib.load(kdtree_path)
+    
+    tree = kdtree_data['tree']
+    names = kdtree_data['names']
+    X_data = np.asarray(tree.data)
+    
+    n_samples = X_data.shape[0]
+    print(f"   Computing pairwise distances for {n_samples} shapes...")
+    
+    # Compute all pairwise distances
+    # For efficiency, query the tree for all points at once
+    # Note: This can be memory intensive for very large datasets
+    distances_matrix = np.zeros((n_samples, n_samples), dtype=np.float32)
+    
+    # Query each point against all points
+    batch_size = 100  # Process in batches to reduce memory usage
+    for i in range(0, n_samples, batch_size):
+        end_i = min(i + batch_size, n_samples)
+        batch = X_data[i:end_i]
+        # Query for all neighbors (k=n_samples)
+        # IMPORTANT: tree.query returns distances and indices sorted by distance
+        # We need to use the indices to place distances in the correct matrix positions
+        dists, indices = tree.query(batch, k=n_samples)
+        # Place distances in correct positions using the returned indices
+        for local_idx in range(end_i - i):
+            global_idx = i + local_idx
+            distances_matrix[global_idx, indices[local_idx]] = dists[local_idx]
+    
+    # Convert to DataFrame with shape names as index and columns
+    names_list = [str(name) for name in names]
+    dist_df = pd.DataFrame(distances_matrix, index=names_list, columns=names_list)
+    
+    print(f"   ✓ KDTree converted to distance matrix ({dist_df.shape[0]}x{dist_df.shape[1]})")
+    return dist_df
 
 
 def map_columns_to_ids(df: pd.DataFrame) -> Dict[str, str]:
@@ -799,9 +865,10 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                 ax.set_yticks(np.arange(n_classes))
                 ax.set_yticklabels(display_classes, fontsize=22, rotation=0, va='center', ha='right', fontweight='bold')
                 
-                # X-axis (approaches): Much larger font, rotated 45 degrees
+                # X-axis (approaches): Use display names with larger font, rotated 45 degrees
                 ax.set_xticks(np.arange(n_approaches))
-                ax.set_xticklabels([a.replace('_', ' ').title() for a in approaches], 
+                display_approach_names = [APPROACH_DISPLAY_NAMES.get(a, a.replace('_', ' ').title()) for a in approaches]
+                ax.set_xticklabels(display_approach_names, 
                                    rotation=45, ha='right', fontsize=22, fontweight='bold')
                 
                 # Much larger title
@@ -918,7 +985,9 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                                         ha='center', va='bottom', fontsize=8)
 
                 ax.set_xticks(x + width * (len(metrics_to_plot) - 1) / 2)
-                ax.set_xticklabels(agg_df['approach'], rotation=45, ha='right', fontsize=10)
+                # Use display names for approach labels
+                approach_labels = [APPROACH_DISPLAY_NAMES.get(a, a.replace('_', ' ').title()) for a in agg_df['approach']]
+                ax.set_xticklabels(approach_labels, rotation=45, ha='right', fontsize=10)
                 ax.set_title(f'Overall comparison — {agg_label}', fontsize=12, weight='bold')
                 ax.tick_params(axis='y', labelsize=10)
                 
