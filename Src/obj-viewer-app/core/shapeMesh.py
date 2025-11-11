@@ -5,7 +5,6 @@ import numpy as np
 from dash import html
 import os
 from sklearn.decomposition import PCA
-# import trimesh  # Uncomment if you use trimesh
 
 # Numerical tolerances for enhanced normalization (matching normalize_database.py)
 AREA_EPS = 1e-12          # Minimum total surface area before falling back to mean
@@ -124,15 +123,11 @@ class ShapeMesh:
         self.filename = filename
         self.face_types = face_types
         self.bounding_box = bounding_box  # Should be a dict with 'min' and 'max'
-        self.size = size  # File size in bytes
-        self.filepath = filepath  # Full path to the file
+        self.size = size
+        self.filepath = filepath
 
-        # If using trimesh, wrap it
-        # self.base_mesh = base_mesh or trimesh.Trimesh(vertices=self.vertices, faces=self.faces)
-        self.base_mesh = base_mesh  # For now, can be None or your own mesh class
+        self.base_mesh = base_mesh
 
-        # Optional analysis-derived properties (store under _* to avoid clobbering @property descriptors)
-        # Also expose analysis_* aliases for direct access if needed elsewhere.
         self._surface_area = surface_area
         self.analysis_surface_area = surface_area
 

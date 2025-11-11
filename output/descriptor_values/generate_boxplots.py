@@ -5,12 +5,12 @@
 # ============================================================
 
 # -------- CONFIG --------
-CSV_PATH    = "features_unified_prepared.csv"
+CSV_PATH    = "analysis_results_unifiedPreprocessed_data.csv"
 IMAGE_DIR   = "."                 # images live in working dir; or set to "images"
 SAVE_DIR    = "preview_scales_out"
-ID_COL      = "filename"          # column that identifies the image/item
+ID_COL      = "shape_file"        # column that identifies the image/item
 CLASS_COL   = "class"             # class/label column
-SHOW_FLIERS = True               # set True to show outliers on boxplots
+SHOW_FLIERS = True                # set True to show outliers on boxplots
 WHIS        = (0, 100)            # whiskers min–max; use 1.5 to use Tukey rule
 THUMB_ZOOM  = 0.08                # thumbnail size on the scales
 IMG_EXTS    = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
@@ -138,7 +138,6 @@ def numeric_columns(df: pd.DataFrame, id_col: str, class_col: str):
         raise ValueError("No numeric columns found (besides ID/CLASS).")
     return cols
 
-
 def make_boxplots(df: pd.DataFrame, class_col: str, value_cols, show_fliers=False, whis=(0,100)):
     """Boxplots per column, grouped by class, classes sorted by median."""
     if class_col not in df.columns:
@@ -203,6 +202,25 @@ def compute_closest_table(df: pd.DataFrame, id_col: str, class_col: str, value_c
     closest_df.to_csv("closest_points_summary.csv", index=False)
     print("[saved] closest_points_summary.csv")
     return closest_df
+
+def print_closest_tables(closest_df: pd.DataFrame):
+    """
+    Pretty-print, per numeric column, the filenames and values that are
+    closest to 0/25/50/75/100% (min..max).
+    """
+    label_map = {"min": "0%", "25%": "25%", "50%": "50%", "75%": "75%", "max": "100%"}
+    order = ["0%", "25%", "50%", "75%", "100%"]
+
+    with pd.option_context("display.float_format", lambda v: f"{v:.4g}"):
+        for col, sub in closest_df.groupby("column", sort=False):
+            view = (
+                sub.assign(pct=sub["target_label"].map(label_map))
+                   .sort_values("target_value")
+                   .set_index("pct")[["closest_filename", "closest_value"]]
+                   .reindex(order)
+            )
+            print(f"\n=== {col} ===")
+            print(view.to_string(na_rep=""))
 
 def draw_preview_scales(df: pd.DataFrame, id_col: str, class_col: str, value_cols):
     """Draw one min→max preview scale per numeric column with 5 thumbnails."""
@@ -294,8 +312,6 @@ def draw_preview_scales(df: pd.DataFrame, id_col: str, class_col: str, value_col
             plt.close(fig)
             continue
 
-
-
         ax.text(vmin, -0.56, f"min\n{vmin:.3g}", ha="left",  va="top", fontsize=8)
         ax.text(vmax, -0.56, f"max\n{vmax:.3g}", ha="right", va="top", fontsize=8)
 
@@ -326,7 +342,9 @@ def main():
 
     # ---- 2) Closest items table (5 targets) ----
     closest_df = compute_closest_table(df, ID_COL, CLASS_COL, value_cols)
-    # print(closest_df.to_string(index=False))  # uncomment to see in console
+
+    # ---- 2b) Print neat per-column 0/25/50/75/100% table ----
+    print_closest_tables(closest_df)
 
     # ---- 3) Preview scales with thumbnails ----
     draw_preview_scales(df, ID_COL, CLASS_COL, value_cols)

@@ -24,73 +24,6 @@ class MeshExtractions:
     """
     Note that all extractions assume that the mesh is normalized, and centered around the barecenter.
     """
-    def test():
-        # create shapeMesh object and compute properties
-        # shape1 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Door\\D01005_unified.obj")
-        # shape2 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\AircraftBuoyant\\m1338_unified.obj")
-        # shape3 = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
-
-        # area1 = MeshExtractions.eccentricity(shape1)
-        # area2 = MeshExtractions.eccentricity(shape2)
-        # area3 = MeshExtractions.eccentricity(shape3)
-
-        # shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\PlantWildNonTree\\m963_unified.obj")
-        
-        # shapetest.save_as_obj('before.obj')
-        # vol1 = MeshExtractions.volume(shapetest)
-        # shapetest = MeshTransformations.fill_holes(shapetest)
-        # vol2 = MeshExtractions.volume(shapetest)
-        # shapetest = MeshTransformations.orient_faces_consistently(shapetest)
-        # vol3 = MeshExtractions.volume(shapetest)
-        # print(f"Volume before: {vol1}, after: {vol2}, vol {vol3}")
-        # shapetest.save_as_obj('after.obj')
-
-        # shapetest = ShapeMesh.from_file("Datasets\\UnifiedPreprocessed\\Data\\Bed\\D00031_unified.obj")
-        # # A3 descriptor and histogram
-        # A3_hist, A3_bins = MeshExtractions.A3(shapetest)
-        # plt.bar(A3_bins[:-1], A3_hist, width=(A3_bins[1] - A3_bins[0]), align='edge', edgecolor='black')
-        # plt.xlabel('Angle (radians)')
-        # plt.ylabel('Frequency')
-        # plt.title('A3 Angle Histogram')
-        # plt.show()
-
-        # # D1 descriptor and histogram
-        # D1_hist, D1_bins = MeshExtractions.D1(shapetest)
-        # plt.bar(D1_bins[:-1], D1_hist, width=(D1_bins[1] - D1_bins[0]), align='edge', edgecolor='black')
-        # plt.xlabel('Distance from barycenter')
-        # plt.ylabel('Frequency')
-        # plt.title('D1 Distance Histogram')
-        # plt.show()
-
-        # # D2 descriptor and histogram
-        # D2_hist, D2_bins = MeshExtractions.D2(shapetest)
-        # plt.bar(D2_bins[:-1], D2_hist, width=(D2_bins[1] - D2_bins[0]), align='edge', edgecolor='black')
-        # plt.xlabel('Distance between vertices')
-        # plt.ylabel('Frequency')
-        # plt.title('D2 Distance Histogram')
-        # plt.show()
-        # # D3 descriptor and histogram
-        # D3_hist, D3_bins = MeshExtractions.D3(shapetest)
-        # plt.bar(D3_bins[:-1], D3_hist, width=(D3_bins[1] - D3_bins[0]), align='edge', edgecolor='black')
-        # plt.plot(D3_bins[:-1], D3_hist, color='red', marker='o')
-        # plt.xlabel('Triangle Area')
-        # plt.ylabel('Frequency')
-        # plt.title('D3 Triangle Area Histogram')
-        # plt.show()
-
-        # # D4 descriptor and histogram
-        # D4_hist, D4_bins = MeshExtractions.D4(shapetest)
-        # plt.bar(D4_bins[:-1], D4_hist, width=(D4_bins[1] - D4_bins[0]), align='edge', edgecolor='black')
-        # plt.plot(D4_bins[:-1], D4_hist, color='red', marker='o')
-        # plt.xlabel('Tetrahedron Volume')
-        # plt.ylabel('Frequency')
-        # plt.title('D4 Tetrahedron Volume Histogram')
-        # plt.show()
-
-        # Run full dataset extraction and save histograms to CSV
-        MeshExtractions.compute_and_save_elementary_descriptors()
-
-        pass
 
     @staticmethod
     def compute_and_save_all_descriptors(output_csv: str = None, data_root: str = None):
@@ -103,8 +36,6 @@ class MeshExtractions:
         """
         repo_root = Path(__file__).resolve().parents[3]
 
-        # Prefer the unified prepared dataset folder
-        # preferred = repo_root / 'Datasets' / 'UnifiedPreprocessed' / 'Data'
         preferred = repo_root / 'Datasets' / 'Histogram_testing'
         if data_root:
             data_root_path = Path(data_root)
@@ -134,11 +65,11 @@ class MeshExtractions:
 
         fieldnames = [
             'name',
-            # 'A3_hist', 'A3_bins',
+            'A3_hist', 'A3_bins',
             'D1_hist', 'D1_bins',
-            # 'D2_hist', 'D2_bins',
-            # 'D3_hist', 'D3_bins',
-            # 'D4_hist', 'D4_bins'
+            'D2_hist', 'D2_bins',
+            'D3_hist', 'D3_bins',
+            'D4_hist', 'D4_bins'
         ]
 
         total = 0
@@ -156,11 +87,11 @@ class MeshExtractions:
                     mesh = ShapeMesh.from_file(str(obj_file))
 
                     # Compute descriptors
-                    # A3_hist, A3_bins = MeshExtractions.A3(mesh)
+                    A3_hist, A3_bins = MeshExtractions.A3(mesh)
                     D1_hist, D1_bins = MeshExtractions.D1(mesh)
-                    # D2_hist, D2_bins = MeshExtractions.D2(mesh)
-                    # D3_hist, D3_bins = MeshExtractions.D3(mesh)
-                    # D4_hist, D4_bins = MeshExtractions.D4(mesh)
+                    D2_hist, D2_bins = MeshExtractions.D2(mesh)
+                    D3_hist, D3_bins = MeshExtractions.D3(mesh)
+                    D4_hist, D4_bins = MeshExtractions.D4(mesh)
 
                     # Convert arrays to semicolon-separated strings
                     def arr_to_str(arr):
@@ -168,16 +99,16 @@ class MeshExtractions:
 
                     row = {
                         'name': rel_name,
-                        # 'A3_hist': arr_to_str(A3_hist),
-                        # 'A3_bins': arr_to_str(A3_bins),
+                        'A3_hist': arr_to_str(A3_hist),
+                        'A3_bins': arr_to_str(A3_bins),
                         'D1_hist': arr_to_str(D1_hist),
                         'D1_bins': arr_to_str(D1_bins),
-                        # 'D2_hist': arr_to_str(D2_hist),
-                        # 'D2_bins': arr_to_str(D2_bins),
-                        # 'D3_hist': arr_to_str(D3_hist),
-                        # 'D3_bins': arr_to_str(D3_bins),
-                        # 'D4_hist': arr_to_str(D4_hist),
-                        # 'D4_bins': arr_to_str(D4_bins),
+                        'D2_hist': arr_to_str(D2_hist),
+                        'D2_bins': arr_to_str(D2_bins),
+                        'D3_hist': arr_to_str(D3_hist),
+                        'D3_bins': arr_to_str(D3_bins),
+                        'D4_hist': arr_to_str(D4_hist),
+                        'D4_bins': arr_to_str(D4_bins),
                     }
 
                     writer.writerow(row)
@@ -283,7 +214,7 @@ class MeshExtractions:
     def surface_area(mesh: ShapeMesh) -> float:
         """
         Compute surface area of a shapeMesh object.
-        Uses: A = 0.5 * Σ || (v2 - v1) x (v3 - v1) ||
+        Uses: A = 0.5 * sum || (v2 - v1) x (v3 - v1) ||
         """
         area = 0.0
         for f in mesh.faces:
@@ -309,7 +240,6 @@ class MeshExtractions:
         v = mesh.vertices
         f = mesh.faces[:, :3]  # triangles
 
-        # vertex -> incident faces
         v2f = defaultdict(list)
         for fi, (i, j, k) in enumerate(f):
             v2f[i].append(fi); v2f[j].append(fi); v2f[k].append(fi)
@@ -346,7 +276,7 @@ class MeshExtractions:
     @staticmethod
     def compactness(mesh: ShapeMesh, S: float = None, V: float = None) -> float:
         """
-        Sphere-compactness measure: S^3 / (36π V^2) (from the slides).
+        Sphere-compactness measure: S^3 / (36 pi V^2) (from the slides).
         = 1 for a perfect sphere, >1 for less compact shapes.
         """
         if S is None:
@@ -395,7 +325,7 @@ class MeshExtractions:
     
     @staticmethod
     def get_eigen_values_vectors(mesh: ShapeMesh) -> Tuple[List[float], List[List[float]]]:
-        """Compute eigenvalues (λ) and eigenvectors of the mesh vertices."""
+        """Compute eigenvalues (lambda) and eigenvectors of the mesh vertices."""
         vertices = mesh.vertices
 
         cov = np.cov(vertices, rowvar=False)

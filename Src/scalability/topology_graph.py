@@ -28,7 +28,7 @@ class TopologyGraph:
             metric='precomputed',
             perplexity=50,
             learning_rate='auto',
-            init='random',     # <-- change here
+            init='random',
             random_state=69,
             verbose=1,
             early_exaggeration=12.0,
@@ -49,7 +49,7 @@ class TopologyGraph:
 
         print(f"Current working directory: {os.getcwd()}")
 
-        # --- Load embedding and labels
+        # Load embedding and labels
         embedding = pd.read_csv("topology_graph.csv", header=0, index_col=0)
         labels = pd.read_csv("class_labels.csv", header=0, index_col=0)
 
@@ -71,7 +71,7 @@ class TopologyGraph:
 
         plt.figure(figsize=(8, 8))
         base_alpha = 0.8 if (name == "" or name is None) else 0.1
-        base_size = 15  # <-- uniform point size for all shapes
+        base_size = 15 
 
         sc = plt.scatter(
             merged["x"], merged["y"],
@@ -88,7 +88,7 @@ class TopologyGraph:
         title = "t-SNE embedding"
         out_png = "topology_graph.png"
 
-        # --- Focus mode
+        # Focus mode
         if isinstance(name, str) and len(name) > 0:
             title += f" • focus: {name} (n={n})"
             if name not in merged["shape"].values:
@@ -112,7 +112,7 @@ class TopologyGraph:
             neigh_mask  = merged["shape"].isin(neigh_list)
             same_class_only_mask = same_class_mask & ~target_mask & ~neigh_mask
 
-            # Same-class non-neighbours
+            # Same class non neighbours
             if same_class_only_mask.any():
                 plt.scatter(
                     merged.loc[same_class_only_mask, "x"],
@@ -176,4 +176,4 @@ class TopologyGraph:
 
 
     if __name__ == "__main__":
-        print_graph("m1338_06_fill_holes_and_orientation.obj", n=5)
+        print_graph("", n=5)

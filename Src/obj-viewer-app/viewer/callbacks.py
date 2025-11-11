@@ -7,13 +7,8 @@ import json
 import uuid
 import time
 import re
-import math
-import colorsys
 import plotly.graph_objects as go
-import plotly.express as px
-from sklearn.manifold import TSNE
-from sklearn.preprocessing import LabelEncoder
-
+from sklearn.neighbors import KDTree
 from core.dataset_cache import get_cached_dataset_data
 from core.obj_parser import OBJParser
 from core.shapeMesh import ShapeMesh
@@ -21,6 +16,7 @@ from core.file_index import get_step_file_path
 from core.file_index import get_available_steps, get_step_display_info
 from core.plotting import create_3d_plot
 from .category_colors import CATEGORIES_LIST, CATEGORY_COLOR_MAP
+import joblib
 
 # Global cache for distance matrix (loaded once at startup)
 _DISTANCE_MATRIX_CACHE = None
@@ -2203,6 +2199,116 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         except Exception as e:
             print(f"❌ Error retrieving closest shapes: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def retrieve_closest_shapes_using_euclidian(selected_file_data, n):
+        """
+        This is a KDTree-based implementation to find closest shapes
+        using Euclidian distance on the feature vectors
+        """
+        try:
+            if not isinstance(selected_file_data, dict):
+                return []
+            selected_filename = selected_file_data.get("filename")
+            dataset = selected_file_data.get("dataset")
+            if not selected_filename or n is None:
+                return []
+            if not isinstance(n, (int, np.integer)) or n <= 0:
+                return []
+
+            tree_file = os.getenv("KD_TREE_FILE", "kdtree.joblib")
+
+            # load the tree into the cache when it is not loaded before
+            cache_ok = hasattr(retrieve_closest_shapes_using_euclidian, "_cache")
+            if cache_ok:
+                cache = retrieve_closest_shapes_using_euclidian._cache
+                if cache.get("tree_file") != tree_file:
+                    cache_ok = False
+
+            if not cache_ok:
+                data = joblib.load(tree_file)
+                tree  = data["tree"]
+                names = data["names"]
+                name_to_idx = {str(nm): i for i, nm in enumerate(names)}
+                retrieve_closest_shapes_using_euclidian._cache = {
+                    "tree_file": tree_file,
+                    "tree": tree,
+                    "names": names,
+                    "name_to_idx": name_to_idx,
+                }
+
+            tree        = retrieve_closest_shapes_using_euclidian._cache["tree"]
+            names       = retrieve_closest_shapes_using_euclidian._cache["names"]
+            name_to_idx = retrieve_closest_shapes_using_euclidian._cache["name_to_idx"]
+
+            # go from the current file to the KDtree index
+            qi = name_to_idx.get(str(selected_filename))
+            resolved_name = str(selected_filename)
+            if qi is None:
+                m = re.match(r"([A-Za-z0-9]+)_", resolved_name)
+                if m:
+                    unified = f"{m.group(1)}_06_fill_holes_and_orientation.obj"
+                    qi = name_to_idx.get(unified)
+                    if qi is not None:
+                        resolved_name = unified
+            if qi is None:
+                # coudnt find the current shape in the tree
+                return []
+
+            # find nearest neighbors
+            X_data = np.asarray(tree.data)
+            fQ = X_data[qi:qi+1]
+            k = int(n)
+            k_query = min(k + 1, X_data.shape[0])
+            dists, idxs = tree.query(fQ, k=k_query)
+            dists, idxs = dists[0], idxs[0]
+
+            # retrieve object information from the dataset
+            df_candidates = None
+            if dataset:
+                try:
+                    # must exist in your codebase; mirrors your other function
+                    df_candidates = get_cached_dataset_data(dataset)
+                except Exception:
+                    df_candidates = None
+            if df_candidates is None or df_candidates.empty:
+                try:
+                    df_candidates = file_df
+                except NameError:
+                    df_candidates = None
+
+            if df_candidates is None or df_candidates.empty:
+                return []
+
+            # get the unified objects to show in the viewer
+            results = []
+            for dist, idx in zip(dists, idxs):
+                neighbor_name = str(names[idx])
+                if neighbor_name == resolved_name:
+                    continue # skip self
+                
+                # get unified version of the object
+                m2 = re.match(r"([A-Za-z0-9]+)_", neighbor_name)
+                if not m2:
+                    continue
+                other_id = m2.group(1)
+                unified_name = f"{other_id}_unified.obj"
+
+                # find the rows in the dataset table
+                row = df_candidates[df_candidates["filename"] == unified_name]
+                if not row.empty:
+                    rec = row.iloc[0].to_dict()
+                    rec["distance"] = float(dist)
+                    results.append(rec)
+                    if len(results) >= k:
+                        break
+
+            return results
+
+        except Exception as e:
+            print(f"Error retrieving closest shapes using Euclidian KDTree: {e}")
             import traceback
             traceback.print_exc()
             return []
