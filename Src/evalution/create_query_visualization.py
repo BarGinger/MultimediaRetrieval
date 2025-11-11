@@ -19,6 +19,7 @@ from matplotlib.gridspec import GridSpec
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from typing import List, Dict, Tuple, Optional
+import joblib
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent.parent
@@ -117,12 +118,14 @@ DEFAULT_MATCHING = [
     "Src/matching/matrix_minmax_optimized.csv",
     "Src/matching/matrix_rank_based_optimized.csv",
     "Src/matching/matrix_weighted_sum.csv",
+    "kdtree.joblib",  # KNN approach using KDTree
 ]
 
 APPROACH_NAMES = {
     "matrix_minmax_optimized.csv": "MinMax Normalization",
     "matrix_rank_based_optimized.csv": "Rank-Based Transformation",
     "matrix_weighted_sum.csv": "Standardization (Z-score)",
+    "kdtree.joblib": "KNN (Euclidean Distance)",
 }
 
 # Map between CSV filename and approach key in F1 scores
@@ -130,6 +133,7 @@ APPROACH_KEY_MAP = {
     "matrix_minmax_optimized.csv": "matrix_minmax_optimized",
     "matrix_rank_based_optimized.csv": "matrix_rank_based_optimized",
     "matrix_weighted_sum.csv": "matrix_weighted_sum",
+    "kdtree.joblib": "knn_euclidean",
 }
 
 DEFAULT_ANALYSIS = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
@@ -263,6 +267,91 @@ def retrieve_closest_shapes(query_id: str,
         })
     
     return results
+
+
+def retrieve_closest_shapes_using_knn(query_id: str,
+                                       kdtree_data: Dict,
+                                       analysis_df: pd.DataFrame,
+                                       n: int = 10) -> List[Dict]:
+    """Retrieve n closest shapes using KDTree with Euclidean distance.
+    
+    Args:
+        query_id: The query shape ID
+        kdtree_data: Dictionary containing 'tree', 'names', and 'X' arrays
+        analysis_df: DataFrame with shape IDs and classes
+        n: Number of neighbors to retrieve
+    
+    Returns:
+        List of dicts with keys: 'id', 'class', 'distance'
+    """
+    try:
+        tree = kdtree_data['tree']
+        names = kdtree_data['names']
+        X_data = np.asarray(tree.data)
+        
+        # Find the query shape in the KDTree names
+        query_idx = None
+        resolved_name = None
+        
+        # Try to find exact match first
+        for i, name in enumerate(names):
+            name_str = str(name)
+            # Extract ID from the name (handles format like "d00131_06_fill_holes_and_orientation.obj")
+            m = re.match(r"([A-Za-z0-9]+)_", name_str)
+            if m and m.group(1).lower() == query_id.lower():
+                query_idx = i
+                resolved_name = name_str
+                break
+        
+        if query_idx is None:
+            print(f"Warning: Query ID {query_id} not found in KDTree")
+            return []
+        
+        # Query the KDTree for k nearest neighbors (k+1 to exclude self)
+        k_query = min(n + 1, X_data.shape[0])
+        fQ = X_data[query_idx:query_idx+1]
+        dists, idxs = tree.query(fQ, k=k_query)
+        dists, idxs = dists[0], idxs[0]
+        
+        # Build results
+        results = []
+        for dist, idx in zip(dists, idxs):
+            neighbor_name = str(names[idx])
+            
+            # Skip self-match
+            if neighbor_name == resolved_name:
+                continue
+            
+            # Extract ID from neighbor name
+            m = re.match(r"([A-Za-z0-9]+)_", neighbor_name)
+            if not m:
+                continue
+            
+            shape_id = m.group(1)
+            
+            # Look up class in analysis (ensure IDs are lowercase for matching)
+            row = analysis_df[analysis_df['id'].str.lower() == shape_id.lower()]
+            if row.empty:
+                shape_class = "Unknown"
+            else:
+                shape_class = row.iloc[0]['class']
+            
+            results.append({
+                'id': shape_id,
+                'class': shape_class,
+                'distance': float(dist)
+            })
+            
+            if len(results) >= n:
+                break
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error retrieving shapes using KNN: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 
 def get_best_query_shape_from_class(class_name: str, 
@@ -597,19 +686,19 @@ def create_query_grid(approach_results: Dict[str, Dict[str, List]],
     tier_name: which tier ('high', 'medium', or 'low')
     data_dir: path to directory containing class folders with OBJ files
     """
-    # Setup: 3 approaches (rows) x 1 tier (column group)
+    # Setup: 4 approaches (rows) x 1 tier (column group)
     # Each row has 6 columns: 1 query + 5 results
     
-    fig = plt.figure(figsize=(14, 12))
+    fig = plt.figure(figsize=(14, 16))  # Increased height for 4 rows
     
-    # Create grid: 3 rows (approaches), 1 tier group, 6 cols per group
-    n_rows = 3
+    # Create grid: 4 rows (approaches), 1 tier group, 6 cols per group
+    n_rows = 4  # Changed from 3 to 4
     n_cols = 1 + NUMBER_OF_SIMILAR_SHAPES  # query + results
     
     # Use GridSpec for flexible layout
     gs = GridSpec(n_rows, n_cols,
                   figure=fig, hspace=0.25, wspace=0.05,
-                  left=0.08, right=0.95, top=0.88, bottom=0.10)
+                  left=0.08, right=0.95, top=0.92, bottom=0.08)
     
     approach_names = list(approach_results.keys())
     # Get the specific tier label for this rank and tier
@@ -712,9 +801,11 @@ def create_query_grid(approach_results: Dict[str, Dict[str, List]],
     
     print("   ✓ Meshes rendered")
     
-    # Add row labels (approach names)
+    # Add row labels (approach names) - adjusted for 4 rows
     for row_idx, approach in enumerate(approach_names):
-        fig.text(0.01, 0.75 - row_idx * 0.30, 
+        # Calculate vertical position for 4 rows
+        y_pos = 0.80 - row_idx * 0.22  # Adjusted spacing for 4 rows
+        fig.text(0.01, y_pos, 
                 APPROACH_NAMES.get(approach, approach),
                 ha='left', va='center', fontsize=12, fontweight='bold',
                 rotation=90)
@@ -829,29 +920,55 @@ def main():
     print(f"\n6. Retrieving similar shapes for each approach...")
     approach_results = {}
     
+    # Load KDTree once if needed
+    kdtree_data = None
+    
     for matrix_path in DEFAULT_MATCHING:
         full_path = os.path.join(project_root, matrix_path)
         approach_name = os.path.basename(matrix_path)
         
         print(f"\n   Processing: {APPROACH_NAMES.get(approach_name, approach_name)}")
         
-        # Load distance matrix
-        distance_matrix = load_distance_matrix(full_path)
-        
-        # Retrieve results for each tier
-        tier_results = {}
-        for tier_label, query_id in query_ids.items():
-            results = retrieve_closest_shapes(query_id, distance_matrix, 
-                                             analysis_df, n=NUMBER_OF_SIMILAR_SHAPES)
-            tier_results[tier_label] = results
+        # Check if this is the KNN approach
+        if approach_name == "kdtree.joblib":
+            # Load KDTree data if not already loaded
+            if kdtree_data is None:
+                print(f"      Loading KDTree from: {full_path}")
+                kdtree_data = joblib.load(full_path)
+                print(f"      KDTree loaded with {len(kdtree_data['names'])} shapes")
             
-            # Calculate accuracy
-            query_class = query_classes[tier_label]
-            correct = sum(1 for r in results if r['class'] == query_class)
-            accuracy = correct / len(results) if results else 0
-            print(f"      {tier_label:10s}: {correct}/{len(results)} correct (Acc: {accuracy:.2%})")
-        
-        approach_results[approach_name] = tier_results
+            # Retrieve results for each tier using KNN
+            tier_results = {}
+            for tier_label, query_id in query_ids.items():
+                results = retrieve_closest_shapes_using_knn(query_id, kdtree_data, 
+                                                           analysis_df, n=NUMBER_OF_SIMILAR_SHAPES)
+                tier_results[tier_label] = results
+                
+                # Calculate accuracy
+                query_class = query_classes[tier_label]
+                correct = sum(1 for r in results if r['class'] == query_class)
+                accuracy = correct / len(results) if results else 0
+                print(f"      {tier_label:10s}: {correct}/{len(results)} correct (Acc: {accuracy:.2%})")
+            
+            approach_results[approach_name] = tier_results
+        else:
+            # Load distance matrix for matrix-based approaches
+            distance_matrix = load_distance_matrix(full_path)
+            
+            # Retrieve results for each tier
+            tier_results = {}
+            for tier_label, query_id in query_ids.items():
+                results = retrieve_closest_shapes(query_id, distance_matrix, 
+                                                 analysis_df, n=NUMBER_OF_SIMILAR_SHAPES)
+                tier_results[tier_label] = results
+                
+                # Calculate accuracy
+                query_class = query_classes[tier_label]
+                correct = sum(1 for r in results if r['class'] == query_class)
+                accuracy = correct / len(results) if results else 0
+                print(f"      {tier_label:10s}: {correct}/{len(results)} correct (Acc: {accuracy:.2%})")
+            
+            approach_results[approach_name] = tier_results
     
     # Create visualization
     print(f"\n7. Creating visualizations...")

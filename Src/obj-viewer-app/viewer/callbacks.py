@@ -2323,11 +2323,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         Input('amount-plots-slider', 'value'),
         Input('selected-file-store', 'data'),
         Input('aux-display-options', 'value'),
-        Input('color-selector', 'value')],
+        Input('color-selector', 'value'),
+        Input('retrieval-method-radio', 'value')],
         [State('selected-dataset-store', 'data')],
         prevent_initial_call=True
     )
-    def render_or_clear_aux_plots(n_clicks, n_plots, selected_idx, aux_display_opts, mesh_color, selected_dataset):
+    def render_or_clear_aux_plots(n_clicks, n_plots, selected_idx, aux_display_opts, mesh_color, retrieval_method, selected_dataset):
         """
         Render auxiliary plots of similar shapes when the button is clicked.
 
@@ -2337,6 +2338,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         - selected_idx: dict, selected file data with 'filename' and 'dataset' keys
         - aux_display_opts: list of str, display options for aux plots (e.g., 'wireframe', 'smooth_shading')
         - mesh_color: str, color selected for the mesh
+        - retrieval_method: str, method to use for retrieving similar shapes ('closest', 'random', or 'knn')
         - selected_dataset: str, name of the selected dataset
         Returns:
         - Tuple: (list of plot divs, accuracy text, accuracy style dict)
@@ -2352,7 +2354,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         # Check if we should render (button click OR display options changed while we have shapes)
         # If display options or color changed, we need to have a valid selection and prior button click
-        if triggered_id in ['aux-display-options', 'color-selector', 'amount-plots-slider']:
+        if triggered_id in ['aux-display-options', 'color-selector', 'amount-plots-slider', 'retrieval-method-radio']:
             # Only re-render if we have a selected shape and button was clicked at least once
             if not selected_idx or not n_clicks or n_clicks <= 0:
                 return no_update, no_update, no_update
@@ -2383,7 +2385,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         smooth_shading = 'smooth_shading' in (aux_display_opts or [])
         total = int(n_plots or 5)
 
-        samples = retrieve_closest_shapes(selected_idx, total)
+        # Select retrieval method based on radio button selection
+        if retrieval_method == 'random':
+            samples = retrieve_random_shapes(selected_idx, total)
+        elif retrieval_method == 'knn':
+            samples = retrieve_closest_shapes_using_euclidian(selected_idx, total)
+        else:  # 'closest' or default
+            samples = retrieve_closest_shapes(selected_idx, total)
+            
         if not samples:
             # Return an empty list (the UI will hide the loading message when this content is set)
             return [], [], {'display': 'none'}
@@ -2516,7 +2525,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 dcc.Graph(figure=fig, className='three-d-plot')
             ], style={
                 'minWidth': '360px',
-                'height': '200px',
+                'height': '285px',
                 'backgroundColor': '#fff',
                 'border': '1px solid #e1e1e1',
                 'borderRadius': '8px',
@@ -3220,7 +3229,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 card = html.Div([
                     html.H4(f"{title} - Data unavailable", style={'color': '#000'}),
                     html.P("Histogram or bins data missing for this shape.", style={'color': '#333'})
-                ], style={'flex': '1', 'minWidth': '200px', 'padding': '12px', 'background': '#fff', 'borderRadius': '6px'})
+                ], style={'flex': '1', 'minWidth': '285px', 'padding': '12px', 'background': '#fff', 'borderRadius': '6px'})
                 # Inline placeholder (smaller)
                 inline_card = html.Div([
                     html.H5(f"{title}", style={'margin': '6px 0', 'color': '#000'}),
@@ -3237,7 +3246,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
                 card = html.Div([
                     dcc.Graph(figure=fig, config={'displayModeBar': False}, style={'height': '260px'})
-                ], style={'flex': '1', 'minWidth': '200px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
+                ], style={'flex': '1', 'minWidth': '285px', 'padding': '6px', 'background': '#fff', 'borderRadius': '6px'})
                 # Inline smaller thumbnail version
                 inline_fig = go.Figure()
                 inline_fig.add_trace(go.Bar(x=mids, y=hist_vals, marker_color=color))

@@ -242,7 +242,7 @@ WheelChair & 20 & 12,465 & 22,059 \\
     \item Bold lowercase letters (\(\mathbf{x},\mathbf{y},\mathbf{v}\)) denote vectors in \(\mathbb{R}^3\); uppercase Greek (e.g., \(\Sigma\)) denote matrices.
     \item \(\lVert\cdot\rVert_2\): Euclidean norm; \(\cdot\): dot product; \(\times\): cross product.
     \item For a set \(S\), \(|S|\) is its cardinality; for a scalar \(a\), \(|a|\) is absolute value (context disambiguates).
-    \item \(\operatorname{sign}(\cdot)\): sign function; \(\odot\): element‑wise (Hadamard) product.
+    \item \(\operatorname{sign}(\cdot)\): sign function; \(\odot\): element-wise (Hadamard) product.
 \end{itemize}
 
 \subsection{Meshes and topology.}
@@ -252,24 +252,24 @@ WheelChair & 20 & 12,465 & 22,059 \\
     \item \(F=\{f_1,\ldots,f_m\}\): face set with \(f_j=(i,j,k)\) an ordered triple of vertex indices; \(m=|F|\).
     \item \(E\): set of unique undirected mesh edges extracted from \(F\).
     \item \(T\): set of triangles (we use \(T\equiv F\) when summing over triangles).
-    \item \(\mathbf{n}_f\): unit normal of face \(f\); \(\mathbf{n}_i\): vertex normal at \(\mathbf{v}_i\) (area‑weighted average of incident face normals).
+    \item \(\mathbf{n}_f\): unit normal of face \(f\); \(\mathbf{n}_i\): vertex normal at \(\mathbf{v}_i\) (area-weighted average of incident face normals).
     \item \(\tau(f_j)\): polygon type of face \(f_j\) (triangle, etc.); \(\mathcal{T}(M)=\{\tau(f_j)\mid f_j\in F\}\).
     \item \(c \in \mathcal{C}_{\mathrm{cls}}\): semantic class label; \(\mathcal{C}_{\mathrm{cls}}\) is the set of classes.
-    \item \(\mathcal{C}_{\mathrm{cmp}}(M)\): set of connected face components of \(M\) (used in the signed‑volume sum).
+    \item \(\mathcal{C}_{\mathrm{cmp}}(M)\): set of connected face components of \(M\) (used in the signed-volume sum).
           \emph{Note.} When \(\mathcal{C}(M)\) appears in formulas, it refers to \(\mathcal{C}_{\mathrm{cmp}}(M)\).
 \end{itemize}
 
 \subsection{Bounding boxes, centering and scaling.}
 \begin{itemize}
-    \item \(B(M)=[\mathbf{v}_{\min},\mathbf{v}_{\max}]\): axis‑aligned bounding box (AABB), with
+    \item \(B(M)=[\mathbf{v}_{\min},\mathbf{v}_{\max}]\): axis-aligned bounding box (AABB), with
           \(\mathbf{v}_{\min}=(\min_i v_i^x,\min_i v_i^y,\min_i v_i^z)\),
           \(\mathbf{v}_{\max}=(\max_i v_i^x,\max_i v_i^y,\max_i v_i^z)\).
     \item \(\mathbf{s}=(s_x,s_y,s_z)=\mathbf{v}_{\max}-\mathbf{v}_{\min}\); \(s_{\max}=\max(s_x,s_y,s_z)\); uniform scale \(\alpha=1/s_{\max}\).
-    \item \(\mathbf{b}(M)\): mass barycenter (area‑weighted triangle centroid average).
+    \item \(\mathbf{b}(M)\): mass barycenter (area-weighted triangle centroid average).
           For triangle \(t=(a,b,c)\), \(A(t)=\tfrac{1}{2}\lVert(\mathbf{v}_b-\mathbf{v}_a)\times(\mathbf{v}_c-\mathbf{v}_a)\rVert\),
           \(c(t)=\tfrac{1}{3}(\mathbf{v}_a+\mathbf{v}_b+\mathbf{v}_c)\), and
           \(\mathbf{b}(M)=\big(\sum_{t\in T} A(t)c(t)\big)\big/\big(\sum_{t\in T} A(t)\big)\).
-    \item Tolerances: \(\epsilon_{\text{area}}>0\) (degenerate‑area guard), \(\epsilon_{\text{recenter}}>0\) (recentering threshold).
+    \item Tolerances: \(\epsilon_{\text{area}}>0\) (degenerate-area guard), \(\epsilon_{\text{recenter}}>0\) (recentering threshold).
 \end{itemize}
 
 \subsection{Normalization transforms and PCA.}
@@ -278,11 +278,11 @@ WheelChair & 20 & 12,465 & 22,059 \\
           \begin{enumerate}[label=(\arabic*)]
               \item \(T_1\) (translation): center at \(\mathbf{b}(M)\).
               \item \(T_2\) (alignment): PCA alignment to principal axes.
-              \item \(T_3\) (flipping): axis‑sign disambiguation via signed moments.
+              \item \(T_3\) (flipping): axis-sign disambiguation via signed moments.
               \item \(T_4\) (scaling): fit to unit cube (\(\max\) side length \(=1\)).
           \end{enumerate}
     \item PCA on centered vertices: covariance \(\Sigma\), eigenpairs \((\lambda_i,\mathbf{u}_i)\), sorted \(\lambda_1\ge\lambda_2\ge\lambda_3\ge 0\).
-    \item Right‑handed orthonormal basis: \(\mathbf{e}_1=\mathbf{u}_1/\|\mathbf{u}_1\|,\ \mathbf{e}_2=\mathbf{u}_2/\|\mathbf{u}_2\|\),
+    \item Right-handed orthonormal basis: \(\mathbf{e}_1=\mathbf{u}_1/\|\mathbf{u}_1\|,\ \mathbf{e}_2=\mathbf{u}_2/\|\mathbf{u}_2\|\),
           \(\mathbf{e}_3=\mathbf{e}_1\times\mathbf{e}_2\).
           Aligned coordinates: \(v_j^{(2)}=[\mathbf{e}_1^\top v_j^{(1)},\ \mathbf{e}_2^\top v_j^{(1)},\ \mathbf{e}_3^\top v_j^{(1)}]^\top\).
     \item Flipping moments: for triangle centroid \(\mathbf{C}_t\), \(f_i=\sum_{t\in T}\operatorname{sign}(C_{t,i})\, C_{t,i}^2\) (\(i=0,1,2\)).
@@ -294,49 +294,50 @@ WheelChair & 20 & 12,465 & 22,059 \\
 \subsection{Geometric functionals.}
 \begin{itemize}
     \item \(\mathrm{Area}(M)=A(M)=\tfrac12\sum_{(i,j,k)\in F}\lVert(\mathbf{v}_j-\mathbf{v}_i)\times(\mathbf{v}_k-\mathbf{v}_i)\rVert\).
-    \item \(\mathrm{Vol}(M)\) (a.k.a.\ \(V(M)\) in formulas): per‑component signed volume summed in absolute value,
+    \item \(\mathrm{Vol}(M)\) (a.k.a.\ \(V(M)\) in formulas): per-component signed volume summed in absolute value,
           \(\mathrm{Vol}(M)=\sum_{c\in\mathcal{C}_{\mathrm{cmp}}(M)}\left|\tfrac{1}{6}\sum_{(i,j,k)\in F_c}\mathbf{v}_i\cdot\big((\mathbf{v}_j-\mathbf{v}_i)\times(\mathbf{v}_k-\mathbf{v}_i)\big)\right|\).
     \item \(M^{\mathrm{hull}}\): convex hull of \(M\).
     \item Oriented bounding box (OBB): side lengths \((w,h,d)\) with \(V_{\mathrm{OBB}}(M)=w\,h\,d\).
-    \item \(D(M)=\max_{\mathbf{p},\mathbf{q}\in V}\lVert\mathbf{p}-\mathbf{q}\rVert_2\): (graph‑independent) geometric diameter.
+    \item \(D(M)=\max_{\mathbf{p},\mathbf{q}\in V}\lVert\mathbf{p}-\mathbf{q}\rVert_2\): (graph-independent) geometric diameter.
 \end{itemize}
 
 \subsection{Scalar shape descriptors.}
 \begin{itemize}
     \item \textbf{Surface-to-Volume Ratio}:
           \(\displaystyle \mathrm{SVR}(M)=\frac{A(M)}{\mathrm{Vol}(M)}.\)
-          This simple but informative ratio grows with increasing surface complexity
-          and decreases for smoother, more compact shapes. It complements the
-          compactness measure by remaining in physical units rather than being
-          normalized to a sphere.
-    
     \item \textbf{Sphericity}:
           \(\displaystyle \Psi(M)=\frac{\pi^{1/3}\!\left(6\,\mathrm{Vol}(M)\right)^{2/3}}{A(M)}.\)
-          A perfect sphere yields $\Psi=1$; more elongated or irregular objects have
-          smaller values. This descriptor provides an intuitive measure of how
-          closely a 3D object approximates a sphere.
-    
-    \item \textbf{Compactness} (denoted here by \(\mathrm{Comp}(M)\); equals \(\mathcal{C}(M)\) in Section~\ref{step3}): 
-          \(\mathrm{Comp}(M)=\dfrac{A(M)^3}{36\pi\,\mathrm{Vol}(M)^2}\).
-    \item \textbf{Rectangularity}: \(\mathcal{R}(M)=\dfrac{\mathrm{Vol}(M)}{V_{\mathrm{OBB}}(M)}\in(0,1]\).
-    \item \textbf{Convexity}: \(\mathcal{CX}(M)=\dfrac{\mathrm{Vol}(M)}{\mathrm{Vol}(M^{\mathrm{hull}})}\in(0,1]\).
-    \item \textbf{Eccentricity}: with PCA eigenvalues \(\lambda_1\ge\lambda_2\ge\lambda_3\), \(\varepsilon(M)=\lambda_1/\lambda_3\).
+    \item \textbf{Compactness}:
+          \(\displaystyle \mathrm{Comp}(M)=\frac{A(M)^3}{36\pi\,\mathrm{Vol}(M)^2}.\)
+    \item \textbf{Rectangularity}: \(\mathcal{R}(M)=\frac{\mathrm{Vol}(M)}{V_{\mathrm{OBB}}(M)}\in(0,1].\)
+    \item \textbf{Convexity}: \(\mathcal{CX}(M)=\frac{\mathrm{Vol}(M)}{\mathrm{Vol}(M^{\mathrm{hull}})}\in(0,1].\)
+    \item \textbf{Eccentricity}: with PCA eigenvalues \(\lambda_1\ge\lambda_2\ge\lambda_3\),
+          \(\varepsilon(M)=\lambda_1/\lambda_3.\)
 \end{itemize}
 
-\subsection{Distribution‑based descriptors and sampling.}
+\subsection{Distribution-based descriptors and sampling.}
 \begin{itemize}
-    \item Default sampling: \(S=100{,}000\) i.i.d.\ samples; histogram bins \(H=20\); histograms are \emph{L1‑normalized}.
+    \item Default sampling: \(S=100{,}000\) i.i.d.\ samples; histogram bins \(H=20\); histograms are \emph{L1-normalized}.
     \item \textbf{A3} (angle): for \((\mathbf{x},\mathbf{y},\mathbf{z})\in V^3\),
           \(\theta=\arccos\!\frac{(\mathbf{y}-\mathbf{x})\cdot(\mathbf{z}-\mathbf{x})}{\lVert\mathbf{y}-\mathbf{x}\rVert\,\lVert\mathbf{z}-\mathbf{x}\rVert}\).
           Histogram limits use the empirical \(99^\text{th}\) percentile plus \(10\%\) margin.
     \item \textbf{D1} (barycenter distance): \(d_1=\lVert \mathbf{x}-\mathbf{b}(M)\rVert_2\) for \(\mathbf{x}\in V\).
     \item \textbf{D2} (pairwise distance): \(d_2=\lVert \mathbf{x}-\mathbf{y}\rVert_2\) for \((\mathbf{x},\mathbf{y})\in V^2\).
-    \item \textbf{D3} (triangle area, square‑rooted): for \((\mathbf{x},\mathbf{y},\mathbf{z})\in V^3\),
+    \item \textbf{D3} (triangle area, square-rooted): for \((\mathbf{x},\mathbf{y},\mathbf{z})\in V^3\),
           \(A_\triangle=\tfrac12\lVert(\mathbf{y}-\mathbf{x})\times(\mathbf{z}-\mathbf{x})\rVert\); histogram uses \(\sqrt{A_\triangle}\).
-    \item \textbf{D4} (tetrahedron volume, cube‑rooted): for \((\mathbf{w},\mathbf{x},\mathbf{y},\mathbf{z})\in V^4\),
+    \item \textbf{D4} (tetrahedron volume, cube-rooted): for \((\mathbf{w},\mathbf{x},\mathbf{y},\mathbf{z})\in V^4\),
           \(V_{\mathrm{tet}}=\tfrac16\big|(\mathbf{x}-\mathbf{w})\cdot\big((\mathbf{y}-\mathbf{w})\times(\mathbf{z}-\mathbf{w})\big)\big|\);
           histogram uses \(\sqrt[3]{V_{\mathrm{tet}}}\).
-    \item \(P_{99}[\cdot]\): empirical \(99^\text{th}\) percentile used to set descriptor‑specific histogram maxima (then expanded by \(10\%\)).
+    \item \(P_{99}[\cdot]\): empirical \(99^\text{th}\) percentile used to set descriptor-specific histogram maxima (then expanded by \(10\%\)).
+\end{itemize}
+
+\subsection{Distance combination and normalization.}
+\begin{itemize}
+    \item \(D_i(M_a, M_b)\): raw distance between meshes \(M_a\) and \(M_b\) for descriptor \(i\).
+    \item \(R_i(M_a, M_b)\): rank-normalized distance for descriptor \(i\).
+    \item \(w_i\): weight assigned to descriptor \(i\) in the combined distance metric.
+    \item \(D_{\text{combined}}(M_a, M_b)\): final weighted distance between two meshes.
+    \item \(W_1(p,q)\): Earth Mover’s (Wasserstein-1) distance between distributions \(p\) and \(q\).
 \end{itemize}
 
 \subsection{Disambiguation (to match symbols used elsewhere in the text).}
@@ -387,7 +388,7 @@ The viewer app was developed as a web-based application, using Dash \cite{dash} 
 
 % (1) real-time interactive exploration of the large mesh dataset, (2) cross-platform accessibility without the need for specialized 3D software, and (3) seamless integration with Python-based scientific computing tools for efficient data processing frameworks such as Pandas \cite{mckinney2011pandas} and NumPy \cite{harris2020array}. 
 
-The framework architecture follows a model--view--controller paradigm \cite{deacon2009model}, which separates data processing (model), user interface (view), and interaction logic (controller). This separation improves maintainability and supports extensibility for the integration of subsequent retrieval components.
+The framework architecture follows a model-view-controller paradigm \cite{deacon2009model}, which separates data processing (model), user interface (view), and interaction logic (controller). This separation improves maintainability and supports extensibility for the integration of subsequent retrieval components.
 
 \section{Step 1: Read and view the data}
 
@@ -419,7 +420,7 @@ To visualize 3D shapes in our web application, we use the textit{Mesh3d} object 
 
 Our optional wireframe overlay uses an efficient edge extraction method that avoids duplicate edges by storing them in a set. For each face $f$ in the set of faces $F$, we iterate over its edges. Each edge is represented by a pair of vertex indices, sorted to ensure consistency. We add each sorted edge to the set $E$, which automatically removes duplicates.
 
-This set-based approach guarantees $O(F)$ complexity for edge extraction, where $F$ is the number of faces. The resulting set contains $E$ unique edges. This significantly reduces rendering overhead compared to naive enumeration of all face edges~\cite[pp.~17--19]{botsch2010polygon}.
+This set-based approach guarantees $O(F)$ complexity for edge extraction, where $F$ is the number of faces. The resulting set contains $E$ unique edges. This significantly reduces rendering overhead compared to naive enumeration of all face edges~\cite[pp.~17-19]{botsch2010polygon}.
 
 \begin{algorithm}[H]
 \SetAlgoLined
@@ -679,7 +680,7 @@ In addition, we have generated figures illustrating both the compliance rate and
 \end{figure}
 
 %Explain remaining outliers%
-Although the resampling pipeline substantially improved uniformity in vertex counts, a small number of meshes still fall outside of the target range of 5,000--10,000 vertices. This outcome can be explained by the nature of the subdivision and simplification algorithms used. Subdivision increases the number of vertices in large multiplicative steps (approximately by a factor of four for each pass). As a result, meshes that start well below the lower bound often overshoot into the higher range. Simplification is then applied to reduce these meshes, but the algorithm is constrained by geometry preservation: it avoids collapsing important edges or thin structures, and therefore does not always converge exactly within the target window. Similarly, meshes that were already close to the lower bound are sometimes left unchanged, as subdivision would push them unnecessarily far above the acceptable range.
+Although the resampling pipeline substantially improved uniformity in vertex counts, a small number of meshes still fall outside of the target range of 5,000-10,000 vertices. This outcome can be explained by the nature of the subdivision and simplification algorithms used. Subdivision increases the number of vertices in large multiplicative steps (approximately by a factor of four for each pass). As a result, meshes that start well below the lower bound often overshoot into the higher range. Simplification is then applied to reduce these meshes, but the algorithm is constrained by geometry preservation: it avoids collapsing important edges or thin structures, and therefore does not always converge exactly within the target window. Similarly, meshes that were already close to the lower bound are sometimes left unchanged, as subdivision would push them unnecessarily far above the acceptable range.
 
 Further attempts to enforce exact compliance would require mesh-specific adjustments, which would be computationally expensive and risk degrading geometric fidelity. The current procedure achieves compliance for approximately 97\% of the dataset, which we consider sufficient for our purposes. The small number of outliers (63) does not meaningfully affect downstream tasks, and avoiding excessive processing helps maintain higher shape quality overall. We will further explore the outliers mentioned above in Sub-Section \ref{removing-outliers}.
 
@@ -711,7 +712,7 @@ It should also be noted that resampling occasionally introduces some surface art
 
 \subsection{Removing outliers} \label{removing-outliers}
 
-To further check our meshing approach, we zoomed in on a few cases from the 63 shapes that were outside the compiled vertices range. Upon closer inspection, we found that most outliers shared a common characteristic: they were poorly sampled in their original form. The meshing process - which for these low-vertex-count cases involved cleaning followed by upscaling - created holes and detached parts in these problematic cases. For instance, in the jet example (Figure \ref{Remeshing-outlier-jet}), the meshing process both introduced structural defects and overshot the target vertex range (5,000--10,000), reaching 15,794 vertices. In contrast, the bird example (Figure \ref{Remeshing-outlier-bird}) demonstrates a case where the approach implemented an early stop at 1,693 vertices to prevent further distortion of the shape. Interestingly, both the jet and the bird exhibit the most severe problems in their wing structures, which were poorly sampled to begin with. Closer debugging revealed that the cleaning step caused the detachment of these wing parts from the main body, leading to the observed artifacts. Similarly, while the humanoid example (Figure \ref{Remeshing-outlier-humaniod}) only moderately overshot the target range (11,304 vertices), it illustrates how the meshing process introduced numerous holes throughout the body structure.
+To further check our meshing approach, we zoomed in on a few cases from the 63 shapes that were outside the compiled vertices range. Upon closer inspection, we found that most outliers shared a common characteristic: they were poorly sampled in their original form. The meshing process - which for these low-vertex-count cases involved cleaning followed by upscaling - created holes and detached parts in these problematic cases. For instance, in the jet example (Figure \ref{Remeshing-outlier-jet}), the meshing process both introduced structural defects and overshot the target vertex range (5,000-10,000), reaching 15,794 vertices. In contrast, the bird example (Figure \ref{Remeshing-outlier-bird}) demonstrates a case where the approach implemented an early stop at 1,693 vertices to prevent further distortion of the shape. Interestingly, both the jet and the bird exhibit the most severe problems in their wing structures, which were poorly sampled to begin with. Closer debugging revealed that the cleaning step caused the detachment of these wing parts from the main body, leading to the observed artifacts. Similarly, while the humanoid example (Figure \ref{Remeshing-outlier-humaniod}) only moderately overshot the target range (11,304 vertices), it illustrates how the meshing process introduced numerous holes throughout the body structure.
 
 \begin{figure}[H]
 \begin{center}
@@ -751,7 +752,7 @@ To further check our meshing approach, we zoomed in on a few cases from the 63 s
 \end{center}
 \end{figure}
 
-Based on these observations, we established a systematic criterion for handling outliers. As shown in Table~\ref{table:files_outside_range}, we applied a 15\% tolerance threshold around the target vertex range (5,000--10,000). Shapes whose resampled vertex counts fell within this tolerance - between 4,250 and 11,500 vertices - were retained in the dataset, as minor deviations likely reflected the inherent variability of the meshing process rather than fundamental structural problems. This allowed us to keep 18 shapes that were close to the target range. Notably, of the three examples discussed above, only the humanoid (Figure \ref{Remeshing-outlier-humaniod}) met this criterion with 11,304 vertices, falling just above the target range. While it exhibited structural holes, we retained it with the expectation that subsequent hole-filling step in our pipeline would address these defects. In contrast, the jet and bird examples were excluded, as they exceeded the tolerance threshold. More broadly, the 45 excluded shapes typically exhibited the same underlying issues we identified in our detailed inspection: poor original sampling that led to holes, detached components, or excessive distortion during remeshing. Ultimately, this process yielded a cleaner, more reliable dataset of 2,438 shapes for subsequent analysis.
+Based on these observations, we established a systematic criterion for handling outliers. As shown in Table~\ref{table:files_outside_range}, we applied a 15\% tolerance threshold around the target vertex range (5,000-10,000). Shapes whose resampled vertex counts fell within this tolerance - between 4,250 and 11,500 vertices - were retained in the dataset, as minor deviations likely reflected the inherent variability of the meshing process rather than fundamental structural problems. This allowed us to keep 18 shapes that were close to the target range. Notably, of the three examples discussed above, only the humanoid (Figure \ref{Remeshing-outlier-humaniod}) met this criterion with 11,304 vertices, falling just above the target range. While it exhibited structural holes, we retained it with the expectation that subsequent hole-filling step in our pipeline would address these defects. In contrast, the jet and bird examples were excluded, as they exceeded the tolerance threshold. More broadly, the 45 excluded shapes typically exhibited the same underlying issues we identified in our detailed inspection: poor original sampling that led to holes, detached components, or excessive distortion during remeshing. Ultimately, this process yielded a cleaner, more reliable dataset of 2,438 shapes for subsequent analysis.
 
 
 % LaTeX table (Overleaf-ready) generated from files_outside_range.csv
@@ -1173,7 +1174,7 @@ Figure \ref{Fig-pca_explained_variance_pie} illustrates the average proportion o
 \label{Fig-centering_error_cdf}
 \end{figure}
 
-\textbf{Interpretation and evidence for successful scaling.} The multi-panel scatter figure (Figure \ref{Fig-bbox_dimensions_by_category}) was generated by reading each shape's metadata (which was saved during the normalization process) and plotting the three final bounding-box side lengths ($X$, $Y$ and $Z$) for every shape, grouped by category; within each small subplot every marker corresponds to one shape and the unit-cube target corresponds to a maximum side length of $1.0$. The figure shows that, for all categories, the per-shape maxima of $\{X, Y, Z\}$ are at or below $1.0$, i.e., the colored points lie within the $0$--$1$ range and no category exhibits a systematic pattern of values exceeding the unit scale. This visual pattern provides direct evidence that the scaling step produced consistent unit-cube normalization across the dataset.
+\textbf{Interpretation and evidence for successful scaling.} The multi-panel scatter figure (Figure \ref{Fig-bbox_dimensions_by_category}) was generated by reading each shape's metadata (which was saved during the normalization process) and plotting the three final bounding-box side lengths ($X$, $Y$ and $Z$) for every shape, grouped by category; within each small subplot every marker corresponds to one shape and the unit-cube target corresponds to a maximum side length of $1.0$. The figure shows that, for all categories, the per-shape maxima of $\{X, Y, Z\}$ are at or below $1.0$, i.e., the colored points lie within the $0$-$1$ range and no category exhibits a systematic pattern of values exceeding the unit scale. This visual pattern provides direct evidence that the scaling step produced consistent unit-cube normalization across the dataset.
 
 
 \begin{figure}[H]
@@ -1280,20 +1281,15 @@ V(M)=\sum_{c \in \mathcal{C}(M)} \left| \frac{1}{6} \sum_{(i,j,k)\in F_c} v_i \c
 \end{equation}
 where $\mathcal{C}(M)$ denotes the set of connected face components and $F_c$ the faces in component $c$. This per-component absolute value matches the BFS accumulation in our code and is robust to local orientation inconsistencies. The resulting $V(M)$ is then reused by compactness, convexity, and (volume-based) rectangularity.
 
-\begin{figure}[H]
-\begin{center}
-\includegraphics[width=0.6\columnwidth]{figures/features_standardization/feature_combined_volume.png}
-\caption{\textbf{Z-score standardization of Volume.} Left: raw distribution in original units (histogram and boxplot); right: z-score standardized distribution. The bottom table shows summary statistics before and after standardization (mean, std, median, min, max, and percentages within $|z| \leq 1, 2, 3$).}
-  \label{fig:std:volume}
-\end{center}
-\end{figure}
-
 \paragraph{Surface area}
 The surface area describes the total extent of a mesh surface by summing the contributions of all triangular faces. It is defined as
 \begin{equation}
 A(M)=\tfrac{1}{2}\sum_{(i,j,k)\in F}\lVert (v_j-v_i)\times (v_k-v_i)\rVert.
 \end{equation}
 Intuitively, this value captures how much space the surface covers; shapes with large, detailed, or highly folded surfaces will have larger surface areas compared to simpler ones.
+
+\paragraph{Surface area.} 
+The visual progression in figure \ref{surface_area_scale} supports the correctness of the surface area computation. The object with the smallest surface area is a sword, while the object with the largest is a highly detailed building model with overlapping meshes. This ordering aligns with expectations and indicates that the descriptor reliably reflects variation in surface complexity across the dataset.
 
 \begin{figure}[H]
 \begin{center}
@@ -1314,6 +1310,15 @@ This allows for a clear comparison of central tendencies and spread across categ
 \end{center}
 \end{figure}
 
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/scales/scale_surface_area.png}
+\label{surface_area_scale}
+\caption{\textbf{Scale of surface area}. The figure illustrates the range of surface area values across the dataset, from the minimum to the maximum observed. Images at $0\%, 25\%, 50\%, 75\%,$ and $100\%$ show the objects whose surface area values are closest to these respective percentiles, with $0\%$ representing the smallest and $100\%$ the largest surface area measured in the dataset.}
+  \label{fig:std:volume}
+\end{center}
+\end{figure}
+
 
 
 \paragraph{Compactness}
@@ -1322,6 +1327,9 @@ Compactness compares the ratio of surface area to volume against that of a perfe
 \mathcal{C}(M)=\frac{A(M)^3}{36\pi V(M)^2}.
 \end{equation}
 A value close to $1$ indicates a sphere, the most compact shape, while larger values highlight shapes that are elongated, spiky, or irregular.
+
+The distribution of objects along the compactness scale in figure \ref{compactness_scale} suggests that the descriptor has been calculated correctly. The lowest vlaue is a PlantIndoors object which is quite close to a sphere. Right of this object, two boxy RectangleTable objects appear, which corresponds to an object a bit less spherical. On the right, the palm tree with the extreme value is nearly flat, which explains its exceptionally high compactness ratio. The volume is near zero and the surface area is big which makes the division of these two very big. Although this outlier distorts the visual scale, its geometry justifies the extreme value and supports the metric’s validity.
+
 
 \begin{figure}[H]
 \begin{center}
@@ -1342,6 +1350,15 @@ This highlights differences in how compact or elongated different object classes
 \end{center}
 \end{figure}
 
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/scales/scale_compactness.png}
+\label{compactness_scale}
+\caption{\textbf{Scale of compactness}. The figure illustrates the range of compactness values across the dataset, from the minimum to the maximum observed. Images at $0\%, 25\%, 50\%, 75\%,$ and $100\%$ show the objects whose compactness values are closest to these respective percentiles, with $0\%$ representing the smallest and $100\%$ the largest compactness measured in the dataset.}
+  \label{fig:std:volume}
+\end{center}
+\end{figure}
+
 
 \paragraph{Rectangularity}
 Rectangularity measures how well the shape \emph{fills} its oriented bounding box (OBB) in terms of volume. If the OBB has side lengths $(w,h,d)$, its volume is $V_{\mathrm{OBB}}=w\,h\,d$, and we define
@@ -1349,6 +1366,9 @@ Rectangularity measures how well the shape \emph{fills} its oriented bounding bo
 \mathcal{R}(M)=\frac{V(M)}{V_{\mathrm{OBB}}(M)} \in (0,1].
 \end{equation}
 High values indicate that the object volumetrically occupies most of its OBB (box-like, chunky shapes), while low values signal thin or highly concave objects. Note that a \emph{thin} door for example still has a high value as the OBB box is also small.
+
+The rectangularity scale in figure \ref{rectangularity_scale} appears consistent with geometric intuition. The flat palm tree exhibits low rectangularity because of its near zero volume, followed by the train and building models, which become progressively more rectangular in form. The values are higher than the theoretical (0, 1) range. This indicates that there might be a problem with the volume calculation for highly detailed meshes. Nevertheless, the trend across the images suggests that the descriptor accurately captures differences in overall shape.
+
 
 \begin{figure}[H]
 \begin{center}
@@ -1368,6 +1388,15 @@ Classes are ordered by median rectangularity, enabling comparison of box-like ve
 \end{center}
 \end{figure}
 
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/scales/scale_rectangularity.png}
+\label{rectangularity_scale}
+\caption{\textbf{Scale of rectangularity}. The figure illustrates the range of rectangularity values across the dataset, from the minimum to the maximum observed. Images at $0\%, 25\%, 50\%, 75\%,$ and $100\%$ show the objects whose rectangularity values are closest to these respective percentiles, with $0\%$ representing the smallest and $100\%$ the largest rectangularity measured in the dataset.}
+  \label{fig:std:volume}
+\end{center}
+\end{figure}
+
 
 \paragraph{Diameter}
 The diameter is the maximum Euclidean distance between any two vertices of the mesh:
@@ -1375,6 +1404,9 @@ The diameter is the maximum Euclidean distance between any two vertices of the m
 D(M)=\max_{p,q\in V}\lVert p-q\rVert_2.
 \end{equation}
 This captures the longest measurable extent of the object and helps distinguish elongated objects from more compact ones. As the objects are scaled the minimum value is 1. Higher values indicate less compact objects.
+
+The diameter descriptor shows a clear progression in figure \ref{diameter_scale} from compact to more elongated geometries. The leftmost object, the Biplane, is relatively flat, while objects toward the right become more rectangular which of course increases the diameter of the mesh. The rightmost item appears slightly misplaced within the order, yet this can be attributed to its non-normalized orientation, which artificially inflates its measured diameter. While this might indicate that this object should be noted as an outlier, the observed sequence confirms that the descriptor behaves as expected.
+
 
 \begin{figure}[H]
 \begin{center}
@@ -1394,13 +1426,27 @@ This plot shows which classes tend to have longer or more compact overall extent
 \end{center}
 \end{figure}
 
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/scales/scale_diameter.png}
+\label{diameter_scale}
+\caption{\textbf{Scale of diameter}. The figure illustrates the range of diameter values across the dataset, from the minimum to the maximum observed. Images at $0\%, 25\%, 50\%, 75\%,$ and $100\%$ show the objects whose diameter values are closest to these respective percentiles, with $0\%$ representing the smallest and $100\%$ the largest diameter measured in the dataset.}
+  \label{fig:std:volume}
+\end{center}
+\end{figure}
+
+The convexity descriptor in figure \ref{convexity_scale} demonstrates a plausible transition from low to high convexity. Objects on the left have small volumes and irregular shapes, while those on the right approximate their convex hulls more closely. The slightly elevated numerical values across the scale may indicate that volume estimation for highly detailed meshes influences this descriptor. Despite this, the visual progression and the fact that most of the meshes are within the $[0,1]$ range supports the overall correctness of the computation.
+
+
 
 \paragraph{Convexity}
 Convexity quantifies the degree to which the shape fills its convex hull. With $M^{\mathrm{hull}}$ denoting the convex hull,
 \begin{equation}
-\mathcal{CX}(M)=\frac{V(M)}{V(M^{\mathrm{hull}})}.
+\mathcal{CX}(M)=\frac{V(M)}{V(M^{\mathrm{hull}})}.z
 \end{equation}
 Values close to $1$ indicate convex shapes, while smaller values indicate strong concavities or internal cavities.
+
+The eccentricity scale in figure \ref{eccentricity_scale} aligns with the expected geometric interpretation. Objects with low $\lambda_1 / \lambda_3$ ratios appear 'bigger', whereas those toward the right become progressively flatter and more elongated. This gradual visual change supports the conclusion that the eccentricity values have been computed accurately across the dataset. Again on the right we see two very flat figures which have a very big value for the eccentricity descriptor but this is within expectation. Because the figures are practically flat
 
 \begin{figure}[H]
 \begin{center}
@@ -1417,6 +1463,15 @@ Values close to $1$ indicate convex shapes, while smaller values indicate strong
 Convexity measures how much of the convex hull volume is filled by the mesh. 
 The ordering by median highlights which classes are closer to convex and which show deep concavities. 
 \label{Fig-descriptor-convexity}}}
+\end{center}
+\end{figure}
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/scales/scale_convexity.png}
+\label{convexity_scale}
+\caption{\textbf{Scale of convexity}. The figure illustrates the range of convexity values across the dataset, from the minimum to the maximum observed. Images at $0\%, 25\%, 50\%, 75\%,$ and $100\%$ show the objects whose convexity values are closest to these respective percentiles, with $0\%$ representing the smallest and $100\%$ the largest convexity measured in the dataset.}
+  \label{fig:std:volume}
 \end{center}
 \end{figure}
 
@@ -1443,6 +1498,15 @@ A sphere yields $\varepsilon \approx 1$, while thin or elongated objects have mu
 Eccentricity reflects elongation along principal axes. 
 This plot makes it easy to compare which object classes are more isotropic versus more elongated. 
 \label{Fig-descriptor-eccentricity}}}
+\end{center}
+\end{figure}
+
+\begin{figure}[H]
+\begin{center}
+\includegraphics[width=0.8\columnwidth]{figures/scales/scale_eccentricity.png}
+\label{eccentricity_scale}
+\caption{\textbf{Scale of eccentricity}. The figure illustrates the range of eccentricity values across the dataset, from the minimum to the maximum observed. Images at $0\%, 25\%, 50\%, 75\%,$ and $100\%$ show the objects whose eccentricity values are closest to these respective percentiles, with $0\%$ representing the smallest and $100\%$ the largest eccentricity measured in the dataset.}
+  \label{fig:std:volume}
 \end{center}
 \end{figure}
 
@@ -1473,7 +1537,7 @@ Finally, the histogram was divided into $20$ bins, which provided a good balance
 
 To verify that the computed A3 descriptor values were reasonable and informative, we analyzed the consistency of the resulting distributions both \emph{within} and \emph{between} object classes.  
 Specifically, we plotted the per-shape angle distributions for $20$ representative classes, selected to be near the median in terms of the number of available shapes per class, ensuring a fair comparison across categories.  
-The resulting per-class distributions are shown in Figure~\ref{Fig-A3-class-comparison}.
+The resulting per-class distributions are shown in Figure \ref{Fig-A3-class-comparison}.
 
 \begin{figure}[H]
 \begin{center}
@@ -1502,7 +1566,7 @@ In the implementation, all mesh vertices are used directly, corresponding to $n 
 For each vertex, this distance is computed and then grouped into a $20$-bin histogram spanning from $0$ to the empirically determined upper bound.
 The resulting distribution describes how evenly mass is distributed around the barycenter.
 
-Per-class histograms (Figure~\ref{Fig-D1-class-comparison}) reveal that D1 captures differences in compactness:  
+Per-class histograms (Figure \ref{Fig-D1-class-comparison}) reveal that D1 captures differences in compactness:  
 spherical or cubic shapes exhibit narrow, symmetric distributions around their mean distance, whereas elongated or branched shapes show flatter and wider profiles.
 
 \begin{figure}[H]
@@ -1526,7 +1590,7 @@ d_2 = \lVert \mathbf{x} - \mathbf{y} \rVert_2.
 In code, $100{,}000$ random pairs are generated using replacement, ensuring a diverse sampling even for meshes with fewer vertices.  
 Each distance value is added to a 20-bin histogram within the range $[0, d_{\max}]$, where $d_{\max}$ was determined globally via the 99th percentile plus 10\% buffer.  
 
-The resulting distributions (Figure~\ref{Fig-D2-class-comparison}) reveal differences in spatial scale between object classes.  
+The resulting distributions (Figure \ref{Fig-D2-class-comparison}) reveal differences in spatial scale between object classes.  
 Compact shapes concentrate distances near zero, while large or elongated shapes produce wider histograms extending toward the upper range.
 D2 thus provides a global measure of spatial extent and object elongation, complementing D1 by comparing internal pairwise relationships rather than distances to the center.
 
@@ -1556,7 +1620,7 @@ In the implementation, $100{,}000$ random triplets of vertices are sampled with 
 Each triangle’s area is then square-rooted before histogramming to express it in length units and mitigate the effect of large outliers.  
 The histogram again uses 20 bins over the range $[0, a_{\max}]$, with $a_{\max}$ empirically determined via the global 99th percentile plus 10\% margin.
 
-Figure~\ref{Fig-D3-class-comparison} shows per class D3 distributions, which reveal meaningful variation across object categories.  
+Figure \ref{Fig-D3-class-comparison} shows per class D3 distributions, which reveal meaningful variation across object categories.  
 Flat, planar shapes yield histograms skewed toward higher area values, while curved or finely detailed surfaces produce peaks near zero.
 
 \begin{figure}[H]
@@ -1586,7 +1650,7 @@ As in the implementation, $100{,}000$ random quadruples are sampled with replace
 The cube root of each volume is taken before histogramming to express values in consistent length units and reduce skew caused by large outliers.  
 All values are grouped into a $20$-bin histogram over $[0, v_{\max}]$, where $v_{\max}$ is set to the global 99th percentile plus 10\% buffer.
 
-Per-class D4 histograms (Figure~\ref{Fig-D4-class-comparison}) reveal distinctive volumetric signatures:  
+Per-class D4 histograms (Figure \ref{Fig-D4-class-comparison}) reveal distinctive volumetric signatures:  
 solid, compact shapes show broader, higher volume distributions, whereas thin or planar structures concentrate near zero.
 
 \begin{figure}[H]
@@ -1601,15 +1665,179 @@ Higher values indicate volumetrically dense shapes, while lower values reflect t
 
 The D4 descriptor captures volumetric complexity and internal density, complementing the distance based metrics by describing how the object fills three-dimensional space. With a few outliers aside the histograms look very similar within the same class. However, the distance in between the classes is also small which might reduce the effectiveness of this descriptor.
 
-
-
 \section{Step 4: Querying} \label{sec-Querying}
+In this step, we implemented a content-based shape retrieval (CBSR) system that allows us to identify and rank shapes in the database based on their similarity to a given query shape. For each query, the system extracts the same set of features as described in the previous section, computes distances between the query and all database shapes, and returns the best-matching results. This step therefore forms the first end-to-end application of the feature extraction pipeline, integrating normalization, distance computation, and feature fusion.
 
+The following subsections describe the main stages of this process: feature normalization, computation of descriptor-specific distances, normalization of the resulting distance matrices, and their combination into a single metric. We conclude with a short overview of the results.
+
+\subsection{Normalizing Feature Values}
+Before computing distances, we first normalize all extracted feature values to ensure comparability across descriptors. Since the global descriptors differ in their numeric ranges, we apply \emph{Z-score standardization} for each descriptor, transforming values such that the resulting feature distributions have zero mean and unit variance:
+\begin{equation}
+\mathbf{f}' = \frac{\mathbf{f} - \boldsymbol{\mu}_f}{\boldsymbol{\sigma}_f},
+\end{equation}
+where $\mathbf{f}$ denotes the original feature vector for a shape, and $\boldsymbol{\mu}_f$ and $\boldsymbol{\sigma}_f$ are the mean and standard deviation of that descriptor, computed across all shapes in the database.
+
+For histogram-based descriptors, we convert the raw bin counts into \emph{frequency histograms}:
+\begin{equation}
+\mathbf{h}' = \frac{\mathbf{h}}{\sum_i h_i},
+\end{equation}
+ensuring that $\sum_i h'_i = 1$. This transformation makes the descriptors independent of sampling density and mesh resolution, allowing for meaningful cross-shape comparison. These normalized representations form the basis for all subsequent distance computations.
+
+\subsection{Computing Distances for Individual Features}
+Each descriptor provides an independent measure of similarity between shapes. For each pair of shapes $(a,b)$, we compute a descriptor-specific distance $D_k(a,b)$, where $k \in \{1, \dots, 11\}$ indexes the descriptors.
+
+For scalar (global) descriptors, we use the standard Euclidean distance:
+\begin{equation}
+D_k(a,b) = \lVert \mathbf{f}'_{a,k} - \mathbf{f}'_{b,k} \rVert_2.
+\end{equation}
+
+For histogram-based descriptors, we employ the \emph{Earth Mover’s Distance} (EMD), which captures distributional dissimilarity by measuring the minimal work required to transform one histogram into another:
+\begin{equation}
+D_k(a,b) = \text{EMD}(\mathbf{h}'_{a,k}, \mathbf{h}'_{b,k}),
+\end{equation}
+where the EMD was implemented using the \texttt{wasserstein\_distance} function from \texttt{scipy.stats}.  
+
+The result of this step is an $N \times N$ distance matrix $\mathbf{D}_k$ for each descriptor $k$, where $N$ is the number of shapes in the database and $(\mathbf{D}_k)_{ij} = D_k(i,j)$.
+
+\subsection{Normalizing Distance Matrices}
+Since the distance matrices $\mathbf{D}_k$ differ in their absolute ranges and distributions, we normalize them before combination to ensure that all descriptors contribute comparably. We implemented and tested three approaches:
+
+\begin{enumerate}
+    \item \textbf{Min-max normalization:}
+    \begin{equation}
+    \mathbf{D}'_k = \frac{\mathbf{D}_k - \min(\mathbf{D}_k)}{\max(\mathbf{D}_k) - \min(\mathbf{D}_k)}.
+    \end{equation}
+
+    \item \textbf{Z-score normalization:}
+    \begin{equation}
+    \mathbf{D}'_k = \frac{\mathbf{D}_k - \mu(\mathbf{D}_k)}{\sigma(\mathbf{D}_k)}.
+    \end{equation}
+
+    \item \textbf{Rank-based normalization:} each distance value $D_k(i,j)$ is replaced by its normalized rank within the corresponding descriptor matrix:
+    \begin{equation}
+    \mathbf{D}'_k(i,j) = \frac{\text{rank}(D_k(i,j))}{N^2}.
+    \end{equation}
+\end{enumerate}
+
+We evaluated the three normalization schemes by measuring the mean average precision (MAP) at $K=10$ across the full database. The rank-based normalization achieved the best overall retrieval performance, followed by Z-score and min–max normalization. Therefore, rank-based normalization was used in all subsequent steps. Conceptually, it offers robustness to outliers and distribution skew, and it ensures that relative ordering rather than absolute scale determines the contribution of each descriptor.
+
+\subsection{Combined Distance Metric}
+After normalization, we integrate the individual descriptor distances into a single combined metric using a weighted sum:
+\begin{equation}
+D_{\text{combined}}(a,b) = \sum_{k=1}^{11} w_k \, \mathbf{D}'_k(a,b),
+\end{equation}
+where $w_k$ is the learned weight of descriptor $k$.  
+
+To optimize these weights, we applied Bayesian optimization using the \emph{Optuna} framework with a Tree-structured Parzen Estimator (TPE) sampler. The objective function maximized the mean precision at $K=10$, with 200 optimization trials. Bayesian optimization was chosen for its ability to efficiently balance exploration and exploitation in a high-dimensional search space, yielding a set of weights that improved retrieval consistency across shape categories.
+
+\subsection{Results}
+% A detailed quantitative evaluation of the system’s performance is presented in Section~\ref{sec-Evaluation}. Here, we provide a brief qualitative overview.
+
+% Representative examples of query results are shown in Figure \ref{tab-query-results}.
+
+
+
+% \section{Step 4: Querying} \label{sec-Querying}
+% % Introducing section and what querying is
+
+% % Explain what challenges there are and thus what next subsections will be
+
+% \subsection{Normalizing Feature Values}
+% % Standardization (Z-score) for global descriptor values
+
+% % Turn the histograms into frequency histograms
+
+% \subsection{Computing Distances for Individual Features}
+% % Euclidean for global feature values
+
+% % EMD for histogram features
+
+% % Explain that we create a N x N distance matrix for every feature to store distances between shapes
+
+% \subsection{Normalizing Distances Matrices}
+% % Three methods of normalizing the matrices
+
+% % Min-max normalization
+
+% % Z-score standardization
+
+% % Rank-based normalization
+
+% \subsection{Combined Distance}
+% % Explain weighted sum approach
+
+% % Explain weight optimization using Bayesian optimization algorithm using optuna tree structered parzen optimizer (200 trials)
+
+% \subsection{Results}
+% % State that performance will be thoroughly evaluated in section 10, but that we will show some of the results of our custom distance metric
+
+% % Show tables of results
 
 \section{Step 5: Scalability}
+As the database grows in size, exhaustive pairwise distance computation for content-based shape retrieval becomes very computationally intensive. For our dataset we precomputed the distance from each shape to each other shape in the database. This however does not work when the database becomes too big or when shapes are queried which are not in the database. To enable efficient similarity search and intuitive exploration of high-dimensional feature spaces, we implemented two scalability mechanisms:
+\begin{enumerate}
+    \item \emph{K Nearest Neighbor (KNN)} engine for efficient $K$-nearest querying
+    \item \emph{Dimensionality Reduction (DR)} engine based on t-SNE for low dimensional visual inspection of the feature space structure.
+\end{enumerate}
+
+\subsection{Step 5.1: K Nearest Neighbor Search}
+\subsubsection{Methodology}
+To enable efficient similarity querying, we implemented a $K$-Nearest Neighbour (KNN) search using a multidimensional tree (KD-Tree) structure. The process begins by extracting the feature vectors of all shapes in the database, forming a feature matrix $\mathbf{F} \in \mathbb{R}^{N \times D}$, where each row represents a mesh and each column corresponds to one feature descriptor. From this matrix, a KD-Tree is constructed, which hierarchically partitions the $D$-dimensional feature space to accelerate neighbour lookups.
+
+When a query shape is submitted, we look up its feature vector $\mathbf{f}_q$ in the database. We could also compute its feature matrix within seconds if the shape is not in the database. The KNN algorithm then traverses the KD-Tree to identify candidate neighbours that are most likely to be close to $\mathbf{f}_q$ in feature space. For each candidate, the Euclidean distance is computed as
+\begin{equation}
+d(\mathbf{f}_q, \mathbf{f}_i) = \sqrt{\sum_{j=1}^{D} (f_{qj} - f_{ij})^2},
+\end{equation}
+where $\mathbf{f}_i$ denotes the feature vector of the $i$-th shape in the database.  
+The algorithm then selects the $K$ shapes with the smallest distances to the query vector and returns them as the most similar matches. This KD-Tree–based approach substantially reduces the computational cost compared to exhaustive pairwise distance computation, especially when the database contains a large number of shapes.
+
+\subsubsection{Limitations}
+However, this KNN-based approach is not as sophisticated as the normal querying method described earlier. Since the individual feature components are not weighted according to their relative importance, and because the Earth Mover’s Distance (EMD) is not used for comparing histogram based features, the retrieval accuracy is noticeably lower. We return to this issue in Step 6: Evaluation, where we discuss the quantitative evaluation of both methods.
+
+\subsection{Step 5.2: Dimensionality Reduction for Visualization}
+\subsubsection{Methodology}
+To visualise the similarity relationships captured by the feature descriptors, we applied \textit{t}-Distributed Stochastic Neighbour Embedding (t-SNE) to project the high-dimensional feature space into two dimensions. In contrast to the KNN search, which operates on the raw feature vectors for efficient querying, t-SNE provides an interpretable visual representation of how shapes relate to one another in the overall database.
+
+As input to t-SNE, we used the precomputed pairwise distance matrix $\mathbf{D} \in \mathbb{R}^{N \times N}$, where each entry $d_{ij}$ represents the Euclidean distance between the feature vectors of shapes $i$ and $j$. This ensures that the embedding directly reflects the distance relationships produced by our descriptors, rather than relying on the raw feature coordinates. 
+
+The algorithm constructs a low-dimensional representation $\mathbf{Y} \in \mathbb{R}^{N \times 2}$ that preserves local neighbourhoods: shapes that are close in the high-dimensional space remain close in the 2D projection. We experimented with several perplexity values (30, 40, and 50) to observe their effects on the visual clustering. A higher perplexity places more emphasis on global structure, whereas lower values highlight local relationships. After testing, we selected a perplexity of $50$ as it provided the best balance between local and global cluster separation for our dataset.
+
+Figures\ref{fig:tsne-perp30}, \ref{fig:tsne-perp40}, and \ref{fig:tsne-perp50} show the resulting t-SNE embeddings for different perplexity values. Each point represents a shape, colour-coded by its class label. Clusters correspond to groups of geometrically or semantically similar shapes, while overlaps or dispersed clusters suggest ambiguous or mixed categories.
+
+% Example figure layout (adjust paths as needed)
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.32\textwidth]{figures/tsne_perp30.png}
+    \includegraphics[width=0.32\textwidth]{figures/tsne_perp40.png}
+    \includegraphics[width=0.32\textwidth]{figures/tsne_perp50.png}
+    \caption{\textbf{t-SNE visualisation of shape similarity.} Comparison of embeddings with perplexities of 30, 40, and 50, respectively. Each point represents one shape, colour-coded by class label. Perplexity $=50$ yields the clearest separation of clusters.}
+    \label{fig:tsne-perp30}
+\end{figure}
 
 
-\section{Step 6: Evaluation}
+\subsubsection{Retrieval Methods Exposed in the User Interface}
+
+To make the different retrieval strategies accessible and interpretable, we integrated them directly into our 3D Shape Viewer UI. The interface allows users to query a given shape and compare how the following three methods -rank-based normalization, KNN retrieval, and random selection - differ in their returned results. Each method displays the top five most similar shapes alongside their similarity scores and visual previews, enabling intuitive qualitative assessment of retrieval performance.  
+
+Figures \ref{fig:ui_retrieval_methods} and \ref{fig:ui_retrieval_methods_2} illustrate this functionality for two example queries: a bed and a humanoid shape. In both cases, subfigures (A–C) compare the results produced by the three retrieval approaches. The bed example (Figure \ref{fig:ui_retrieval_methods}) demonstrates that the KNN method (B) retrieves the most accurate and semantically similar shapes, achieving 60\% accuracy, while rank-based normalization (A) produces moderately relevant results (20\% accuracy). In contrast, for the humanoid example (Figure \ref{fig:ui_retrieval_methods_2}), the rank-based normalization (A) yields the best outcome with 100\% accuracy, outperforming KNN (B). Random retrieval (C) serves as a control baseline, highlighting the expected results in the absence of similarity-based selection. Subfigure (D) in both examples shows a t-SNE visualisation of the embedding space, illustrating the relative position of the query shape and its retrieved neighbours within the broader shape distribution. We will provide a more thorough comparison between the different approaches in Section \ref{sec-Evaluation}.
+  
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/evaluation/Retrieval Methods.png}
+\caption{\textbf{Different Retrieval Methods in the UI - Bed Example.} Example of a bed (D00565) illustrating the top 5 most similar shapes retrieved using three different approaches: (A) Rank-based normalization with 20\% accuracy, (B) KNN with 60\% accuracy, and (C) Random retrieval with 0\% accuracy. (D) t-SNE visualization of the embedding space.}
+\label{fig:ui_retrieval_methods}
+\end{figure}
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/evaluation/Retrieval Methods 2.png}
+\caption{\textbf{Different Retrieval Methods in the UI - Humanoid Example.} Example of a humanoid (m123) illustrating the top 5 most similar shapes retrieved using three different approaches: (A) Rank-based normalization with 100\% accuracy, (B) KNN with 60\% accuracy, and (C) Random retrieval with 0\% accuracy. (D) t-SNE visualization of the embedding space.}
+\label{fig:ui_retrieval_methods_2}
+\end{figure}
+
+
+\section{Step 6: Evaluation} \label{sec-Evaluation}
 
 We evaluate the retrieval quality of our system by systematically querying each shape in the database and comparing the returned results against ground-truth class labels. Since we lack explicit similarity annotations, we use the semantic class labels provided with the dataset as a proxy for relevance: shapes belonging to the same class as the query are considered relevant, while shapes from different classes are deemed non-relevant. This evaluation compares our three distance matrix approaches and computes a range of binary-relevance metrics to assess both ranking quality and class-level discrimination performance.
 
@@ -1636,7 +1864,7 @@ where TP counts retrieved shapes from the same class as the query (true positive
 
 This evaluation strategy ensures unbiased assessment by exhaustively querying every shape in the database, preventing selection bias that could arise from hand-picking query shapes. For our evaluation, we set the retrieval depth to $n=10$, reflecting a practical scenario where users examine the top results returned by the system.
 
-We compare three descriptor aggregation approaches, each producing its own distance matrix for retrieval. All three approaches combine descriptor distances using empirically tuned weights in a weighted sum, but differ in how they preprocess the descriptor values before aggregation:
+We compare three descriptor aggregation approaches, We compare three descriptor aggregation approaches, each producing its own distance matrix for retrieval. All three approaches combine descriptor distances using empirically tuned weights in a weighted sum, but differ in how they preprocess the descriptor values before aggregation:
 \begin{itemize}
     \item \textbf{MinMax Normalization}: Applies min-max scaling to normalize each descriptor's distances into the range $[0,1]$ before weighted aggregation.
     \item \textbf{Rank-Based Transformation}: Converts raw descriptor distances into ordinal rankings per query (lower rank = more similar) before weighted aggregation, producing a distance matrix robust to outliers and scale variations.
@@ -1701,7 +1929,7 @@ where $\text{rel}_i$ is the relevance of the item at position $i$, and $\text{ID
 
 \subsection{Experimental Results}
 
-Figure~\ref{fig:eval-macro-comparison} presents the macro-averaged performance across all semantic classes for the three evaluated descriptor aggregation approaches. The rank-based transformation achieves the highest overall performance with an ROC AUC of 0.763 and Average Precision of 0.818, demonstrating superior discriminative ability. This approach's success can be attributed to its robustness against descriptor scale variations and outliers, as rank transformations inherently normalize different descriptor ranges. The standardization (z-score) approach shows competitive performance (ROC AUC: 0.738, Average Precision: 0.715), benefiting from the normalization of descriptor distances to zero mean and unit variance. The MinMax normalization approach yields slightly lower but still reasonable performance (ROC AUC: 0.723, Average Precision: 0.699), providing a baseline for comparison.
+Figure \ref{fig:eval-macro-comparison} presents the macro-averaged performance across all categories for the three evaluated descriptor aggregation approaches. The rank-based transformation achieves the highest overall performance with an ROC AUC of 0.763 and Average Precision of 0.818, demonstrating superior discriminative ability. This approach's success can be attributed to its robustness against descriptor scale variations and outliers, as rank transformations inherently normalize different descriptor ranges. The standardization (z-score) approach shows competitive performance (ROC AUC: 0.738, Average Precision: 0.715), benefiting from the normalization of descriptor distances to zero mean and unit variance. The MinMax normalization approach yields slightly lower but still reasonable performance (ROC AUC: 0.723, Average Precision: 0.699), providing a baseline for comparison.
 
 \begin{figure}[H]
 \centering
@@ -1710,11 +1938,11 @@ Figure~\ref{fig:eval-macro-comparison} presents the macro-averaged performance a
 \label{fig:eval-macro-comparison}
 \end{figure}
 
-Across all three approaches, we observe relatively low precision values (0.18--0.23) and recall values (0.30--0.33), resulting in modest F1-scores (0.32--0.33). These values reflect the inherent difficulty of the retrieval task: with 69 diverse semantic classes and significant intra-class variation, achieving high precision at retrieval depth $n=10$ is challenging. The gap between Average Precision (0.70--0.82) and standard Precision (0.18--0.23) reveals that while many relevant results are retrieved, they often appear at lower ranks. Similarly, the high ROC AUC values (0.72--0.76) compared to precision/recall metrics indicate that the systems can effectively discriminate relevant from non-relevant shapes when considering all thresholds, even if performance at a fixed cutoff ($n=10$) is moderate.
+Across all three approaches, we observe relatively low precision values (0.18-0.23) and recall values (0.30-0.33), resulting in modest F1-scores (0.32-0.33). These values reflect the inherent difficulty of the retrieval task: with 69 diverse categories and significant intra-class variation, achieving high precision at retrieval depth $n=10$ is challenging. The gap between Average Precision (0.70-0.82) and standard Precision (0.18-0.23) reveals that while many relevant results are retrieved, they often appear at lower ranks. Similarly, the high ROC AUC values (0.72-0.76) compared to precision/recall metrics indicate that the systems can effectively discriminate relevant from non-relevant shapes when considering all thresholds, even if performance at a fixed cutoff ($n=10$) is moderate.
 
-The NDCG metrics provide additional insights into ranking quality. NDCG (Full) values of 0.50--0.52 indicate that the systems achieve roughly half of the ideal ranking performance when considering all results. The lower NDCG@10 values (0.25--0.26) reflect the challenge of placing the most relevant items within the top 10 positions, though they remain significantly above random performance.
+The NDCG metrics provide additional insights into ranking quality. NDCG (Full) values of 0.50-0.52 indicate that the systems achieve roughly half of the ideal ranking performance when considering all results. The lower NDCG@10 values (0.25-0.26) reflect the challenge of placing the most relevant items within the top 10 positions, though they remain significantly above random performance.
 
-Figure~\ref{fig:eval-accuracy-perclass} shows per-class accuracy across the three approaches, revealing substantial performance variation among semantic categories. Certain classes such as Bicycle (0.71--0.71), Humanoid (0.54--0.65), and Sword (0.53--0.63) achieve notably high accuracy, suggesting strong geometric consistency within these categories. These classes likely exhibit distinctive shape signatures that are well-captured by our descriptor combinations. Conversely, classes like AircraftBuoyant (0.05--0.10), Apartment (0.04--0.06), and Hat (0.05--0.09) show poor retrieval accuracy, indicating either high intra-class variation, insufficient discriminative features, or confusion with geometrically similar classes.
+Figure \ref{fig:eval-accuracy-perclass} shows per-class accuracy across the three approaches, revealing substantial performance variation among semantic categories. Certain classes such as Bicycle (0.71-0.71), Humanoid (0.54-0.65), and Sword (0.53-0.63) achieve notably high accuracy, suggesting strong geometric consistency within these categories. These classes likely exhibit distinctive shape signatures that are well-captured by our descriptor combinations. Conversely, classes like AircraftBuoyant (0.05-0.10), Apartment (0.04-0.06), and Hat (0.05-0.09) show poor retrieval accuracy, indicating either high intra-class variation, insufficient discriminative features, or confusion with geometrically similar classes.
 
 \begin{figure}[H]
 \centering
@@ -1725,38 +1953,156 @@ Figure~\ref{fig:eval-accuracy-perclass} shows per-class accuracy across the thre
 
 The rank-based transformation generally outperforms the other methods for difficult classes, demonstrating improved robustness. For instance, the Helicopter class achieves accuracy of 0.38 with rank-based transformation compared to 0.30 (MinMax normalization) and 0.28 (standardization). Similarly, NonWheelChair shows accuracy of 0.36 (rank-based) versus 0.34 (standardization) and 0.36 (MinMax). These improvements suggest that rank-based transformation helps reduce the impact of descriptor-specific biases that disproportionately affect challenging object categories.
 
-Figure~\ref{fig:eval-f1score-perclass} presents F1-scores per class, revealing similar patterns with more emphasis on the precision-recall balance. Classes achieving high F1-scores—such as Bicycle (0.72--0.78), Sword (0.54--0.63), and Wheel (0.27--0.38)—demonstrate both high precision and recall, making them reliable targets for retrieval queries. The substantial variation in F1-scores across classes (ranging from 0.13 to 0.78) underscores the heterogeneous difficulty of different semantic categories within the dataset.
+Figure \ref{fig:eval-f1score-perclass} presents F1-scores per class, revealing similar patterns with more emphasis on the precision-recall balance. Classes achieving high F1-scores - such as Bicycle (0.72-0.78), Sword (0.54-0.63), and Wheel (0.27-0.38) - demonstrate both high precision and recall, making them reliable targets for retrieval queries. The substantial variation in F1-scores across classes (ranging from 0.13 to 0.78) underscores the heterogeneous difficulty of different semantic categories within the dataset.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.7\textwidth]{figures/heatmap_per_class_vs_approach_F1.png}
-\caption{\textbf{Per-class F1-Score comparison across three distance matrix approaches.} F1-score balances precision and recall, providing a more nuanced view of retrieval quality than accuracy alone. The rank-based approach achieves the highest macro-averaged F1-score (0.331) and shows consistent improvements for many classes. Top-performing classes include Bicycle (0.78), NonWheelChair (0.49), and Humanoid (0.69), while challenging classes such as Apartment (0.15--0.19) and AircraftBuoyant (0.13--0.22) remain difficult across all approaches.}
+\caption{\textbf{Per-class F1-Score comparison across three distance matrix approaches.} F1-score balances precision and recall, providing a more nuanced view of retrieval quality than accuracy alone. The rank-based approach achieves the highest macro-averaged F1-score (0.331) and shows consistent improvements for many classes. Top-performing classes include Bicycle (0.78), NonWheelChair (0.49), and Humanoid (0.69), while challenging classes such as Apartment (0.15-0.19) and AircraftBuoyant (0.13-0.22) remain difficult across all approaches.}
 \label{fig:eval-f1score-perclass}
 \end{figure}
 
 Several factors contribute to the observed performance variations. First, intra-class geometric diversity affects retrieval: classes like Humanoid encompass a wide range of poses and body types, yet still achieve reasonable performance due to shared structural characteristics (torso, limbs, head). Second, inter-class similarity creates confusion: architecturally similar categories such as BuildingNonResidential, House, and Apartment may share geometric properties that reduce discriminative power. Third, dataset class imbalance affects metrics: larger classes (e.g., Jet with 143 samples, Humanoid with 142 samples) provide more training examples for distance calibration compared to smaller classes (e.g., Hat with 15 samples, Sign with 15 samples).
 
-The macro-averaged metrics at the bottom of each per-class figure provide aggregate summaries: "Macro By Class" treats each class equally regardless of size, while "Overall By Query" weights classes proportionally to their representation in the database. The similar values for both metrics (accuracy: 0.18--0.23 vs. 0.23--0.24; F1-score: 0.32--0.33 vs. 0.40--0.42) suggest that performance is relatively consistent across small and large classes, indicating that our system does not systematically favor well-represented categories.
+The macro-averaged metrics at the bottom of each per-class figure provide aggregate summaries: "Macro By Class" treats each class equally regardless of size, while "Overall By Query" weights classes proportionally to their representation in the database. The similar values for both metrics (accuracy: 0.18-0.23 vs. 0.23-0.24; F1-score: 0.32-0.33 vs. 0.40-0.42) suggest that performance is relatively consistent across small and large classes, indicating that our system does not systematically favor well-represented categories.
 
 \subsection{Discussion and Implications}
 
 The evaluation results reveal several important insights for 3D shape retrieval systems. First, normalization strategy significantly impacts retrieval quality: the rank-based approach's consistent superiority across metrics demonstrates that addressing descriptor scale heterogeneity is crucial for multi-feature retrieval systems. The transformation of raw distances into ordinal rankings provides robustness against outliers and scale variations that arise from the diverse geometric properties captured by different shape descriptors.
 
-Second, the gap between ROC AUC (0.72--0.76) and precision at fixed cutoff (0.18--0.23) highlights an important distinction: our systems can effectively discriminate relevant from non-relevant shapes when considering the full ranking (as measured by AUC), but struggle to consistently place relevant items within the top-10 results. This suggests opportunities for improvement through ranking refinement techniques such as learning-to-rank approaches or query-specific weight adaptation.
+Second, the gap between ROC AUC (0.72-0.76) and precision at fixed cutoff (0.18-0.23) highlights an important distinction: our systems can effectively discriminate relevant from non-relevant shapes when considering the full ranking (as measured by AUC), but struggle to consistently place relevant items within the top-10 results. This suggests opportunities for improvement through ranking refinement techniques such as learning-to-rank approaches or query-specific weight adaptation.
 
 Third, per-class performance analysis reveals that certain semantic categories are inherently more challenging for purely geometric approaches. Classes exhibiting high intra-class variation (e.g., Apartment, House) or sharing geometric properties with multiple categories may benefit from additional discriminative features beyond the shape descriptors employed here. Potential enhancements could include part-based representations, structural graph descriptors, or learned deep features that capture semantic relationships beyond pure geometry.
 
-Fourth, the moderate NDCG@10 values (0.25--0.26) indicate substantial room for improvement in ranking quality at the depths most relevant to users. Future work could explore re-ranking strategies based on user feedback, query expansion techniques, or hybrid approaches combining geometric descriptors with learned embeddings from shape classification networks.
+Fourth, the moderate NDCG@10 values (0.25-0.26) indicate substantial room for improvement in ranking quality at the depths most relevant to users. Future work could explore re-ranking strategies based on user feedback, query expansion techniques, or hybrid approaches combining geometric descriptors with learned embeddings from shape classification networks.
 
 Despite these challenges, the overall performance demonstrates that content-based retrieval using geometric descriptors provides a solid foundation for 3D shape search. The rank-based approach's macro-averaged ROC AUC of 0.763 significantly exceeds random performance (0.5), confirming that our descriptor combinations capture meaningful geometric similarities that align with semantic categories. For practical applications, the system performs best for classes with distinctive geometric signatures and consistent intra-class structure, making it suitable for focused domain applications where shape categories exhibit strong geometric coherence.
+
+\subsection{Query Examples}
+
+To provide qualitative insights into the retrieval performance beyond aggregate metrics, we conducted a systematic analysis of query results across different performance tiers. Based on the per-class F1-scores shown in Figure \ref{fig:eval-f1score-perclass}, we divided the 69 categories into three performance categories: high-performing classes (top tertile, F1 $>$ 0.50), medium-performing classes (middle tertile, 0.25 $<$ F1 $<$ 0.50), and low-performing classes (bottom tertile, F1 $<$ 0.25). From each tier, we selected three representative classes and identified the query shapes within those classes that achieved the highest retrieval accuracy under the rank-based transformation approach. This selection strategy ensures that the visualized examples represent the best-case performance achievable within each difficulty category, providing upper-bound insights into retrieval quality.
+
+For each selected query shape, we generated comparative visualizations showing the top-5 most similar shapes retrieved by all four matching approaches: KNN with Euclidean distance, MinMax normalization, Rank-based transformation, and Z-score standardization. Each retrieved shape is rendered as a 3D mesh with color-coded visual feedback: green coloring denotes shapes belonging to the same semantic class as the query (true positives), while red coloring indicates shapes from different classes (false positives). This color-coding scheme enables immediate visual assessment of precision within the top-5 results. Figures \ref{fig:query_high_1}-\ref{fig:query_high_3} present examples from the high-performance tier, Figures \ref{fig:query_medium_1}-\ref{fig:query_medium_3} show medium-performance cases, and Figures \ref{fig:query_low_1}-\ref{fig:query_low_3} illustrate low-performance scenarios.
+
+The visualizations reveal distinct patterns that corroborate and explain the quantitative performance differences observed in Figure \ref{fig:eval-f1score-perclass}. Classes in the high-performance tier, such as Bicycle ($F1$ = 0.782), HumanHead ($F1$ = 0.784), and Humanoid ($F1$ = 0.689), display predominantly green-colored retrieved shapes across all four approaches. This consistency indicates that these classes possess distinctive geometric signatures that are robustly captured by our shape descriptors. For instance, bicycles are characterized by their open frame structure with circular wheels, while human heads exhibit recognizable proportions with facial feature arrangements. These classes demonstrate that when intra-class geometric coherence is high and inter-class separability is strong, even different normalization strategies converge on similar correct retrievals.
+
+In contrast, classes in the low-performance tier, represented by Sign ($F1$ = 0.131), Vase ($F1$ = 0.136), and FloorLamp ($F1$ = 0.141), display predominantly red-colored retrieved shapes even for the best-performing queries within those categories. This systematic failure across all approaches reveals fundamental limitations in using purely geometric descriptors for certain semantic categories. Signs exemplify extreme intra-class variation, ranging from simple flat rectangular panels to complex three-dimensional structures with irregular geometries, making it difficult to identify a consistent geometric signature. Vases illustrate the challenge of inter-class confusion: their cylindrical geometry with varying height-to-width ratios overlaps significantly with cups, bottles, and lamp bases, leading to semantically incorrect but geometrically plausible retrievals. These cases suggest that low F1-scores often reflect inherent ambiguity in the geometric feature space rather than deficiencies in the distance computation methods.
+
+Classes in the medium-performance tier, such as Violin ($F1$ = 0.243), Monoplane ($F1$ = 0.234), and Rocket ($F1$ = 0.228), display mixed retrieval quality with both correct and incorrect matches appearing in the top-5 results. The partial success observed in these cases suggests that retrieval performance is query-dependent: some shapes within these classes possess sufficiently distinctive geometric configurations to enable accurate retrieval, while others share geometric properties with multiple categories. For example, violins may be confused with other string instruments due to similar curved body shapes, while rockets and missiles share elongated cylindrical geometries that lead to cross-class confusion. This variability indicates that medium-tier classes often represent semantically coherent but geometrically diverse categories, where descriptor-based retrieval succeeds for prototypical shapes but struggles with atypical or boundary cases.
+
+Across all performance tiers, we observe that the rank-based transformation approach consistently achieves competitive or superior results compared to alternative normalization strategies, with several queries showing perfect or near-perfect top-5 accuracy. The KNN approach, while computationally efficient, occasionally retrieves geometrically similar shapes from incorrect semantic categories, highlighting the trade-off between query speed and retrieval accuracy inherent in approximate nearest neighbor methods. Overall, these visualizations demonstrate that retrieval quality is determined by a complex interplay between intra-class geometric consistency, inter-class geometric distinctiveness, and the discriminative power of the chosen shape descriptors.
 
 
 \begin{figure}[H]
 \centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_high_rank_1.png}
+\caption{\textbf{Query retrieval results for high F1-score class (Rank \#1).} The query shape (leftmost column) is compared against the top-5 retrieved similar shapes across four matching approaches. Green coloring indicates correct retrievals (same class), while red coloring indicates incorrect retrievals (different class). All four approaches demonstrate strong retrieval performance with predominantly correct matches, reflecting the class's high F1-scores.}
+\label{fig:query_high_1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_high_rank_2.png}
+\caption{\textbf{Query retrieval results for high F1-score class (Rank \#2).} Continued demonstration of excellent retrieval quality for a high-performing category, with most approaches achieving near-perfect accuracy in the top-5 results.}
+\label{fig:query_high_2}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_high_rank_3.png}
+\caption{\textbf{Query retrieval results for high F1-score class (Rank \#3).} The third representative from the high-performance tier, confirming consistent retrieval success across multiple queries within classes that exhibit strong geometric distinctiveness.}
+\label{fig:query_high_3}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_medium_rank_1.png}
+\caption{\textbf{Query retrieval results for medium F1-score class (Rank \#1).} The visualization reveals mixed retrieval performance, with some approaches successfully identifying similar shapes while others struggle, exemplifying the moderate classification difficulty for this category. The varied shape colors highlight inconsistent retrieval quality characteristic of medium-performing classes.}
+\label{fig:query_medium_1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_medium_rank_2.png}
+\caption{\textbf{Query retrieval results for medium F1-score class (Rank \#2).} Continued demonstration of the challenges faced in medium-performance categories, where geometric similarity does not always align with semantic class boundaries, resulting in partial retrieval success.}
+\label{fig:query_medium_2}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_medium_rank_3.png}
+\caption{\textbf{Query retrieval results for medium F1-score class (Rank \#3).} The third medium-tier example illustrates the query-dependent nature of retrieval quality within these categories, where success varies based on the specific geometric configuration of the query shape.}
+\label{fig:query_medium_3}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_low_rank_1.png}
+\caption{\textbf{Query retrieval results for low F1-score class (Rank \#1).} Predominantly red-colored shapes across all approaches demonstrate the severe retrieval challenges for this class, where high intra-class variability and low inter-class distinctiveness lead to poor performance. Even the best-performing rank-based approach struggles with this category.}
+\label{fig:query_low_1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_low_rank_2.png}
+\caption{\textbf{Query retrieval results for low F1-score class (Rank \#2).} The visualization illustrates why certain classes achieve low F1-scores: shapes in this category share geometric features with other object types, resulting in frequent misclassifications despite visually reasonable shape similarities.}
+\label{fig:query_low_2}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/evaluation/query_examples_low_rank_3.png}
+\caption{\textbf{Query retrieval results for low F1-score class (Rank \#3).} The third low-performance example confirms the systematic difficulty in retrieving shapes from this category, with all four approaches producing predominantly incorrect matches in the top-5 results.}
+\label{fig:query_low_3}
+\end{figure}
+
+\subsection{Final Additions to the UI}
+
+\begin{figure}[H]
+\centering
 \includegraphics[width=0.7\textwidth]{figures/AddingAccToUI.png}
-\caption{\textbf{t-SNE}. The user can view the t-SNE plot created from our 11t deprecates with the current shape displaed as a squere and the similar shapes as triangles, each smaple if the plot is color-coded in the same color schedme as in Figure \ref{fog-AddingAccToUI}. }
+\caption{\textbf{Interactive shape retrieval interface with visual quality feedback}. The Similar Shapes panel displays retrieval results for a query shape (here, a HumanHead model). Each retrieved shape is color-coded according to its semantic class using the legend shown at the top, enabling immediate visual assessment of retrieval accuracy. The panel header displays the overall accuracy (100\% in this example) computed as the proportion of retrieved shapes matching the query's class. Individual similarity scores are shown for each result, with the top-5 results all correctly identifying HumanHead instances.}
+\label{fig:AddingAccToUI}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/Motorcycle-D00342.png}
+\caption{\textbf{Moderate retrieval performance for Motorcycle category (F1: 0.354).} Panel (A) shows top 10 results for query D00342 with 50\% accuracy. Panel (B) shows the t-SNE embedding with Motorcycle instances (orange) scattered across the space, indicating high intra-class variability that explains the retrieval challenges.}
+\label{fig:Motorcycle-D00342}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/t-sne-opacity-change-and-tooltip.png}
+\caption{\textbf{Interactive t-SNE visualization of shape descriptor space}. The t-SNE embedding projects all 2,438 shapes from the 11-dimensional descriptor space into 2D for visual exploration of similarity relationships. The currently selected shape is marked with a square marker, while its top-10 retrieved similar shapes are shown as triangles. All points are color-coded by semantic class using the same scheme as Figure \ref{Fig-AdditionalPlots-Vertices-After}. The interface provides adjustable background opacity controls to reduce visual clutter from non-relevant shapes (those not belonging to the query class or similar shapes list). Panels (A)-(C) demonstrate the same t-SNE plot at three opacity levels (Level 0, Median 0.25, Full 1.0), showing how background filtering improves focus on relevant clusters. Panel (D) shows the interactive tooltip that displays shape metadata on hover. This visualization enables qualitative assessment of descriptor discriminative power and reveals class separability patterns across the dataset.}
 \label{fig:t-sne-opacity-change-and-tooltip.png}
 \end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/t-sne-category-filtering.png}
+\caption{\textbf{Interactive filtering in t-SNE visualization}. (A) SimUsers can control which category families are displayed in the t-SNE plot. Panel (A) shows the query shape (D00205), its similar shapes results, and all shapes from the same category (HumanHead). Panel (B) demonstrates the category family dropdown filter. Panels (C) and (D) showcase different category selections, enabling focused analysis of specific object groups and cluster separation in the embedding space.}
+\label{fig:t-sne-category-filtering}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/show-more-results.png}
+\caption{\textbf{Retrieval results for Humanoid query m123 (accuracy: 70\%).} Panels (A) and (B) show the top 10 most similar shapes. The majority of results correctly match the Humanoid category, with three misclassifications including Fish shapes (D00024, D00165), indicating occasional confusion between elongated shape classes.}
+\label{fig:show-more-results}
+\end{figure}
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/Vase.png}
+\caption{\textbf{Poor retrieval performance for the Vase category (F1: 0.127).} Panel (A) shows the top 10 retrieval results for query m529, achieving only 10\% accuracy. Panel (B) displays the t-SNE embedding space where Vase instances (green) are widely scattered and heavily intermixed with other categories, indicating poor class separability for some categories.}
+\label{fig-vase}
+\end{figure}
+
+
+
 
 
 
