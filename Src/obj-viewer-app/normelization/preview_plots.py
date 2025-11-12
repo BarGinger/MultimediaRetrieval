@@ -15,7 +15,7 @@ def preview_plots(figures_dir='validation_figures'):
     figures_dir = Path(figures_dir)
     
     if not figures_dir.exists():
-        print(f"❌ Error: Figures directory not found: {figures_dir}")
+        print(f"Error: Figures directory not found: {figures_dir}")
         print(f"\nPlease run generate_validation_plots.py first.")
         return False
     
@@ -44,22 +44,22 @@ def preview_plots(figures_dir='validation_figures'):
             missing_figures.append((filename, title))
     
     if missing_figures:
-        print("⚠️  Missing figures:")
+        print("️ Missing figures:")
         for filename, title in missing_figures:
             print(f"   • {filename}")
         print()
     
     if not found_figures:
-        print("❌ No figures found!")
+        print("No figures found!")
         return False
     
-    print(f"✅ Found {len(found_figures)} figures")
-    print(f"\n📊 Press any key to view next figure, 'q' to quit, 's' to skip preview\n")
+    print(f"Found {len(found_figures)} figures")
+    print(f"\n Press any key to view next figure, 'q'to quit, 's'to skip preview\n")
     
     choice = input("Start preview? (y/n/s): ").lower()
     
     if choice == 's' or choice == 'n':
-        print("\n📁 Figures are available in:", figures_dir.absolute())
+        print("\n Figures are available in:", figures_dir.absolute())
         return True
     
     # Display each figure
@@ -78,13 +78,13 @@ def preview_plots(figures_dir='validation_figures'):
             plt.show()
             
         except Exception as e:
-            print(f"   ❌ Error loading {fig_path.name}: {e}")
+            print(f"Error loading {fig_path.name}: {e}")
     
     print("\n" + "="*70)
     print("  PREVIEW COMPLETE")
     print("="*70)
-    print(f"\n📁 All figures saved in: {figures_dir.absolute()}")
-    print("\n💡 Tips for using in report:")
+    print(f"\n All figures saved in: {figures_dir.absolute()}")
+    print("\n Tips for using in report:")
     print("   • All figures are 300 DPI (publication quality)")
     print("   • Use \\includegraphics[width=\\textwidth]{path/to/figure}")
     print("   • Reference figures using \\ref{fig:validation_overview}")
@@ -101,7 +101,7 @@ def list_plots(figures_dir='validation_figures'):
     figures_dir = Path(figures_dir)
     
     if not figures_dir.exists():
-        print(f"❌ Error: Figures directory not found: {figures_dir}")
+        print(f"Error: Figures directory not found: {figures_dir}")
         return False
     
     print("\n" + "="*70)
@@ -128,8 +128,8 @@ def list_plots(figures_dir='validation_figures'):
     total_mb = total_size / (1024 * 1024)
     print("-" * 70)
     print(f"{'TOTAL':<40} {total_mb:>8.2f} MB")
-    print(f"\n📁 Location: {figures_dir.absolute()}")
-    print(f"📊 Total plots: {len(plot_files)}")
+    print(f"\n Location: {figures_dir.absolute()}")
+    print(f"Total plots: {len(plot_files)}")
     print()
     
     return True

@@ -99,7 +99,7 @@ class UnifiedPreprocessingProcessor:
     
     def setup_output_directories(self, datasets):
         """Create output directories for each dataset"""
-        print(f"📁 Setting up output directories in: {self.output_base_dir.absolute()}")
+        print(f"Setting up output directories in: {self.output_base_dir.absolute()}")
         for dataset in datasets:
             dataset_dir = self.output_base_dir / dataset
             dataset_dir.mkdir(parents=True, exist_ok=True)
@@ -123,7 +123,7 @@ class UnifiedPreprocessingProcessor:
             mesh = o3d.io.read_triangle_mesh(str(mesh_path))
 
             if len(mesh.vertices) == 0:
-                print(f"❌ Empty mesh: {mesh_path}")
+                print(f"Empty mesh: {mesh_path}")
                 return None, None, False
 
             # Aggressive cleaning to ensure mesh quality
@@ -134,7 +134,7 @@ class UnifiedPreprocessingProcessor:
                 mesh.remove_non_manifold_edges()
                 mesh.remove_unreferenced_vertices()
             except Exception as e:
-                print(f"⚠️ Cleaning error: {e}")
+                print(f"️ Cleaning error: {e}")
 
             current_vertices = len(mesh.vertices)
 
@@ -144,17 +144,17 @@ class UnifiedPreprocessingProcessor:
             was_remeshed = False
 
             if lower_bound <= current_vertices <= upper_bound:
-                print(f"  ✅ No remeshing needed ({current_vertices} vertices within ±10% of target)")
+                print(f"No remeshing needed ({current_vertices} vertices within ±10% of target)")
                 return np.asarray(mesh.vertices), np.asarray(mesh.triangles), False
 
             # Decimate if too many vertices
             if current_vertices > upper_bound:
-                print(f"  🔄 Aggressive decimation from {current_vertices} to target {target_vertices}")
+                print(f"Aggressive decimation from {current_vertices} to target {target_vertices}")
                 mesh = self._decimate_to_range(mesh)
                 was_remeshed = True
             # Upsample if too few vertices
             elif current_vertices < lower_bound:
-                print(f"  🔄 Aggressive upsampling from {current_vertices} to target {target_vertices}")
+                print(f"Aggressive upsampling from {current_vertices} to target {target_vertices}")
                 # Temporarily allow more subdivision passes for compliance
                 orig_max_subdiv = getattr(self, 'max_decimation_passes', 8)
                 self.max_decimation_passes = max(8, orig_max_subdiv)
@@ -163,9 +163,9 @@ class UnifiedPreprocessingProcessor:
                 if len(mesh.vertices) < lower_bound and hasattr(mesh, 'subdivide_midpoint'):
                     try:
                         mesh = mesh.subdivide_midpoint(number_of_iterations=1)
-                        print(f"    🔄 Final forced subdivision, now {len(mesh.vertices)} vertices")
+                        print(f"Final forced subdivision, now {len(mesh.vertices)} vertices")
                     except Exception as e:
-                        print(f"    ⚠️ Final subdivision failed: {e}")
+                        print(f"️ Final subdivision failed: {e}")
                 was_remeshed = True
 
             # Final compacting and trimming
@@ -176,11 +176,11 @@ class UnifiedPreprocessingProcessor:
 
             # If still above upper bound, decimate again
             if len(mesh.vertices) > upper_bound:
-                print(f"    🔧 Final trimming: {len(mesh.vertices)} → target {target_vertices}")
+                print(f"Final trimming: {len(mesh.vertices)} → target {target_vertices}")
                 mesh = self._decimate_to_range(mesh)
 
             final_vertices = len(mesh.vertices)
-            print(f"  ✅ Remeshing result: {final_vertices} effective vertices, {len(mesh.triangles)} faces")
+            print(f"Remeshing result: {final_vertices} effective vertices, {len(mesh.triangles)} faces")
 
             # Collect remeshing stats with enhanced upsampling log if available
             remeshing_entry = {
@@ -200,7 +200,7 @@ class UnifiedPreprocessingProcessor:
             return np.asarray(mesh.vertices), np.asarray(mesh.triangles), was_remeshed
 
         except Exception as e:
-            print(f"❌ Remeshing failed for {mesh_path}: {e}")
+            print(f"Remeshing failed for {mesh_path}: {e}")
             return None, None, False
 
     def _compact_mesh(self, mesh):
@@ -285,7 +285,7 @@ class UnifiedPreprocessingProcessor:
         # For very low-poly meshes (< 500 vertices), be more aggressive
         if original_vertex_count < 500:
             msg = f"Very low-poly mesh ({original_vertex_count} vertices), using aggressive upsampling"
-            print(f"    ⚡ {msg}")
+            print(f"{msg}")
             upsampling_log['warnings'].append(msg)
             max_subdiv_passes = 6  # Allow up to 6 passes for small meshes
             max_upsampling_factor = 20  # Allow up to 20x increase
@@ -302,7 +302,7 @@ class UnifiedPreprocessingProcessor:
             # Check 1: Prevent excessive upsampling
             if current_v >= max_allowed_vertices:
                 msg = f"Reached max upsampling factor ({max_upsampling_factor}x), stopping at {current_v} vertices"
-                print(f"    🛑 {msg}")
+                print(f"{msg}")
                 upsampling_log['warnings'].append(msg)
                 break
             
@@ -310,7 +310,7 @@ class UnifiedPreprocessingProcessor:
             predicted_vertices = current_v * 2  # Rough estimate
             if predicted_vertices > self.target_vertices * allow_overshoot_factor:
                 msg = f"Predicted overshoot ({predicted_vertices} > {self.target_vertices * allow_overshoot_factor:.0f}), stopping"
-                print(f"    🛑 {msg}")
+                print(f"{msg}")
                 upsampling_log['warnings'].append(msg)
                 break
             
@@ -323,7 +323,7 @@ class UnifiedPreprocessingProcessor:
             #     connectivity_before = self._validate_mesh_connectivity(mesh)
             #     if not connectivity_before['is_valid']:
             #         msg = f"Mesh has connectivity issues before subdivision pass {passes + 1}"
-            #         print(f"    ❌ {msg}")
+            # print(f"{msg}")
             #         upsampling_log['warnings'].append(msg)
             #         upsampling_log['quality_checks'].append({
             #             'pass': passes + 1,
@@ -338,7 +338,7 @@ class UnifiedPreprocessingProcessor:
                 # Loop subdivision can fragment meshes at non-manifold edges, causing parts to detach
                 # Midpoint is slightly less smooth but preserves mesh connectivity much better
                 subdivision_method = 'midpoint'
-                print(f"    🔄 Applying Midpoint subdivision (pass {passes + 1})...")
+                print(f"Applying Midpoint subdivision (pass {passes + 1})...")
                 new_mesh = mesh.subdivide_midpoint(number_of_iterations=1)
 
                 
@@ -353,7 +353,7 @@ class UnifiedPreprocessingProcessor:
                 
                 if increase_factor > max_increase:
                     msg = f"Suspicious vertex increase: {current_v} → {new_vertex_count} ({increase_factor:.1f}x > {max_increase}x), reverting"
-                    print(f"    ⚠️  {msg}")
+                    print(f"️ {msg}")
                     upsampling_log['warnings'].append(msg)
                     upsampling_log['subdivision_passes'].append({
                         'pass': passes + 1,
@@ -388,7 +388,7 @@ class UnifiedPreprocessingProcessor:
                 if not connectivity_after['is_valid'] and components_increased:
                     # If Loop subdivision increased components, try midpoint as fallback
                     if subdivision_method == 'loop' and hasattr(mesh, 'subdivide_midpoint'):
-                        print(f"    ⚠️  Loop subdivision increased components {original_components}→{connectivity_after['connected_components']}, trying midpoint fallback...")
+                        print(f"️ Loop subdivision increased components {original_components}→{connectivity_after['connected_components']}, trying midpoint fallback...")
                         try:
                             new_mesh_fallback = mesh.subdivide_midpoint(number_of_iterations=1)
                             connectivity_fallback = self._validate_mesh_connectivity(new_mesh_fallback)
@@ -396,7 +396,7 @@ class UnifiedPreprocessingProcessor:
                             fallback_increased = connectivity_fallback['connected_components'] > original_components * 1.5
                             if not fallback_increased:
                                 # Midpoint worked better, use it
-                                print(f"    ✅ Midpoint subdivision successful ({connectivity_fallback['connected_components']} components)")
+                                print(f"Midpoint subdivision successful ({connectivity_fallback['connected_components']} components)")
                                 new_mesh = new_mesh_fallback
                                 new_vertex_count = len(new_mesh.vertices)
                                 increase_factor = new_vertex_count / current_v if current_v > 0 else 1.0
@@ -406,7 +406,7 @@ class UnifiedPreprocessingProcessor:
                             else:
                                 # Midpoint also failed, reject
                                 msg = f"Both Loop and midpoint subdivision increased components ({original_components}→{connectivity_after['connected_components']} and {connectivity_fallback['connected_components']}), stopping"
-                                print(f"    ❌ {msg}")
+                                print(f"{msg}")
                                 upsampling_log['warnings'].append(msg)
                                 upsampling_log['quality_checks'].append({
                                     'pass': passes + 1,
@@ -425,7 +425,7 @@ class UnifiedPreprocessingProcessor:
                                 break
                         except Exception as e:
                             msg = f"Midpoint fallback failed: {str(e)}"
-                            print(f"    ❌ {msg}")
+                            print(f"{msg}")
                             upsampling_log['warnings'].append(msg)
                             upsampling_log['subdivision_passes'].append({
                                 'pass': passes + 1,
@@ -439,7 +439,7 @@ class UnifiedPreprocessingProcessor:
                     else:
                         # No fallback available or already using midpoint
                         msg = f"Subdivision increased components {original_components}→{connectivity_after['connected_components']}, stopping"
-                        print(f"    ❌ {msg}")
+                        print(f"{msg}")
                         upsampling_log['warnings'].append(msg)
                         upsampling_log['quality_checks'].append({
                             'pass': passes + 1,
@@ -461,7 +461,7 @@ class UnifiedPreprocessingProcessor:
                 floating_check = self._validate_no_floating_geometry(new_mesh)
                 if not floating_check['is_valid']:
                     msg = f"Subdivision created floating geometry, reverting to {current_v} vertices"
-                    print(f"    ❌ {msg}")
+                    print(f"{msg}")
                     upsampling_log['warnings'].append(msg)
                     upsampling_log['quality_checks'].append({
                         'pass': passes + 1,
@@ -482,7 +482,7 @@ class UnifiedPreprocessingProcessor:
                 # Check 7: Detect subdivision stagnation
                 if new_vertex_count <= current_v + 10:
                     msg = f"Subdivision stagnated ({current_v} → {new_vertex_count}), stopping"
-                    print(f"    ⚠️  {msg}")
+                    print(f"️ {msg}")
                     upsampling_log['warnings'].append(msg)
                     upsampling_log['subdivision_passes'].append({
                         'pass': passes + 1,
@@ -497,7 +497,7 @@ class UnifiedPreprocessingProcessor:
                 # All checks passed, accept the subdivided mesh
                 mesh = new_mesh
                 passes += 1
-                print(f"    ✅ Pass {passes}: {current_v} → {new_vertex_count} vertices (quality checks passed)")
+                print(f"Pass {passes}: {current_v} → {new_vertex_count} vertices (quality checks passed)")
                 
                 upsampling_log['subdivision_passes'].append({
                     'pass': passes,
@@ -513,13 +513,13 @@ class UnifiedPreprocessingProcessor:
                 # Check 8: Stop if we've reached a reasonable target
                 if new_vertex_count >= target_soft_cap:
                     msg = f"Reached soft cap ({target_soft_cap}), stopping"
-                    print(f"    ✅ {msg}")
+                    print(f"{msg}")
                     upsampling_log['warnings'].append(msg)
                     break
                     
             except Exception as e:
                 msg = f"Subdivision failed at pass {passes + 1}: {str(e)}"
-                print(f"    ❌ {msg}")
+                print(f"{msg}")
                 upsampling_log['warnings'].append(msg)
                 upsampling_log['subdivision_passes'].append({
                     'pass': passes + 1,
@@ -534,7 +534,7 @@ class UnifiedPreprocessingProcessor:
         final_vertex_count = len(mesh.vertices)
         upsampling_factor = final_vertex_count / original_vertex_count if original_vertex_count > 0 else 1.0
         
-        print(f"    📊 Upsampling complete: {original_vertex_count} → {final_vertex_count} vertices ({upsampling_factor:.1f}x)")
+        print(f"Upsampling complete: {original_vertex_count} → {final_vertex_count} vertices ({upsampling_factor:.1f}x)")
         
         upsampling_log['final_result'] = {
             'final_vertices': final_vertex_count,
@@ -547,8 +547,8 @@ class UnifiedPreprocessingProcessor:
         if final_vertex_count < self.min_acceptable_vertices:
             deficit = self.min_acceptable_vertices - final_vertex_count
             msg = f"Final vertex count ({final_vertex_count}) below target minimum ({self.min_acceptable_vertices}), deficit: {deficit} vertices"
-            print(f"    ⚠️  {msg}")
-            print(f"    ⚡ Forcing final subdivision to reach minimum if possible")
+            print(f"️ {msg}")
+            print(f"Forcing final subdivision to reach minimum if possible")
             upsampling_log['warnings'].append(msg)
             upsampling_log['warnings'].append("Forcing final subdivision to reach minimum")
             upsampling_log['final_result']['below_minimum'] = True
@@ -556,13 +556,13 @@ class UnifiedPreprocessingProcessor:
             if hasattr(mesh, 'subdivide_midpoint'):
                 try:
                     mesh = mesh.subdivide_midpoint(number_of_iterations=1)
-                    print(f"    ⚡ Final forced subdivision, now {len(mesh.vertices)} vertices")
+                    print(f"Final forced subdivision, now {len(mesh.vertices)} vertices")
                 except Exception as e:
-                    print(f"    ⚠️ Final subdivision failed: {e}")
+                    print(f"️ Final subdivision failed: {e}")
         
         # If we overshot the absolute max, trim gently
         if final_vertex_count > self.max_acceptable_vertices:
-            print(f"    🔧 Final trimming: {final_vertex_count} → target ~{self.target_vertices}")
+            print(f"Final trimming: {final_vertex_count} → target ~{self.target_vertices}")
             upsampling_log['warnings'].append(f"Overshot maximum, applying decimation from {final_vertex_count}")
             mesh = self._decimate_to_range(mesh)
             upsampling_log['final_result']['decimation_applied'] = True
@@ -1183,12 +1183,12 @@ class UnifiedPreprocessingProcessor:
                 input_mtime = original_filepath.stat().st_mtime
                 
                 if output_mtime > input_mtime:
-                    print(f"  ✅ Already processed: {original_filepath.name}")
+                    print(f"Already processed: {original_filepath.name}")
                     self.stats['successful'] += 1
                     self.stats['total_processed'] += 1
                     return True
                 else:
-                    print(f"  🔄 Input file newer than output, reprocessing: {original_filepath.name}")
+                    print(f"Input file newer than output, reprocessing: {original_filepath.name}")
             
             # Step 1 & 2: Load and remesh if needed
             vertices, faces, was_remeshed = self.apply_remeshing_if_needed(
@@ -1196,19 +1196,19 @@ class UnifiedPreprocessingProcessor:
             )
             
             if vertices is None:
-                print(f"❌ Failed to load/remesh: {original_filepath.name}")
+                print(f"Failed to load/remesh: {original_filepath.name}")
                 return False
             
             # Store original vertices for step-by-step validation
             # ALWAYS load from original file to ensure we have truly unmodified vertices
-            print(f"  📥 Loading original unmodified mesh for validation...")
+            print(f"Loading original unmodified mesh for validation...")
             original_mesh = o3d.io.read_triangle_mesh(str(original_filepath))
             original_vertices = np.asarray(original_mesh.vertices)
             original_faces = np.asarray(original_mesh.triangles)
             
-            print(f"  📊 Original: {len(original_vertices)} vertices, {len(original_faces)} faces")
+            print(f"Original: {len(original_vertices)} vertices, {len(original_faces)} faces")
             if was_remeshed:
-                print(f"  📊 After processing: {len(vertices)} vertices, {len(faces)} faces")
+                print(f"After processing: {len(vertices)} vertices, {len(faces)} faces")
             
             # Step 3: Create ShapeMesh with potentially remeshed data
             mesh = ShapeMesh(
@@ -1221,19 +1221,19 @@ class UnifiedPreprocessingProcessor:
             )
             
             # Step 4: Save step-by-step files for validation
-            print(f"  📁 Saving step-by-step validation files...")
+            print(f"Saving step-by-step validation files...")
             step_files, step_vertices = self.save_step_by_step_files(
                 mesh, original_vertices, original_faces, vertices, was_remeshed, category_dir, base_name
             )
             
             # Step 5: Perform comprehensive validation
-            print(f"  🔍 Performing comprehensive validation...")
+            print(f"Performing comprehensive validation...")
             validation_data = self.perform_comprehensive_validation(
                 mesh, step_vertices, category_dir, base_name
             )
             
             # Enhanced validation with new methods
-            print(f"  🔍 Performing advanced validation analysis...")
+            print(f"Performing advanced validation analysis...")
             
             # Mesh quality analysis
             final_vertices = step_vertices['scaled']
@@ -1249,7 +1249,7 @@ class UnifiedPreprocessingProcessor:
             )
             
             # Step 6: Apply enhanced 4-step normalization for final output
-            print(f"  🔧 Applying enhanced 4-step normalization...")
+            print(f"Applying enhanced 4-step normalization...")
             normalized_vertices, normalization_stats = self.apply_enhanced_normalization(mesh, debug=False)
             
             # Step 7: Save final normalized OBJ
@@ -1355,7 +1355,7 @@ class UnifiedPreprocessingProcessor:
             
         except Exception as e:
             error_msg = f"Error processing {row.get('filename', 'unknown')}: {str(e)}"
-            print(f"\n❌ {error_msg}")
+            print(f"\n {error_msg}")
             traceback.print_exc()
             self.stats['errors'].append(error_msg)
             self.stats['failed'] += 1
@@ -1855,7 +1855,7 @@ class UnifiedPreprocessingProcessor:
             writer.writeheader()
             writer.writerows(csv_data)
         
-        print(f"📊 Normalization statistics CSV saved: {stats_file}")
+        print(f"Normalization statistics CSV saved: {stats_file}")
         return stats_file
     
     def save_dataset_validation_summary(self, all_validations, dataset_output_dir):
@@ -1953,10 +1953,10 @@ class UnifiedPreprocessingProcessor:
             with open(detailed_file, 'w') as f:
                 json.dump(convert_np(summary_stats), f, indent=2)
         except Exception as e:
-            print(f"❌ Error saving detailed validation JSON to {detailed_file}: {e}")            
+            print(f"Error saving detailed validation JSON to {detailed_file}: {e}") 
             traceback.print_exc()
         
-        print(f"\n📊 Validation Summary:")
+        print(f"\n Validation Summary:")
         print(f"   Total shapes validated: {total_shapes}")
         print(f"   Successful normalizations: {successful_normalizations}")
         print(f"   Success rate: {successful_normalizations / max(total_shapes, 1) * 100:.1f}%")
@@ -1964,7 +1964,7 @@ class UnifiedPreprocessingProcessor:
         print(f"   Mean scaling error: {summary_stats['validation_statistics']['scaling_errors']['mean']:.2e}")
         print(f"   Mean alignment quality: {summary_stats['validation_statistics']['alignment_quality']['mean']:.3f}")
         print(f"   Flipping success rate: {summary_stats['validation_statistics']['flipping_success_rate']:.1f}%")
-        print(f"\n📄 Validation files saved:")
+        print(f"\n Validation files saved:")
         print(f"   Summary CSV: {summary_file}")
         print(f"   Detailed JSON: {detailed_file}")
         
@@ -2028,13 +2028,13 @@ class UnifiedPreprocessingProcessor:
         Returns:
             Number of validations successfully regenerated
         """
-        print(f"\n🔄 Regenerating validation data from existing step files...")
+        print(f"\n Regenerating validation data from existing step files...")
         print(f"   Dataset: {dataset_name}")
         
         dataset_output_dir = self.output_base_dir / dataset_name
         
         if not dataset_output_dir.exists():
-            print(f"❌ Dataset output directory not found: {dataset_output_dir}")
+            print(f"Dataset output directory not found: {dataset_output_dir}")
             return 0
         
         # Find all categories with processed shapes
@@ -2071,7 +2071,7 @@ class UnifiedPreprocessingProcessor:
                 
                 # Verify all required files exist
                 if not all(f.exists() for f in step_files.values()):
-                    print(f"⚠️  Skipping {base_name}: Missing step files")
+                    print(f"️ Skipping {base_name}: Missing step files")
                     continue
                 
                 try:
@@ -2089,7 +2089,7 @@ class UnifiedPreprocessingProcessor:
                         if len(faces) > 0 and len(vertices) > 0:
                             max_index = np.max(faces)
                             if max_index >= len(vertices):
-                                print(f"⚠️  Warning: {base_name} {step_name} has invalid face indices (max: {max_index}, vertices: {len(vertices)})")
+                                print(f"️ Warning: {base_name} {step_name} has invalid face indices (max: {max_index}, vertices: {len(vertices)})")
                                 # Try to filter out invalid faces
                                 valid_faces = faces[np.all(faces < len(vertices), axis=1)]
                                 if len(valid_faces) > 0:
@@ -2133,7 +2133,7 @@ class UnifiedPreprocessingProcessor:
                     regenerated_count += 1
                     
                 except Exception as e:
-                    print(f"❌ Error regenerating validation for {base_name}: {str(e)}")
+                    print(f"Error regenerating validation for {base_name}: {str(e)}")
                     continue
         
         # Store validations for summary generation
@@ -2141,7 +2141,7 @@ class UnifiedPreprocessingProcessor:
             self.all_validations = []
         self.all_validations = all_validations
         
-        print(f"\n✅ Successfully regenerated {regenerated_count} validation files")
+        print(f"\n Successfully regenerated {regenerated_count} validation files")
         return regenerated_count
     
     def process_dataset(self, dataset_name):
@@ -2173,7 +2173,7 @@ class UnifiedPreprocessingProcessor:
         normalized_obj_path = category_dir / f"{base_name}_unified.obj"
         
         if normalized_obj_path.exists():
-            print(f"\n💡 Detected existing processed shapes!")
+            print(f"\n Detected existing processed shapes!")
             print(f"   To save time, regenerating validation data from existing step files...")
             print(f"   (This is ~100x faster than reprocessing all meshes)")
             
@@ -2181,7 +2181,7 @@ class UnifiedPreprocessingProcessor:
             regenerated_count = self.regenerate_validation_from_existing_steps(dataset_name)
             
             if regenerated_count == 0:
-                print(f"\n⚠️  No validations regenerated. Falling back to full processing...")
+                print(f"\n️ No validations regenerated. Falling back to full processing...")
                 # Fall through to normal processing below
                 process_shapes = True
             else:
@@ -2189,7 +2189,7 @@ class UnifiedPreprocessingProcessor:
                 process_shapes = False
         else:
             # Normal processing path
-            print(f"\n🔄 Processing shapes...")
+            print(f"\n Processing shapes...")
             process_shapes = True
         
         # Process shapes if needed
@@ -2205,7 +2205,7 @@ class UnifiedPreprocessingProcessor:
         
         # Generate validation summary for this dataset
         if hasattr(self, 'all_validations') and self.all_validations:
-            print(f"\n🔍 Generating comprehensive validation summary for {dataset_name}...")
+            print(f"\n Generating comprehensive validation summary for {dataset_name}...")
             
             # Save comprehensive validation summary (enhanced CSV + detailed JSON)
             try:
@@ -2217,7 +2217,7 @@ class UnifiedPreprocessingProcessor:
 
             # Save normalization_statistics.csv in normalization.py format for easy comparison
             try:                    
-                print(f"\n📊 Generating normalization_statistics.csv (normalization.py format)...")
+                print(f"\n Generating normalization_statistics.csv (normalization.py format)...")
                 self.save_normalization_statistics_csv(self.all_validations, dataset_output_dir)
             except Exception as e:
                 print(f"Error occurred while saving normalization statistics: {e}")
@@ -2225,16 +2225,16 @@ class UnifiedPreprocessingProcessor:
 
             # Create comprehensive validation plots
             try:
-                print(f"\n📊 Creating validation visualization plots...")
+                print(f"\n Creating validation visualization plots...")
                 plots_dir = self.create_validation_plots(str(dataset_output_dir), self.all_validations)
-                print(f"✅ Validation plots saved to: {plots_dir}")
+                print(f"Validation plots saved to: {plots_dir}")
             except Exception as e:
                 print(f"Error occurred while creating validation plots: {e}")
                 print(traceback.format_exc())
 
             # Save dataset-specific processing report
             try:
-                print(f"\n📄 Saving dataset-specific processing report...")
+                print(f"\n Saving dataset-specific processing report...")
                 self.save_processing_report(dataset_name)
 
             except Exception as e:
@@ -2312,9 +2312,9 @@ class UnifiedPreprocessingProcessor:
             json.dump(report, f, indent=2)
         
         if dataset_name:
-            print(f"📄 Dataset-specific processing report saved: {report_path}")
+            print(f"Dataset-specific processing report saved: {report_path}")
         else:
-            print(f"📄 Global processing report saved: {report_path}")
+            print(f"Global processing report saved: {report_path}")
         
         return report
     
@@ -2329,7 +2329,7 @@ class UnifiedPreprocessingProcessor:
         remesh_summary = report['remeshing_summary']
         quality = report['normalization_quality']
         
-        summary_lines.append(f"📊 Processing Summary:")
+        summary_lines.append(f"Processing Summary:")
         summary_lines.append(f"   Total shapes processed: {summary['total_shapes']}")
         summary_lines.append(f"   Successful: {summary['successful']}")
         summary_lines.append(f"   Failed: {summary['failed']}")
@@ -2338,13 +2338,13 @@ class UnifiedPreprocessingProcessor:
         summary_lines.append(f"   Speed: {summary['shapes_per_second']:.1f} shapes/second")
         
         summary_lines.append(f"")
-        summary_lines.append(f"🔄 Remeshing Summary:")
+        summary_lines.append(f"Remeshing Summary:")
         summary_lines.append(f"   Shapes remeshed: {remesh_summary['shapes_remeshed']}")
         summary_lines.append(f"   Target vertices: {remesh_summary['target_vertices']}")
         summary_lines.append(f"   Avg reduction ratio: {remesh_summary['avg_reduction_ratio']:.3f}")
         
         summary_lines.append(f"")
-        summary_lines.append(f"🎯 Normalization Quality (using your existing verification):")
+        summary_lines.append(f"Normalization Quality (using your existing verification):")
         summary_lines.append(f"   Mean centering error: {quality['mean_centering_error']:.2e}")
         summary_lines.append(f"   Max centering error: {quality['max_centering_error']:.2e}")
         summary_lines.append(f"   Mean scaling error: {quality['mean_scaling_error']:.2e}")
@@ -2356,17 +2356,17 @@ class UnifiedPreprocessingProcessor:
         
         summary_lines.append(f"")
         if centered_ok and scaled_ok:
-            summary_lines.append(f"🎉 FULL TECHNICAL TIPS COMPLIANCE ACHIEVED!")
+            summary_lines.append(f"FULL TECHNICAL TIPS COMPLIANCE ACHIEVED!")
         else:
-            summary_lines.append(f"⚠️  Some shapes may not meet technical tips precision requirements")
+            summary_lines.append(f"️ Some shapes may not meet technical tips precision requirements")
         
         summary_lines.append(f"")
-        summary_lines.append(f"📁 Output Directory: {self.output_base_dir}")
-        summary_lines.append(f"📄 Detailed Report: {self.output_base_dir / 'unified_processing_report.json'}")
+        summary_lines.append(f"Output Directory: {self.output_base_dir}")
+        summary_lines.append(f"Detailed Report: {self.output_base_dir / 'unified_processing_report.json'}")
         
         if len(self.stats['errors']) > 0:
             summary_lines.append(f"")
-            summary_lines.append(f"⚠️  {len(self.stats['errors'])} errors occurred (see report for details)")
+            summary_lines.append(f"️ {len(self.stats['errors'])} errors occurred (see report for details)")
         
         # Print to console
         print("\n" + "\n".join(summary_lines))
@@ -2381,7 +2381,7 @@ class UnifiedPreprocessingProcessor:
             f.write("\n".join(summary_lines))
             f.write("\n")
         
-        print(f"📄 Processing summary saved to: {summary_file}")
+        print(f"Processing summary saved to: {summary_file}")
         
         return summary_file
 
@@ -2464,7 +2464,7 @@ class UnifiedPreprocessingProcessor:
         dataset_path = dataset_path.resolve()
         csv_file = csv_file.resolve()
         
-        print(f"📊 Analyzing dataset: {dataset_name}")
+        print(f"Analyzing dataset: {dataset_name}")
         print(f"   Dataset path: {dataset_path}")
         print(f"   CSV output: {csv_file}")
         
@@ -2481,21 +2481,21 @@ class UnifiedPreprocessingProcessor:
                 )
                 
                 if csv_mtime > dataset_mtime:
-                    print(f"📊 Analysis CSV for {dataset_name} is up to date, skipping generation")
+                    print(f"Analysis CSV for {dataset_name} is up to date, skipping generation")
                     return csv_file
                 else:
-                    print(f"📊 Dataset {dataset_name} has newer files, regenerating analysis CSV")
+                    print(f"Dataset {dataset_name} has newer files, regenerating analysis CSV")
             except Exception as e:
-                print(f"⚠️  Could not check file timestamps: {e}, regenerating CSV")
+                print(f"️ Could not check file timestamps: {e}, regenerating CSV")
         else:
-            print(f"📊 Generating new analysis CSV for {dataset_name}")
+            print(f"Generating new analysis CSV for {dataset_name}")
         
         results = []
         total_shapes = 0
         
         # Count total shapes first for progress bar
         if not dataset_path.exists():
-            print(f"❌ Dataset path does not exist: {dataset_path}")
+            print(f"Dataset path does not exist: {dataset_path}")
             return None
             
         for class_folder in dataset_path.iterdir():
@@ -2510,7 +2510,7 @@ class UnifiedPreprocessingProcessor:
                 total_shapes += len(obj_files)
         
         if total_shapes == 0:
-            print(f"❌ No OBJ files found in {dataset_path}")
+            print(f"No OBJ files found in {dataset_path}")
             return None
         
         # Analyze each shape
@@ -2551,7 +2551,7 @@ class UnifiedPreprocessingProcessor:
                 row['bounding_box'] = json.dumps(row['bounding_box'])
                 writer.writerow(row)
         
-        print(f"✅ Analysis CSV saved: {csv_file}")
+        print(f"Analysis CSV saved: {csv_file}")
         print(f"   Analyzed {len(results)} shapes across {len(set(r['class'] for r in results))} classes")
         
         return csv_file
@@ -2567,7 +2567,7 @@ class UnifiedPreprocessingProcessor:
         generated_csvs = []
         
         # 1. Generate analysis for original datasets in Preprocessing folder
-        print("\n📊 ANALYZING ORIGINAL DATASETS")
+        print("\n ANALYZING ORIGINAL DATASETS")
         print("-" * 40)
 
         original_datasets = [] # ["Data", "Data_sampled", "Data_resampled", "Jet"]
@@ -2577,47 +2577,47 @@ class UnifiedPreprocessingProcessor:
                 # Check if original dataset exists
                 original_dataset_path = Path(f"../../Datasets/{dataset_name}")
                 if original_dataset_path.exists():
-                    print(f"\n🔍 Analyzing original dataset: {dataset_name}")
+                    print(f"\n Analyzing original dataset: {dataset_name}")
                     csv_file = self.analyze_processed_dataset(dataset_name, output_dir=str(self.output_base_dir / dataset_name))
                     if csv_file:
                         generated_csvs.append(csv_file)
                 else:
-                    print(f"⚠️  Original dataset not found: {original_dataset_path}")
+                    print(f"️ Original dataset not found: {original_dataset_path}")
             except Exception as e:
-                print(f"❌ Error analyzing original dataset {dataset_name}: {e}")
+                print(f"Error analyzing original dataset {dataset_name}: {e}")
         
         # 2. Generate analysis for processed datasets in their respective folders
-        print("\n📊 ANALYZING PROCESSED DATASETS")
+        print("\n ANALYZING PROCESSED DATASETS")
         print("-" * 40)
         
         # Check if unified preprocessed dataset exists
         unified_path = Path("../../Datasets/UnifiedPreprocessed/Data")
         if unified_path.exists():
             try:
-                print(f"\n🔍 Analyzing UnifiedPreprocessed dataset")
+                print(f"\n Analyzing UnifiedPreprocessed dataset")
                 csv_file = self.analyze_processed_dataset("UnifiedPreprocessed/Data")
                 if csv_file:
                     generated_csvs.append(csv_file)
             except Exception as e:
-                print(f"❌ Error analyzing UnifiedPreprocessed dataset: {e}")
+                print(f"Error analyzing UnifiedPreprocessed dataset: {e}")
         else:
-            print(f"⚠️  UnifiedPreprocessed dataset not found: {unified_path}")
+            print(f"️ UnifiedPreprocessed dataset not found: {unified_path}")
         
         # 3. Check for any other processed datasets in the output directory
         if self.output_base_dir.exists():
-            print(f"\n🔍 Checking for additional processed datasets in: {self.output_base_dir}")
+            print(f"\n Checking for additional processed datasets in: {self.output_base_dir}")
             for dataset_dir in self.output_base_dir.iterdir():
                 if dataset_dir.is_dir() and dataset_dir.name not in ["validation_plots", "__pycache__"]:
                     # Check if it has OBJ files
                     has_obj_files = any(dataset_dir.rglob("*.obj"))
                     if has_obj_files:
                         try:
-                            print(f"\n🔍 Analyzing additional processed dataset: {dataset_dir.name}")
+                            print(f"\n Analyzing additional processed dataset: {dataset_dir.name}")
                             csv_file = self.analyze_processed_dataset(dataset_dir.name)
                             if csv_file:
                                 generated_csvs.append(csv_file)
                         except Exception as e:
-                            print(f"❌ Error analyzing dataset {dataset_dir.name}: {e}")
+                            print(f"Error analyzing dataset {dataset_dir.name}: {e}")
         
         # 4. Summary
         print("\n" + "=" * 60)
@@ -2625,17 +2625,17 @@ class UnifiedPreprocessingProcessor:
         print("=" * 60)
         
         if generated_csvs:
-            print(f"✅ Generated {len(generated_csvs)} analysis CSV files:")
+            print(f"Generated {len(generated_csvs)} analysis CSV files:")
             for csv_file in generated_csvs:
-                print(f"   📄 {csv_file}")
+                print(f"{csv_file}")
         else:
-            print("⚠️  No analysis CSV files were generated")
+            print("️ No analysis CSV files were generated")
         
         return generated_csvs
 
 def main():
     """Main enhanced unified preprocessing function"""
-    print("🚀 Starting Enhanced Unified Preprocessing & Normalization with Comprehensive Validation")
+    print("Starting Enhanced Unified Preprocessing & Normalization with Comprehensive Validation")
     print("Pipeline: Vertex-based Remeshing → Enhanced 4-Step Normalization → Step-by-Step Validation")
     print("Remeshing approach: Target vertices=7500 (range: 5000-10000)")
     print("Validation features:")
@@ -2668,7 +2668,7 @@ def main():
     #     try:
     #         processor.process_dataset(dataset)
     #     except Exception as e:
-    #         print(f"❌ Failed to process dataset {dataset}: {str(e)}")
+    # print(f"Failed to process dataset {dataset}: {str(e)}")
     
     # # Generate and save processing report if any processing occurred
     # if processor.stats['total_processed'] > 0 or (hasattr(processor, 'all_validations') and processor.all_validations):

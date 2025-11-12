@@ -20,7 +20,7 @@ def generate_normalization_csv(validation_json_path, output_csv_path):
         validation_json_path: Path to validation_detailed.json
         output_csv_path: Path where to save normalization_statistics.csv
     """
-    print(f"📖 Loading validation data from: {validation_json_path}")
+    print(f"Loading validation data from: {validation_json_path}")
     
     # Load the validation JSON
     with open(validation_json_path, 'r') as f:
@@ -30,10 +30,10 @@ def generate_normalization_csv(validation_json_path, output_csv_path):
     all_validations = validation_data.get('detailed_validations', [])
     
     if not all_validations:
-        print("❌ No detailed validations found in the JSON file!")
+        print("No detailed validations found in the JSON file!")
         return False
     
-    print(f"✅ Found {len(all_validations)} validations")
+    print(f"Found {len(all_validations)} validations")
     
     # Prepare CSV data in the same format as normalization.py
     csv_data = []
@@ -60,7 +60,7 @@ def generate_normalization_csv(validation_json_path, output_csv_path):
         csv_data.append(row)
     
     # Write to CSV file
-    print(f"💾 Writing CSV to: {output_csv_path}")
+    print(f"Writing CSV to: {output_csv_path}")
     with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
         fieldnames = ['mesh_index', 'bary_before_translation', 'bary_after_translation', 
                      'bbox_before_scaling', 'bbox_after_scaling']
@@ -69,10 +69,10 @@ def generate_normalization_csv(validation_json_path, output_csv_path):
         writer.writeheader()
         writer.writerows(csv_data)
     
-    print(f"✅ Successfully generated normalization_statistics.csv with {len(csv_data)} rows!")
+    print(f"Successfully generated normalization_statistics.csv with {len(csv_data)} rows!")
     
     # Print sample statistics
-    print(f"\n📊 Sample Statistics:")
+    print(f"\n Sample Statistics:")
     print(f"   First row: {csv_data[0]}")
     if len(csv_data) > 1:
         print(f"   Last row:  {csv_data[-1]}")
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         output_csv = dataset_dir / "normalization_statistics.csv"
         
         if not validation_json.exists():
-            print(f"⚠️  Skipping {dataset_name}: validation_detailed.json not found")
+            print(f"️ Skipping {dataset_name}: validation_detailed.json not found")
             continue
         
         print(f"\n{'='*70}")
@@ -103,10 +103,10 @@ if __name__ == "__main__":
         success = generate_normalization_csv(validation_json, output_csv)
         
         if success:
-            print(f"✅ CSV saved to: {output_csv}")
+            print(f"CSV saved to: {output_csv}")
         else:
-            print(f"❌ Failed to generate CSV for {dataset_name}")
+            print(f"Failed to generate CSV for {dataset_name}")
     
     print(f"\n{'='*70}")
-    print("🎉 All done!")
+    print("All done!")
     print(f"{'='*70}")

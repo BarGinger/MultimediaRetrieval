@@ -18,7 +18,7 @@ from core.dataset_cache import get_cache_info, clear_dataset_cache, preload_data
 
 def print_cache_info():
     """Print detailed cache information."""
-    print("📊 Dataset Cache Information")
+    print("Dataset Cache Information")
     print("=" * 50)
     
     info = get_cache_info()
@@ -44,20 +44,20 @@ def print_cache_info():
 def clear_cache(disk_cache=False):
     """Clear the cache."""
     if disk_cache:
-        print("🗑️  Clearing both memory and disk cache...")
+        print("️ Clearing both memory and disk cache...")
         clear_dataset_cache(disk_cache=True)
-        print("✅ Both memory and disk cache cleared!")
+        print("Both memory and disk cache cleared!")
     else:
-        print("🗑️  Clearing memory cache...")
+        print("️ Clearing memory cache...")
         clear_dataset_cache(disk_cache=False)
-        print("✅ Memory cache cleared!")
+        print("Memory cache cleared!")
 
 
 def preload_cache():
     """Preload all datasets into cache."""
-    print("⚡ Preloading all datasets...")
+    print("Preloading all datasets...")
     preload_datasets()
-    print("✅ All datasets preloaded!")
+    print("All datasets preloaded!")
 
 
 def main(command=None):
@@ -82,7 +82,7 @@ def main(command=None):
     elif command == "preload":
         preload_cache()
     else:
-        print(f"❌ Unknown command: {command}")
+        print(f"Unknown command: {command}")
         print("Available commands: info, clear, clear-all, preload")
 
 

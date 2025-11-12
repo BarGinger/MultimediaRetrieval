@@ -16,7 +16,7 @@ def analyze_connectivity(mesh, name="mesh"):
     print(f"  Triangles: {len(triangles)}")
     
     if len(triangles) == 0:
-        print("  ⚠️  No triangles!")
+        print("No triangles!")
         return
     
     # Check for degenerate triangles
@@ -57,7 +57,7 @@ def analyze_connectivity(mesh, name="mesh"):
     print(f"  Connected components: {components}")
     
     if components > 1:
-        print(f"  ⚠️  Mesh has {components} separate parts!")
+        print(f"Mesh has {components} separate parts!")
     
     return components
 
@@ -66,7 +66,7 @@ def test_m1176():
     mesh_path = Path(r"C:\Users\bar24\OneDrive - Universiteit Utrecht\Documents\School\UU Data Sceince MSc\2nd Year\Period 1\Multimedia Retrieval - INFOMR\Assignments\MultimediaRetrieval\Datasets\Jet\Jet\m1176.obj")
     
     if not mesh_path.exists():
-        print(f"❌ File not found: {mesh_path}")
+        print(f"File not found: {mesh_path}")
         return
     
     print("="*60)
@@ -95,7 +95,7 @@ def test_m1176():
     components_cleaned = analyze_connectivity(mesh, "Cleaned mesh")
     
     if components_cleaned > components_original:
-        print(f"\n⚠️  WARNING: Cleaning INCREASED components from {components_original} to {components_cleaned}!")
+        print(f"\nWARNING: Cleaning INCREASED components from {components_original} to {components_cleaned}!")
         print("   The cleaning process is breaking the mesh apart!")
     
     # Test Loop subdivision
@@ -106,11 +106,11 @@ def test_m1176():
             components_loop = analyze_connectivity(mesh_loop, "After Loop subdivision")
             
             if components_loop > 3:
-                print(f"   ❌ Loop created TOO MANY components: {components_loop}")
+                print(f"Loop created TOO MANY components: {components_loop}")
         else:
-            print("   ❌ Loop subdivision not available")
+            print("Loop subdivision not available")
     except Exception as e:
-        print(f"   ❌ Loop subdivision failed: {e}")
+        print(f"Loop subdivision failed: {e}")
     
     # Test Midpoint subdivision
     print("\n4. Testing Midpoint subdivision...")
@@ -119,11 +119,11 @@ def test_m1176():
         components_midpoint = analyze_connectivity(mesh_midpoint, "After Midpoint subdivision")
         
         if components_midpoint > 3:
-            print(f"   ❌ Midpoint created TOO MANY components: {components_midpoint}")
+            print(f"Midpoint created TOO MANY components: {components_midpoint}")
         else:
-            print(f"   ✅ Midpoint looks good with {components_midpoint} components")
+            print(f"Midpoint looks good with {components_midpoint} components")
     except Exception as e:
-        print(f"   ❌ Midpoint subdivision failed: {e}")
+        print(f"Midpoint subdivision failed: {e}")
     
     # Test without aggressive cleaning
     print("\n5. Testing with MINIMAL cleaning (only duplicates)...")
@@ -138,24 +138,24 @@ def test_m1176():
         components_minimal_sub = analyze_connectivity(mesh_minimal_subdivided, "After Midpoint (minimal cleaning)")
         
         if components_minimal_sub <= 3:
-            print(f"   ✅ SUCCESS! Minimal cleaning + midpoint = {components_minimal_sub} components")
+            print(f"SUCCESS! Minimal cleaning + midpoint = {components_minimal_sub} components")
     except Exception as e:
-        print(f"   ❌ Minimal cleaning approach failed: {e}")
+        print(f"Minimal cleaning approach failed: {e}")
     
     print("\n" + "="*60)
     print("RECOMMENDATIONS:")
     print("="*60)
     
     if components_cleaned > components_original:
-        print("🔧 The aggressive cleaning is BREAKING the mesh!")
+        print("The aggressive cleaning is BREAKING the mesh!")
         print("   Solution: Use minimal cleaning (only remove duplicates)")
     
     if components_loop > 10:
-        print("🔧 Loop subdivision creates too many components")
+        print("Loop subdivision creates too many components")
         print("   Solution: Use midpoint subdivision instead")
     
     if components_midpoint <= 3:
-        print("✅ Midpoint subdivision works well!")
+        print("Midpoint subdivision works well!")
     
     print("\n")
 

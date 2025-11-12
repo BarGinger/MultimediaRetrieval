@@ -17,6 +17,15 @@ from core.file_index import get_available_steps, get_step_display_info
 from core.plotting import create_3d_plot
 from .category_colors import CATEGORIES_LIST, CATEGORY_COLOR_MAP
 import joblib
+import ast
+import traceback
+from core.file_index import get_available_steps
+import pathlib as pathlib
+import plotly.graph_objects as go
+from pathlib import Path as Path
+import random
+import fnmatch
+import base64
 
 # Global cache for distance matrix (loaded once at startup)
 _DISTANCE_MATRIX_CACHE = None
@@ -27,10 +36,12 @@ _TSNE_EMBEDDING_CACHE = None
 _TSNE_LABELS_CACHE = None
 
 def get_cached_distance_matrix():
-    """Load and cache the distance matrix in memory for fast KNN queries.
+    """
+    Load and cache the distance matrix in memory for fast KNN queries.
     
-    Returns the distance matrix DataFrame or None if not available.
-    Caches result globally to avoid reloading CSV on every query.
+    Returns:
+        pd.DataFrame or None: Distance matrix DataFrame, or None if not available.
+    
     """
     global _DISTANCE_MATRIX_CACHE, _DISTANCE_MATRIX_PATH
     
@@ -45,15 +56,15 @@ def get_cached_distance_matrix():
     
     # Check if file exists
     if not os.path.exists(distance_path):
-        print(f"⚠️ Distance matrix not found at: {distance_path}")
-        print(f"   KNN retrieval will not be available.")
+        print(f"Distance matrix not found at: {distance_path}")
+        print(f"KNN retrieval will not be available.")
         return None
     
     try:
-        print(f"📊 Loading distance matrix from: {distance_path}")
+        print(f"Loading distance matrix from: {distance_path}")
         # Load matrix with first column as index
         df = pd.read_csv(distance_path, index_col=0)
-        print(f"✅ Distance matrix loaded: {df.shape[0]} × {df.shape[1]} = {df.shape[0] * df.shape[1]:,} distances")
+        print(f"Distance matrix loaded: {df.shape[0]} × {df.shape[1]} = {df.shape[0] * df.shape[1]:,} distances")
         
         # Cache for future use
         _DISTANCE_MATRIX_CACHE = df
@@ -61,15 +72,17 @@ def get_cached_distance_matrix():
         
         return df
     except Exception as e:
-        print(f"❌ Error loading distance matrix: {e}")
+        print(f"Error loading distance matrix: {e}")
         return None
 
 
 def get_cached_tsne_data():
-    """Load and cache the t-SNE embedding and class labels for clustering visualization.
+    """
+    Load and cache the t-SNE embedding and class labels for clustering visualization.
     
-    Returns tuple: (embedding_df, labels_df) or (None, None) if not available.
-    Caches result globally to avoid reloading CSVs on every modal open.
+    Returns:
+        tuple: (embedding_df, labels_df) DataFrames, or (None, None) if not available.
+    
     """
     global _TSNE_EMBEDDING_CACHE, _TSNE_LABELS_CACHE
     
@@ -88,26 +101,26 @@ def get_cached_tsne_data():
     
     # Check if files exist
     if not os.path.exists(embedding_path):
-        print(f"⚠️ t-SNE embedding not found at: {embedding_path}")
+        print(f"t-SNE embedding not found at: {embedding_path}")
         return None, None
     
     if not os.path.exists(labels_path):
-        print(f"⚠️ Class labels not found at: {labels_path}")
+        print(f"Class labels not found at: {labels_path}")
         return None, None
     
     try:
-        print(f"📊 Loading t-SNE embedding from: {embedding_path}")
+        print(f"Loading t-SNE embedding from: {embedding_path}")
         embedding_df = pd.read_csv(embedding_path, header=0, index_col=0)
-        print(f"✅ t-SNE embedding loaded: {len(embedding_df)} points")
+        print(f"t-SNE embedding loaded: {len(embedding_df)} points")
         
-        print(f"📊 Loading class labels from: {labels_path}")
+        print(f"Loading class labels from: {labels_path}")
         labels_df = pd.read_csv(labels_path, header=0, index_col=0)
         
         # Ensure 'shape' column exists
         if "shape" not in labels_df.columns:
             labels_df = labels_df.reset_index().rename(columns={"index": "shape"})
         
-        print(f"✅ Class labels loaded: {len(labels_df)} shapes")
+        print(f"Class labels loaded: {len(labels_df)} shapes")
         
         # Cache for future use
         _TSNE_EMBEDDING_CACHE = embedding_df
@@ -115,17 +128,22 @@ def get_cached_tsne_data():
         
         return embedding_df, labels_df
     except Exception as e:
-        print(f"❌ Error loading t-SNE data: {e}")
+        print(f"Error loading t-SNE data: {e}")
         return None, None
 
 
 def _parse_hist_and_bins(hist, bins=None):
-    """Parse histogram and bins stored in various formats into (mids, values).
-
-    Accepts lists, numpy arrays, JSON strings, or Python reprs. Returns (mids, vals)
-    where mids is list of bin centers (or 0..N-1 if bins missing) and vals is list of numbers.
     """
-    import ast
+    Parse histogram and bins stored in various formats into (mids, values).
+
+    Parameters:
+        hist: Histogram data (list, array, JSON string, or Python repr).
+        bins: Optional bin edges (list, array, JSON string, or Python repr).
+
+    Returns:
+        tuple: (mids, vals) where mids is list of bin centers and vals is list of histogram values.
+    
+    """
     try:
         # None guard
         if hist is None:
@@ -183,6 +201,15 @@ def _parse_hist_and_bins(hist, bins=None):
 
         # Ensure floats (be forgiving for NaN/None/strings)
         def _to_float_list(seq):
+            """Convert sequence to list of floats, handling NA values.
+
+            Parameters:
+                seq: Sequence to convert.
+
+            Returns:
+                list: List of float values.
+
+            """
             out = []
             for x in seq:
                 try:
@@ -204,8 +231,19 @@ def _parse_hist_and_bins(hist, bins=None):
     except Exception:
         return None, None
 def create_toast_data(message, toast_type="info", icon="ℹ️"):
-    """Create toast data for store"""
-    import random
+    """
+    Create toast notification data for store.
+
+    Parameters:
+        message (str): The toast message to display.
+        toast_type (str): Type of toast ('info', 'success', 'warning', 'error').
+        icon (str): Icon emoji for the toast.
+
+    Returns:
+        dict: Toast data dictionary with message, type, icon, timestamp, and id.
+    
+    """
+    
     return {
         "message": message,
         "type": toast_type,
@@ -216,10 +254,18 @@ def create_toast_data(message, toast_type="info", icon="ℹ️"):
     }
  
 def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset):
-    """Register all Dash callbacks using the provided app and dataset info.
+    """
+    Register all Dash callbacks using the provided app and dataset info.
 
-    This function was unintentionally removed; restore it so callers can import
-    and register callbacks by passing the Dash `app` instance.
+    Parameters:
+        app (dash.Dash): The Dash application instance.
+        file_df (pd.DataFrame): Initial file data.
+        dataset_options (list): List of available dataset options.
+        default_dataset (str): Default dataset name.
+
+    Returns:
+        None
+    
     """
 
     # Show toast for filename filter changes
@@ -372,6 +418,13 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         Uses the outer-scope `default_dataset` captured when `register_callbacks` was called so
         the UI resets to the configured app default.
+
+        Parameters:
+            n_clicks (int): Number of times the clear filters button was clicked.
+
+        Returns:
+            tuple: Updated values for all filter components (dataset, category, filename, etc.).
+
         """
         if n_clicks and n_clicks > 0:
             # Reset dataset selector and stored dataset to the default value
@@ -620,7 +673,26 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def navigate_to_average(avg_vertices_clicks, avg_faces_clicks, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset, current_batch):
-        """Navigate to the item closest to average vertices or faces in the currently displayed list"""
+        """Navigate to the item closest to average vertices or faces in the currently displayed list.
+
+        Parameters:
+            avg_vertices_clicks (int): Number of clicks on average vertices button.
+            avg_faces_clicks (int): Number of clicks on average faces button.
+            selected_category (str): Currently selected category filter.
+            filename_filter (str): Filename filter string.
+            vertices_op (str): Vertices comparison operator.
+            vertices_val (str): Vertices filter value.
+            faces_op (str): Faces comparison operator.
+            faces_val (str): Faces filter value.
+            sort_field (str): Field to sort by.
+            sort_order (str): Sort order ('asc' or 'desc').
+            selected_dataset (str): Currently selected dataset.
+            current_batch (int): Current batch number for pagination.
+
+        Returns:
+            tuple: (file_list, full_data, batch_number, toast_data).
+
+        """
         ctx = callback_context
         if not ctx.triggered:
             return no_update, no_update, no_update, no_update
@@ -636,11 +708,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return no_update, no_update, no_update, no_update
         
         # Cached data already includes analysis columns (num_vertices, num_faces)
-        print(f"✅ Using cached data for average navigation with {len(file_df)} shapes")
+        print(f"Using cached data for average navigation with {len(file_df)} shapes")
         
         # Verify analysis data is present
         if 'num_vertices' not in file_df.columns or 'num_faces' not in file_df.columns:
-            print(f"⚠️ No analysis data in cached dataset {selected_dataset} - cannot find average")
+            print(f"️ No analysis data in cached dataset {selected_dataset} - cannot find average")
             toast_data = create_toast_data("No analysis data available for average calculation", "warning", "⚠️")
             return no_update, no_update, toast_data, no_update
         
@@ -650,7 +722,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         # Apply filename filtering (same as file list)
         if filename_filter and filename_filter.strip() and not df.empty and 'filename' in df.columns:
             try:
-                import fnmatch
                 pattern = filename_filter.strip()
                 mask = df['filename'].apply(lambda x: fnmatch.fnmatch(x.lower(), pattern.lower()))
                 df = df[mask]
@@ -719,7 +790,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             required_batch = ((selected_idx + 1) // batch_size + 1) * batch_size
             new_batch = max(current_batch, required_batch)
             
-            print(f"🎯 Average item at index {selected_idx}, current batch: {current_batch}, required: {required_batch}, setting to: {new_batch}")
+            print(f"Average item at index {selected_idx}, current batch: {current_batch}, required: {required_batch}, setting to: {new_batch}")
             
             try:
                 mesh = ShapeMesh.from_file_row(row)
@@ -1159,14 +1230,22 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def show_toast(toast_data):
-        """Show toast notification from store data"""
-        print(f"🔔 Toast callback triggered with data: {toast_data}")  # Debug
+        """Show toast notification from store data.
+
+        Parameters:
+            toast_data (dict): Toast data with message, type, and icon.
+
+        Returns:
+            tuple: (toast_element, interval_disabled, interval_count).
+
+        """
+        print(f"Toast callback triggered with data: {toast_data}") # Debug
         
         if not toast_data or not toast_data.get('message'):
-            print("❌ No toast data or message")  # Debug
+            print("No toast data or message") # Debug
             return [], "toast-container", True, 0
         
-        print(f"✅ Creating toast: {toast_data['message']}")  # Debug
+        print(f"Creating toast: {toast_data['message']}") # Debug
         toast_element = html.Div([
             html.Span(toast_data['icon'], className="toast-icon"),
             html.Span(toast_data['message'], className="toast-message")
@@ -1180,8 +1259,8 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                           ('step' in message or 'showing' in message))
         container_class = "toast-container missing-step-position" if is_missing_step else "toast-container"
         
-        print(f"🔍 Toast detection - Icon: '{toast_data.get('icon')}', Type: '{toast_data.get('type')}', Message: '{toast_data.get('message')}'")
-        print(f"📍 Is missing step: {is_missing_step}, Container class: {container_class}")  # Debug
+        print(f"Toast detection - Icon: '{toast_data.get('icon')}', Type: '{toast_data.get('type')}', Message: '{toast_data.get('message')}'")
+        print(f"Is missing step: {is_missing_step}, Container class: {container_class}") # Debug
         
         return [toast_element], container_class, False, 0  # Enable interval and reset counter
 
@@ -1193,7 +1272,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def clear_toast_after_delay(n_intervals, interval_disabled):
-        """Clear toast after 80 intervals (4 seconds at 50ms)"""
+        """Clear toast after 80 intervals (4 seconds at 50ms).
+
+        Parameters:
+            n_intervals (int): Number of intervals elapsed.
+            interval_disabled (bool): Whether the interval is currently disabled.
+
+        Returns:
+            tuple: (toast_element, interval_disabled).
+
+        """
         if interval_disabled:
             return no_update, no_update
         
@@ -1211,14 +1299,22 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def show_step_toast(step_toast_data):
-        """Show step toast notification positioned over 3D viewer"""
-        print(f"🔔 Step toast callback triggered with data: {step_toast_data}")  # Debug
+        """Show step toast notification positioned over 3D viewer.
+
+        Parameters:
+            step_toast_data (dict): Step toast data with message, type, and icon.
+
+        Returns:
+            tuple: (toast_element, interval_disabled, interval_count).
+
+        """
+        print(f"Step toast callback triggered with data: {step_toast_data}") # Debug
         
         if not step_toast_data or not step_toast_data.get('message'):
-            print("❌ No step toast data or message")  # Debug
+            print("No step toast data or message") # Debug
             return [], True, 0
         
-        print(f"✅ Creating step toast: {step_toast_data['message']}")  # Debug
+        print(f"Creating step toast: {step_toast_data['message']}") # Debug
         toast_element = html.Div([
             html.Span(step_toast_data['icon'], className="toast-icon"),
             html.Span(step_toast_data['message'], className="toast-message")
@@ -1234,7 +1330,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def clear_step_toast_after_delay(n_intervals, interval_disabled):
-        """Clear step toast after 40 intervals (4 seconds at 100ms)"""
+        """Clear step toast after 40 intervals (4 seconds at 100ms).
+
+        Parameters:
+            n_intervals (int): Number of intervals elapsed.
+            interval_disabled (bool): Whether the interval is currently disabled.
+
+        Returns:
+            tuple: (toast_element, interval_disabled).
+
+        """
         if interval_disabled:
             return no_update, no_update
         
@@ -1262,18 +1367,39 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
          Input('selected-dataset-store', 'data')],
         prevent_initial_call=True
     )
-    def update_file_list(selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
-        """
-        Render the list of files based on current filters and sorting.
+    def update_file_list(selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):
+        """Render the list of files based on current filters and sorting.
+
         Optimized to avoid slow analysis computation during dataset switching.
+
+        Parameters:
+            selected_category (str): Category filter.
+            filename_filter (str): Filename filter string.
+            vertices_op (str): Vertices comparison operator.
+            vertices_val (str): Vertices filter value.
+            faces_op (str): Faces comparison operator.
+            faces_val (str): Faces filter value.
+            sort_field (str): Field to sort by.
+            sort_order (str): Sort order ('asc' or 'desc').
+            selected_dataset (str): Currently selected dataset.
+
+        Returns:
+            tuple: File list components and pagination data.
+
         """
         return update_file_list_internal('none', selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset)
 
     def create_file_button(item):
-        """Create a file button from item data"""
-        import base64
-        import pandas as pd
-        
+        """Create a file button from item data.
+
+        Parameters:
+            item (dict): Dictionary containing file information.
+
+        Returns:
+            html.Div: Button component for the file.
+
+        """
+
         raw_vertices = item.get('num_vertices', 0)
         raw_faces = item.get('num_faces', 0)
         vertices_count = f"{int(raw_vertices):,}" if pd.notna(raw_vertices) and raw_vertices > 0 else "N/A"
@@ -1299,10 +1425,24 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             **{'data-filename': item['filename'], 'data-file-index': item.get('original_index', 0), 'data-category': item.get('category', '')}
         )
 
-    def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):        
-        """
-        Render the list of files based on current filters and sorting with lazy loading support.
-        Returns: [file_items, full_data, current_batch, load_more_style, file_count_info, has_more_attr]
+    def update_file_list_internal(avg_filter, selected_category, filename_filter, vertices_op, vertices_val, faces_op, faces_val, sort_field, sort_order, selected_dataset):
+        """Render the list of files based on current filters and sorting with lazy loading support.
+
+        Parameters:
+            avg_filter (str): Average filter option ('none', 'avg_faces', 'avg_vertices').
+            selected_category (str): Category filter.
+            filename_filter (str): Filename filter string.
+            vertices_op (str): Vertices comparison operator.
+            vertices_val (str): Vertices filter value.
+            faces_op (str): Faces comparison operator.
+            faces_val (str): Faces filter value.
+            sort_field (str): Field to sort by.
+            sort_order (str): Sort order ('asc' or 'desc').
+            selected_dataset (str): Currently selected dataset.
+
+        Returns:
+            list: [file_items, full_data, current_batch, load_more_style, file_count_info, has_more_attr].
+
         """
         if selected_dataset is None or selected_dataset == "":
             selected_dataset = 'Data'
@@ -1315,7 +1455,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                            style={'color': 'red', 'textAlign': 'center'})], [], 0, {'display': 'none'}, "📊 No files", 'false'
 
         # Cached data already includes analysis columns (num_vertices, num_faces)
-        print(f"✅ Using cached data for {selected_dataset} with {len(file_df)} shapes")
+        print(f"Using cached data for {selected_dataset} with {len(file_df)} shapes")
         
         # Apply filters exactly like before
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
@@ -1323,11 +1463,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         # Apply filename filtering if provided
         if filename_filter and filename_filter.strip() and not df.empty and 'filename' in df.columns:
             try:
-                import fnmatch
                 pattern = filename_filter.strip()
                 df = df[df['filename'].apply(lambda x: fnmatch.fnmatch(x.lower(), pattern.lower()))]
             except Exception as e:
-                print(f"❌ Error applying filename filter '{filename_filter}': {e}")
+                print(f"Error applying filename filter '{filename_filter}': {e}")
 
         # Apply vertices filtering if provided
         if vertices_val is not None and vertices_val != '' and not df.empty and 'num_vertices' in df.columns:
@@ -1340,7 +1479,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 elif vertices_op == 'lt':
                     df = df[df['num_vertices'] < vertices_val]
             except (ValueError, TypeError) as e:
-                print(f"❌ Error applying vertices filter '{vertices_val}': {e}")
+                print(f"Error applying vertices filter '{vertices_val}': {e}")
 
         # Apply faces filtering if provided
         if faces_val is not None and faces_val != '' and not df.empty and 'num_faces' in df.columns:
@@ -1353,7 +1492,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 elif faces_op == 'lt':
                     df = df[df['num_faces'] < faces_val]
             except (ValueError, TypeError) as e:
-                print(f"❌ Error applying faces filter '{faces_val}': {e}")
+                print(f"Error applying faces filter '{faces_val}': {e}")
 
         # Apply sorting
         ascending = True if sort_order == 'asc' else False
@@ -1442,7 +1581,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def load_more_files(n_clicks, full_data, current_batch):
-        """Load the next batch of files"""
+        """Load the next batch of files.
+
+        Parameters:
+            n_clicks (int): Number of clicks on load more button.
+            full_data (list): Full list of file data.
+            current_batch (int): Current batch number.
+
+        Returns:
+            tuple: (file_items, updated_batch).
+
+        """
         if not n_clicks or not full_data:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
         
@@ -1484,7 +1633,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def update_files_on_batch_change(new_batch, full_data):
-        """Update file list when batch size changes (e.g., from average navigation)"""
+        """Update file list when batch size changes (e.g., from average navigation).
+
+        Parameters:
+            new_batch (int): New batch number to display.
+            full_data (list): Full list of file data.
+
+        Returns:
+            list: File items for the new batch.
+
+        """
         if not full_data or new_batch is None:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         
@@ -1516,7 +1674,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         load_more_style = {'display': 'block', 'margin': '10px auto'} if has_more_files else {'display': 'none'}
         has_more_attr = 'true' if has_more_files else 'false'
         
-        print(f"📂 Updated file list to show {batch_value} files (triggered by batch change)")
+        print(f"Updated file list to show {batch_value} files (triggered by batch change)")
         
         return file_items, load_more_style, file_count_info, has_more_attr
 
@@ -1618,8 +1776,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 print(f"[DEBUG] Raw prop_id: {prop_id_str}")
                 comp_id = json.loads(prop_id_str)
                 
-                # Decode the base64 encoded filename
-                import base64
+                # Decode the base64 encoded filename                
                 encoded_filename = comp_id['filename']
                 clicked_filename = base64.b64decode(encoded_filename).decode('utf-8')
                 print(f"[DEBUG] Decoded filename: {clicked_filename}")
@@ -1635,10 +1792,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     return html.P(f"❌ File {clicked_filename} not found"), None
                 
                 file_idx = matching_rows.index[0]  # Get the original DataFrame index
-                print(f"🎯 Clicked filename: {clicked_filename}, found at index: {file_idx}")
+                print(f"Clicked filename: {clicked_filename}, found at index: {file_idx}")
                 
             except Exception as e:
-                print(f"❌ Error parsing clicked file: {e}")
+                print(f"Error parsing clicked file: {e}")
                 print(f"[DEBUG] Failed prop_id: {prop_id}")
                 return html.P(f"❌ Error processing file click: {e}"), None
 
@@ -1651,12 +1808,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             
             # Apply filename filtering if provided
             if filename_filter and filename_filter.strip() and not df.empty and 'filename' in df.columns:
-                try:
-                    import fnmatch
+                try:                    
                     pattern = filename_filter.strip()
                     df = df[df['filename'].apply(lambda x: fnmatch.fnmatch(x.lower(), pattern.lower()))]
                 except Exception as e:
-                    print(f"❌ Error applying filename filter '{filename_filter}': {e}")
+                    print(f"Error applying filename filter '{filename_filter}': {e}")
                     # Continue without filename filtering if there's an error
 
             # Apply vertices filtering if provided
@@ -1670,7 +1826,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     elif vertices_op == 'lt':
                         df = df[df['num_vertices'] < vertices_val]
                 except (ValueError, TypeError) as e:
-                    print(f"❌ Error applying vertices filter '{vertices_val}': {e}")
+                    print(f"Error applying vertices filter '{vertices_val}': {e}")
                     # Continue without vertices filtering if there's an error
 
             # Apply faces filtering if provided
@@ -1684,7 +1840,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     elif faces_op == 'lt':
                         df = df[df['num_faces'] < faces_val]
                 except (ValueError, TypeError) as e:
-                    print(f"❌ Error applying faces filter '{faces_val}': {e}")
+                    print(f"Error applying faces filter '{faces_val}': {e}")
                     # Continue without faces filtering if there's an error
             
             ascending = True if sort_order == 'asc' else False
@@ -1717,7 +1873,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 return html.P(f"❌ File {clicked_filename} not found in filtered results"), None
             
             filtered_file_idx = matching_filtered_rows.index[0]  # Get index in filtered dataset
-            print(f"🎯 File {clicked_filename} found at filtered index: {filtered_file_idx}")
+            print(f"File {clicked_filename} found at filtered index: {filtered_file_idx}")
             
             row = df.iloc[filtered_file_idx]
             try:
@@ -1747,6 +1903,14 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         """Update only the vertices and faces numeric spans when the slider changes for UnifiedPreprocessed/Data.
 
         This avoids overwriting the entire `shape-info` card produced by other callbacks.
+
+        Parameters:
+            step (int): Processing step number.
+            dataset (str): Currently selected dataset.
+
+        Returns:
+            tuple: (vertices_value, faces_value) or no_update.
+
         """
         analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedpreprocessed_data.csv"
         # fallback to the correctly named file if present
@@ -1879,10 +2043,26 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     sort_field,
                     sort_order,
                     current_fig):
-        """
-        Update the 3D plot based on user selections.
+        """Update the 3D plot based on user selections.
+
         - Preserves camera view when changing steps/display options for the same shape.
         - Resets camera view when a new shape is selected.
+
+        Parameters:
+            display_options (list): Display options for the plot.
+            selected_file_data (dict): Currently selected file data.
+            mesh_color (str): Color for the mesh.
+            show_normalized (list): Normalization toggle state.
+            processing_step (int): Processing step number.
+            selected_dataset (str): Currently selected dataset.
+            selected_category (str): Category filter.
+            sort_field (str): Field to sort by.
+            sort_order (str): Sort order ('asc' or 'desc').
+            current_fig (dict): Current figure state.
+
+        Returns:
+            dict: Updated plotly figure.
+
         """
         ctx = dash.callback_context
         triggered_id = ""
@@ -1923,7 +2103,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
         if not isinstance(selected_file_data, dict):
-            print(f"❌ ERROR: selected_file_data should be dict, got {type(selected_file_data)}: {selected_file_data}")
+            print(f"ERROR: selected_file_data should be dict, got {type(selected_file_data)}: {selected_file_data}")
             return create_3d_plot(np.array([]), np.array([]), "Invalid selection data",
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
@@ -1959,7 +2139,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                                   mesh_color=mesh_color or 'lightblue'), no_update, no_update
 
         row = matching_rows.iloc[0]
-        print(f"🎯 3D Plot: Loading {selected_filename} from {file_dataset}")
+        print(f"3D Plot: Loading {selected_filename} from {file_dataset}")
 
         step_row = row
         title_suffix = ""
@@ -2056,7 +2236,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
     # Similar shapes: sample random shapes from the (possibly selected) dataset
     def retrieve_random_shapes(selected_file_data, n):
-        """Return up to n random rows (as dicts) from the selected dataset excluding the current file."""
+        """Return up to n random rows (as dicts) from the selected dataset excluding the current file.
+
+        Parameters:
+            selected_file_data (dict): Currently selected file data.
+            n (int): Number of random shapes to retrieve.
+
+        Returns:
+            list: List of dictionaries containing random shape data.
+
+        """
         try:
             # Determine dataset to use
             dataset = None
@@ -2096,16 +2285,21 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return []
         
     def retrieve_closest_shapes(selected_file_data, n):
-        """
-        Return up to n closest shapes (as dicts) from the same dataset,
-        using the precomputed distance matrix with optimized KNN.
-        
+        """Return up to n closest shapes (as dicts) from the same dataset using precomputed distance matrix.
+
         Optimizations:
         - Distance matrix cached in memory (loaded once)
         - Uses numpy for fast sorting
         - Efficient ID-based lookup
-        
         Each dict includes all dataset info + 'distance' field.
+
+        Parameters:
+            selected_file_data (dict): Currently selected file data.
+            n (int): Number of closest shapes to retrieve.
+
+        Returns:
+            list: List of dictionaries containing closest shape data with distance field.
+
         """
         try:
             # --- Validate input ---
@@ -2119,20 +2313,20 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             # --- Load the cached distance matrix (fast!) ---
             distance_matrix = get_cached_distance_matrix()
             if distance_matrix is None:
-                print(f"⚠️ Distance matrix not available - falling back to random sampling")
+                print(f"️ Distance matrix not available - falling back to random sampling")
                 return retrieve_random_shapes(selected_file_data, n)
 
             # --- Match query shape by ID prefix ---
             m = re.match(r"([A-Za-z0-9]+)_", selected_filename)
             if not m:
-                print(f"⚠️ Could not extract ID prefix from {selected_filename}")
+                print(f"️ Could not extract ID prefix from {selected_filename}")
                 return []
             shape_id = m.group(1)
 
             # Find matching row in distance matrix (any processing step of this shape)
             matching_rows = [idx for idx in distance_matrix.index if idx.startswith(shape_id + "_")]
             if not matching_rows:
-                print(f"⚠️ No matching row found for ID {shape_id} in distance matrix.")
+                print(f"️ No matching row found for ID {shape_id} in distance matrix.")
                 return []
             
             # Use first matching row (typically the _06 or _unified version)
@@ -2198,15 +2392,20 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return results
 
         except Exception as e:
-            print(f"❌ Error retrieving closest shapes: {e}")
-            import traceback
+            print(f"Error retrieving closest shapes: {e}")
             traceback.print_exc()
             return []
 
     def retrieve_closest_shapes_using_euclidian(selected_file_data, n):
-        """
-        This is a KDTree-based implementation to find closest shapes
-        using Euclidian distance on the feature vectors
+        """KDTree-based implementation to find closest shapes using Euclidian distance on feature vectors.
+
+        Parameters:
+            selected_file_data (dict): Currently selected file data.
+            n (int): Number of closest shapes to retrieve.
+
+        Returns:
+            list: List of dictionaries containing closest shape data.
+
         """
         try:
             if not isinstance(selected_file_data, dict):
@@ -2309,7 +2508,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         except Exception as e:
             print(f"Error retrieving closest shapes using Euclidian KDTree: {e}")
-            import traceback
             traceback.print_exc()
             return []
 
@@ -2439,12 +2637,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             similarity_score = sample_row.get('distance', -1)
             try:
                 # get_step_file_path expects a pandas Series
-                import pandas as _pd
-                row_series = _pd.Series(sample_row)
+                row_series = pd.Series(sample_row)
                 file_path, actual_step, step_info = get_step_file_path(row_series, 5)
-                if file_path:
-                    from pathlib import Path as _Path
-                    p = _Path(file_path)
+                if file_path:                    
+                    p = Path(file_path)
                     if p.exists():
                         verts, faces = OBJParser.parse_obj_file(str(p))
             except Exception:
@@ -2546,7 +2742,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def set_clustering_modal_open(show_clicks, hidden_close_clicks):
-        """Set the clustering-modal-open store based on which button triggered."""
+        """Set the clustering-modal-open store based on which button triggered.
+
+        Parameters:
+            show_clicks (int): Number of clicks on show button.
+            hidden_close_clicks (int): Number of clicks on hidden close trigger.
+
+        Returns:
+            bool: True to open modal, False to close it.
+
+        """
         ctx = dash.callback_context
         if not ctx.triggered:
             return no_update
@@ -2564,7 +2769,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=False
     )
     def show_clustering_modal(is_open, selected_file_data, n_neighbors):
-        """Build and display the clustering modal with interactive t-SNE plot."""
+        """Build and display the clustering modal with interactive t-SNE plot.
+
+        Parameters:
+            is_open (bool): Whether the modal should be open.
+            selected_file_data (dict): Currently selected file data.
+            n_neighbors (int): Number of neighbors for t-SNE.
+
+        Returns:
+            tuple: (modal_children, modal_style).
+
+        """
         if not is_open:
             return [], {'display': 'none'}
         
@@ -2573,7 +2788,15 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         
         # Helper function to clean shape names
         def clean_shape_name(filename):
-            """Remove processing step suffixes from filenames for display."""
+            """Remove processing step suffixes from filenames for display.
+
+            Parameters:
+                filename (str): Original filename.
+
+            Returns:
+                str: Cleaned filename.
+
+            """
             if not filename:
                 return filename
             # Remove common suffixes
@@ -2636,7 +2859,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     target_shape = filename
                 else:
                     # Try matching by ID prefix (e.g., m1338 from m1338_unified.obj or m1338_06_*.obj)
-                    import re
                     m = re.match(r"([A-Za-z0-9]+)_", filename)
                     if m:
                         shape_id = m.group(1)
@@ -2644,7 +2866,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                         matching_shapes = [s for s in merged['shape'].values if s.startswith(shape_id + "_")]
                         if matching_shapes:
                             target_shape = matching_shapes[0]  # Use first match (typically _06 version)
-                            print(f"🎯 Matched {filename} to {target_shape} for t-SNE focus mode")
+                            print(f"Matched {filename} to {target_shape} for t-SNE focus mode")
                 
                 if target_shape:
                     target_row = merged.loc[merged['shape'] == target_shape].iloc[0]
@@ -2657,7 +2879,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                         row = pd.to_numeric(row, errors='coerce').replace([np.inf, -np.inf], np.nan).dropna()
                         n_neigh = max(0, int(n_neighbors or 5))
                         neighbors_list = row.nsmallest(n_neigh).index.tolist() if n_neigh > 0 else []
-                        print(f"✅ Found {len(neighbors_list)} neighbors for {target_shape}")
+                        print(f"Found {len(neighbors_list)} neighbors for {target_shape}")
         
         # Create plot data with different opacity/marker settings
         if target_shape:
@@ -2959,7 +3181,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def update_tsne_opacity(new_opacity, current_figure, selected_file_data):
-        """Update background point opacity in the t-SNE plot."""
+        """Update background point opacity in the t-SNE plot.
+
+        Parameters:
+            new_opacity (float): New opacity value.
+            current_figure (dict): Current plotly figure.
+            selected_file_data (dict): Currently selected file data.
+
+        Returns:
+            dict: Updated plotly figure.
+
+        """
         if current_figure is None or new_opacity is None:
             return no_update
         
@@ -2975,7 +3207,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             return no_update
         
         # Create a new figure with updated opacities
-        import plotly.graph_objects as go
         fig = go.Figure(current_figure)
         
         # Update background traces (those without special markers or keywords)
@@ -3005,7 +3236,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def update_tsne_family_filter(selected_families, current_figure):
-        """Filter t-SNE plot traces based on selected family groups."""
+        """Filter t-SNE plot traces based on selected family groups.
+
+        Parameters:
+            selected_families (list): List of selected family names.
+            current_figure (dict): Current plotly figure.
+
+        Returns:
+            dict: Updated plotly figure.
+
+        """
         if current_figure is None or selected_families is None:
             return no_update
         
@@ -3018,8 +3258,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             if family in CATEGORY_GROUPS:
                 categories_to_show.update(CATEGORY_GROUPS[family])
         
-        # Create a new figure with filtered traces
-        import plotly.graph_objects as go
+        # Create a new figure with filtered traces        
         fig = go.Figure(current_figure)
         
         # Update visibility for each trace based on whether its category is in the selected families
@@ -3053,7 +3292,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def update_family_selection(select_all_clicks, clear_all_clicks):
-        """Handle Select All and Clear All buttons for family filter."""
+        """Handle Select All and Clear All buttons for family filter.
+
+        Parameters:
+            select_all_clicks (int): Number of clicks on select all button.
+            clear_all_clicks (int): Number of clicks on clear all button.
+
+        Returns:
+            list: Updated list of selected families.
+
+        """
         ctx = callback_context
         if not ctx.triggered:
             return no_update
@@ -3077,10 +3325,18 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def set_global_descriptors_open(show_clicks, hidden_close_clicks):
-        """Set the `global-descriptors-open` store based on which button triggered.
+        """Set the global-descriptors-open store based on which button triggered.
 
-        We listen to the persistent hidden close trigger (`global-descriptors-hidden-close-trigger`)
+        We listen to the persistent hidden close trigger (global-descriptors-hidden-close-trigger)
         instead of any in-modal id to avoid missing-id validation errors in the renderer.
+
+        Parameters:
+            show_clicks (int): Number of clicks on show button.
+            hidden_close_clicks (int): Number of clicks on hidden close trigger.
+
+        Returns:
+            bool: True to open modal, False to close it.
+
         """
         ctx = dash.callback_context
         if not ctx.triggered:
@@ -3104,6 +3360,15 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         When is_open is True, build the modal content. When False or missing,
         hide the modal. This avoids relying on combined n_clicks Inputs.
+
+        Parameters:
+            is_open (bool): Whether the modal should be open.
+            selected_file_data (dict): Currently selected file data.
+            selected_dataset (str): Currently selected dataset.
+
+        Returns:
+            tuple: (modal_children, modal_style).
+
         """
         # If store indicates closed or missing, hide modal
         if not is_open:
@@ -3270,9 +3535,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         # Ensure the returned content is wrapped in the full-screen modal overlay so it appears centered
         return html.Div(content_card, style=modal_style), modal_style
 
-    # Modal visibility is handled within the same server callback that returns children and style.
-
-    # Aux modal: separate builder so auxiliary sample info does not overwrite main selection
+    # Auxiliary modal builder: listens to the aux-descriptors-open store and renders/hides the modal
     @app.callback(
         [Output('aux-descriptors-modal', 'children'), Output('aux-descriptors-modal', 'style')],
         Input('aux-descriptors-open', 'data'),
@@ -3282,8 +3545,17 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     def show_aux_descriptors(is_open, aux_file_data, selected_dataset):
         """Display or hide the auxiliary modal depending on its store value.
 
-        This mirrors `show_global_descriptors` but uses separate stores/modal ids so
-        opening aux info doesn't change the main `selected-file-store`.
+        This mirrors show_global_descriptors but uses separate stores/modal ids so
+        opening aux info doesn't change the main selected-file-store.
+
+        Parameters:
+            is_open (bool): Whether the modal should be open.
+            aux_file_data (dict): Auxiliary file data.
+            selected_dataset (str): Currently selected dataset.
+
+        Returns:
+            tuple: (modal_children, modal_style).
+
         """
         if not is_open:
             return [], {'display': 'none'}
@@ -3395,13 +3667,21 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         content_card = html.Div([header, body], style={'maxWidth': '1100px', 'margin': '0 auto', 'background': '#fff', 'color': '#000', 'padding': '16px', 'borderRadius': '8px', 'boxShadow': '0 8px 30px rgba(0,0,0,0.22)'})
         return html.Div(content_card, style=modal_style), modal_style
 
-    # Close aux modal when hidden close trigger is fired (proxied from in-modal Close button)
     @app.callback(
-        Output('aux-descriptors-open', 'data', allow_duplicate=True),
+        Output('aux-descriptors-open', 'data'),
         [Input('aux-descriptors-hidden-close-trigger', 'n_clicks')],
         prevent_initial_call=True
     )
     def set_aux_descriptors_open(hidden_clicks):
+        """Set auxiliary descriptors modal to closed when hidden close button is clicked.
+
+        Parameters:
+            hidden_clicks (int): Number of clicks on hidden close trigger.
+
+        Returns:
+            bool: False to close the modal.
+
+        """
         ctx = dash.callback_context
         if not ctx.triggered:
             return no_update
@@ -3417,6 +3697,15 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         This mirrors the inline part of the modal rendering but only returns the
         inline children so it can be updated independently of the modal.
+
+        Parameters:
+            selected_file_data (dict): Currently selected file data.
+            selected_dataset (str): Currently selected dataset.
+            shape_info (html.Component): Optional shape info component.
+
+        Returns:
+            list: List of inline descriptor components.
+
         """
         try:
             if not selected_file_data or not isinstance(selected_file_data, dict):
@@ -3570,6 +3859,15 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def open_aux_descriptors(n_clicks_list):
+        """Open auxiliary descriptors modal from pattern-matching info button clicks.
+
+        Parameters:
+            n_clicks_list (list): List of click counts for info buttons.
+
+        Returns:
+            tuple: (aux_file_data, modal_open_state).
+
+        """
         ctx = dash.callback_context
         if not ctx.triggered:
             return no_update, no_update
@@ -3595,8 +3893,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             id_json = triggered_prop[start:end+1]
             try:
                 payload = json.loads(id_json)
-            except Exception:
-                import ast
+            except Exception:                
                 try:
                     payload = ast.literal_eval(id_json)
                 except Exception:
@@ -3621,25 +3918,32 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
 
         try:
             row = matched.iloc[0].to_dict()
-            import pathlib as _pathlib
-            import pandas as _pd
 
             def _sanitize_value(v):
+                """Sanitize a value for JSON serialization.
+
+                Parameters:
+                    v: Value to sanitize.
+
+                Returns:
+                    Serializable version of the value.
+
+                """
                 try:
                     if v is None:
                         return None
                     try:
-                        if _pd.isna(v):
+                        if pd.isna(v):
                             return None
                     except Exception:
                         pass
-                    if isinstance(v, (_pathlib.Path, os.PathLike)):
+                    if isinstance(v, (pathlib.Path, os.PathLike)):
                         return str(v)
                     if isinstance(v, (np.generic,)):
                         return v.item()
                     if isinstance(v, (np.ndarray,)):
                         return v.tolist()
-                    if isinstance(v, _pd.Timestamp):
+                    if isinstance(v, pd.Timestamp):
                         return v.isoformat()
                     if isinstance(v, dict):
                         return {str(k): _sanitize_value(val) for k, val in v.items()}
@@ -3721,9 +4025,16 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         Input('selected-dataset-store', 'data')
     )
     def update_step_panel_visibility(selected_dataset):
-        """
-        Show/hide the step panel and center action buttons based on dataset type.
+        """Show/hide the step panel and center action buttons based on dataset type.
+
         Only show for datasets that contain processed step files.
+
+        Parameters:
+            selected_dataset (str): Currently selected dataset.
+
+        Returns:
+            tuple: (step_panel_style, center_buttons_style, inline_descriptors_style).
+
         """
         if selected_dataset and ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
             visible = {'display': 'block'}
@@ -3747,9 +4058,22 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def update_step_slider_state(selected_file_data, selected_dataset):
+        """Update step slider state based on selected file's available processing steps.
+
+        Parameters:
+            selected_file_data (dict): Currently selected file data.
+            selected_dataset (str): Currently selected dataset.
+
+        Returns:
+            tuple: (disabled, value, max, info_message, className).
+
+        """
+
         """
         Enable/disable the step slider based on whether the selected shape has processing steps.
+        
         Updates the slider max value based on available steps for the selected shape.
+        
         """
         # First check if we're in a dataset that should show step controls
         if not selected_dataset or not ('UnifiedPreprocessed' in selected_dataset or 'Normalized' in selected_dataset):
@@ -3826,12 +4150,26 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=False
     )
     def update_step_labels(step_value, is_disabled, selected_file_data, selected_dataset):
+        """Update step label styling based on current step value and available steps.
+
+        Parameters:
+            step_value (int): Current step slider value.
+            is_disabled (bool): Whether the slider is disabled.
+            selected_file_data (dict): Currently selected file data.
+            selected_dataset (str): Currently selected dataset.
+
+        Returns:
+            list: List of className strings for each step label.
+
+        """
+
         """
         Update step label highlighting based on current slider value, disabled state, and available steps.
+        
         """
         print(f"\n� UPDATE_STEP_LABELS called")
-        print(f"   step_value={step_value}, is_disabled={is_disabled}")
-        print(f"   file_data={selected_file_data}, dataset={selected_dataset}")
+        print(f"step_value={step_value}, is_disabled={is_disabled}")
+        print(f"file_data={selected_file_data}, dataset={selected_dataset}")
         
         if step_value is None:
             step_value = 0
@@ -3841,7 +4179,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             'UnifiedPreprocessed' in selected_dataset):
             try:
                 filename = selected_file_data.get('filename', '')
-                print(f"📁 Processing shape: {filename}")
+                print(f"Processing shape: {filename}")
                 
                 # Get the file data directly from the dataset
                 file_df = get_cached_dataset_data(selected_dataset)
@@ -3852,13 +4190,12 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 matching_rows = file_df[file_df['filename'] == filename]
                 if not matching_rows.empty:
                     row = matching_rows.iloc[0]
-                    print(f"✅ Found matching row for {filename}")
+                    print(f"Found matching row for {filename}")
                     
-                    # Get available steps for this shape
-                    from core.file_index import get_available_steps
+                    # Get available steps for this shape                    
                     available_steps_info = get_available_steps(row)
                     available_steps = available_steps_info.get('available_step_indices', [])
-                    print(f"🟢 Available steps for {filename}: {available_steps}")
+                    print(f"Available steps for {filename}: {available_steps}")
 
                     # Ensure all step files are included in the merge
                     if selected_dataset and 'UnifiedPreprocessed' in selected_dataset:
@@ -3882,8 +4219,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                     return class_names
                     
             except Exception as e:
-                print(f"❌ Error in step label processing: {e}")
-                import traceback
+                print(f"Error in step label processing: {e}")                
                 traceback.print_exc()
         
         # Default fallback - no missing steps styling
@@ -3904,6 +4240,15 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
     def update_step_info_display(step_value):
+        """Update the step info display text based on slider value.
+
+        Parameters:
+            step_value (int): Current step slider value.
+
+        Returns:
+            str: Step description text.
+
+        """
         """
         Update the step info display based on slider position.
         """

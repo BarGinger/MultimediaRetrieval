@@ -93,7 +93,7 @@ class UnifiedPreprocessingProcessor:
     
     def setup_output_directories(self, datasets):
         """Create output directories for each dataset"""
-        print(f"📁 Setting up output directories in: {self.output_base_dir.absolute()}")
+        print(f"Setting up output directories in: {self.output_base_dir.absolute()}")
         for dataset in datasets:
             dataset_dir = self.output_base_dir / dataset
             dataset_dir.mkdir(parents=True, exist_ok=True)
@@ -116,7 +116,7 @@ class UnifiedPreprocessingProcessor:
             mesh = o3d.io.read_triangle_mesh(str(mesh_path))
             
             if len(mesh.vertices) == 0:
-                print(f"❌ Empty mesh: {mesh_path}")
+                print(f"Empty mesh: {mesh_path}")
                 return None, None, False
             
             # Clean mesh first
@@ -130,17 +130,17 @@ class UnifiedPreprocessingProcessor:
             
             # Check if within acceptable range (like resampling_simple.py)
             if self.min_acceptable_vertices <= current_vertices <= self.max_acceptable_vertices:
-                print(f"  ✅ No remeshing needed ({current_vertices} vertices within range)")
+                print(f"No remeshing needed ({current_vertices} vertices within range)")
                 return np.asarray(mesh.vertices), np.asarray(mesh.triangles), False
             
             if current_vertices > self.max_acceptable_vertices:
                 # Simplify mesh using vertex-based logic
-                print(f"  🔄 Simplifying from {current_vertices} to target range {self.target_vertices} ± ({self.min_acceptable_vertices}-{self.max_acceptable_vertices}) vertices")
+                print(f"Simplifying from {current_vertices} to target range {self.target_vertices} ± ({self.min_acceptable_vertices}-{self.max_acceptable_vertices}) vertices")
                 mesh = self._decimate_to_range(mesh)
                 was_remeshed = True
             else:
                 # Upsample mesh (subdivision approach)
-                print(f"  🔄 Upsampling from {current_vertices} to target range {self.target_vertices} ± ({self.min_acceptable_vertices}-{self.max_acceptable_vertices}) vertices")
+                print(f"Upsampling from {current_vertices} to target range {self.target_vertices} ± ({self.min_acceptable_vertices}-{self.max_acceptable_vertices}) vertices")
                 mesh = self._upsample_to_range(mesh)
                 was_remeshed = True
             
@@ -150,7 +150,7 @@ class UnifiedPreprocessingProcessor:
             except Exception:
                 pass
             final_vertices = len(mesh.vertices)
-            print(f"  ✅ Remeshing result: {final_vertices} effective vertices, {len(mesh.triangles)} faces")
+            print(f"Remeshing result: {final_vertices} effective vertices, {len(mesh.triangles)} faces")
             
             # Collect remeshing stats
             self.stats['remeshing_stats'].append({
@@ -163,7 +163,7 @@ class UnifiedPreprocessingProcessor:
             return np.asarray(mesh.vertices), np.asarray(mesh.triangles), was_remeshed
                 
         except Exception as e:
-            print(f"❌ Remeshing failed for {mesh_path}: {e}")
+            print(f"Remeshing failed for {mesh_path}: {e}")
             return None, None, False
 
     def _compact_mesh(self, mesh):
@@ -676,12 +676,12 @@ class UnifiedPreprocessingProcessor:
                 input_mtime = original_filepath.stat().st_mtime
                 
                 if output_mtime > input_mtime:
-                    print(f"  ✅ Already processed: {original_filepath.name}")
+                    print(f"Already processed: {original_filepath.name}")
                     self.stats['successful'] += 1
                     self.stats['total_processed'] += 1
                     return True
                 else:
-                    print(f"  🔄 Input file newer than output, reprocessing: {original_filepath.name}")
+                    print(f"Input file newer than output, reprocessing: {original_filepath.name}")
             
             # Step 1 & 2: Load and remesh if needed
             vertices, faces, was_remeshed = self.apply_remeshing_if_needed(
@@ -689,19 +689,19 @@ class UnifiedPreprocessingProcessor:
             )
             
             if vertices is None:
-                print(f"❌ Failed to load/remesh: {original_filepath.name}")
+                print(f"Failed to load/remesh: {original_filepath.name}")
                 return False
             
             # Store original vertices for step-by-step validation
             # ALWAYS load from original file to ensure we have truly unmodified vertices
-            print(f"  📥 Loading original unmodified mesh for validation...")
+            print(f"Loading original unmodified mesh for validation...")
             original_mesh = o3d.io.read_triangle_mesh(str(original_filepath))
             original_vertices = np.asarray(original_mesh.vertices)
             original_faces = np.asarray(original_mesh.triangles)
             
-            print(f"  📊 Original: {len(original_vertices)} vertices, {len(original_faces)} faces")
+            print(f"Original: {len(original_vertices)} vertices, {len(original_faces)} faces")
             if was_remeshed:
-                print(f"  📊 After processing: {len(vertices)} vertices, {len(faces)} faces")
+                print(f"After processing: {len(vertices)} vertices, {len(faces)} faces")
             
             # Step 3: Create ShapeMesh with potentially remeshed data
             mesh = ShapeMesh(
@@ -714,19 +714,19 @@ class UnifiedPreprocessingProcessor:
             )
             
             # Step 4: Save step-by-step files for validation
-            print(f"  📁 Saving step-by-step validation files...")
+            print(f"Saving step-by-step validation files...")
             step_files, step_vertices = self.save_step_by_step_files(
                 mesh, original_vertices, original_faces, vertices, was_remeshed, category_dir, base_name
             )
             
             # Step 5: Perform comprehensive validation
-            print(f"  🔍 Performing comprehensive validation...")
+            print(f"Performing comprehensive validation...")
             validation_data = self.perform_comprehensive_validation(
                 mesh, step_vertices, category_dir, base_name
             )
             
             # Enhanced validation with new methods
-            print(f"  🔍 Performing advanced validation analysis...")
+            print(f"Performing advanced validation analysis...")
             
             # Mesh quality analysis
             final_vertices = step_vertices['scaled']
@@ -742,7 +742,7 @@ class UnifiedPreprocessingProcessor:
             )
             
             # Step 6: Apply enhanced 4-step normalization for final output
-            print(f"  🔧 Applying enhanced 4-step normalization...")
+            print(f"Applying enhanced 4-step normalization...")
             normalized_vertices, normalization_stats = self.apply_enhanced_normalization(mesh, debug=False)
             
             # Step 7: Save final normalized OBJ
@@ -849,7 +849,7 @@ class UnifiedPreprocessingProcessor:
         except Exception as e:
             import traceback
             error_msg = f"Error processing {row.get('filename', 'unknown')}: {str(e)}"
-            print(f"\n❌ {error_msg}")
+            print(f"\n {error_msg}")
             traceback.print_exc()
             self.stats['errors'].append(error_msg)
             self.stats['failed'] += 1
@@ -1373,7 +1373,7 @@ class UnifiedPreprocessingProcessor:
         with open(detailed_file, 'w') as f:
             json.dump(summary_stats, f, indent=2)
         
-        print(f"\n📊 Validation Summary:")
+        print(f"\n Validation Summary:")
         print(f"   Total shapes validated: {total_shapes}")
         print(f"   Successful normalizations: {successful_normalizations}")
         print(f"   Success rate: {successful_normalizations / max(total_shapes, 1) * 100:.1f}%")
@@ -1381,7 +1381,7 @@ class UnifiedPreprocessingProcessor:
         print(f"   Mean scaling error: {summary_stats['validation_statistics']['scaling_errors']['mean']:.2e}")
         print(f"   Mean alignment quality: {summary_stats['validation_statistics']['alignment_quality']['mean']:.3f}")
         print(f"   Flipping success rate: {summary_stats['validation_statistics']['flipping_success_rate']:.1f}%")
-        print(f"\n📄 Validation files saved:")
+        print(f"\n Validation files saved:")
         print(f"   Summary CSV: {summary_file}")
         print(f"   Detailed JSON: {detailed_file}")
         
@@ -1460,13 +1460,13 @@ class UnifiedPreprocessingProcessor:
         
         # Generate validation summary for this dataset
         if hasattr(self, 'all_validations') and self.all_validations:
-            print(f"\n🔍 Generating comprehensive validation summary for {dataset_name}...")
+            print(f"\n Generating comprehensive validation summary for {dataset_name}...")
             validation_stats = self.save_dataset_validation_summary(self.all_validations)
             
             # Create comprehensive validation plots
-            print(f"\n📊 Creating validation visualization plots...")
+            print(f"\n Creating validation visualization plots...")
             plots_dir = self.create_validation_plots(str(self.output_base_dir), self.all_validations)
-            print(f"✅ Validation plots saved to: {plots_dir}")
+            print(f"Validation plots saved to: {plots_dir}")
             
             return validation_stats
     
@@ -1518,7 +1518,7 @@ class UnifiedPreprocessingProcessor:
         remesh_summary = report['remeshing_summary']
         quality = report['normalization_quality']
         
-        summary_lines.append(f"📊 Processing Summary:")
+        summary_lines.append(f"Processing Summary:")
         summary_lines.append(f"   Total shapes processed: {summary['total_shapes']}")
         summary_lines.append(f"   Successful: {summary['successful']}")
         summary_lines.append(f"   Failed: {summary['failed']}")
@@ -1527,13 +1527,13 @@ class UnifiedPreprocessingProcessor:
         summary_lines.append(f"   Speed: {summary['shapes_per_second']:.1f} shapes/second")
         
         summary_lines.append(f"")
-        summary_lines.append(f"🔄 Remeshing Summary:")
+        summary_lines.append(f"Remeshing Summary:")
         summary_lines.append(f"   Shapes remeshed: {remesh_summary['shapes_remeshed']}")
         summary_lines.append(f"   Target vertices: {remesh_summary['target_vertices']}")
         summary_lines.append(f"   Avg reduction ratio: {remesh_summary['avg_reduction_ratio']:.3f}")
         
         summary_lines.append(f"")
-        summary_lines.append(f"🎯 Normalization Quality (using your existing verification):")
+        summary_lines.append(f"Normalization Quality (using your existing verification):")
         summary_lines.append(f"   Mean centering error: {quality['mean_centering_error']:.2e}")
         summary_lines.append(f"   Max centering error: {quality['max_centering_error']:.2e}")
         summary_lines.append(f"   Mean scaling error: {quality['mean_scaling_error']:.2e}")
@@ -1545,17 +1545,17 @@ class UnifiedPreprocessingProcessor:
         
         summary_lines.append(f"")
         if centered_ok and scaled_ok:
-            summary_lines.append(f"🎉 FULL TECHNICAL TIPS COMPLIANCE ACHIEVED!")
+            summary_lines.append(f"FULL TECHNICAL TIPS COMPLIANCE ACHIEVED!")
         else:
-            summary_lines.append(f"⚠️  Some shapes may not meet technical tips precision requirements")
+            summary_lines.append(f"️ Some shapes may not meet technical tips precision requirements")
         
         summary_lines.append(f"")
-        summary_lines.append(f"📁 Output Directory: {self.output_base_dir}")
-        summary_lines.append(f"📄 Detailed Report: {self.output_base_dir / 'unified_processing_report.json'}")
+        summary_lines.append(f"Output Directory: {self.output_base_dir}")
+        summary_lines.append(f"Detailed Report: {self.output_base_dir / 'unified_processing_report.json'}")
         
         if len(self.stats['errors']) > 0:
             summary_lines.append(f"")
-            summary_lines.append(f"⚠️  {len(self.stats['errors'])} errors occurred (see report for details)")
+            summary_lines.append(f"️ {len(self.stats['errors'])} errors occurred (see report for details)")
         
         # Print to console
         print("\n" + "\n".join(summary_lines))
@@ -1570,7 +1570,7 @@ class UnifiedPreprocessingProcessor:
             f.write("\n".join(summary_lines))
             f.write("\n")
         
-        print(f"📄 Processing summary saved to: {summary_file}")
+        print(f"Processing summary saved to: {summary_file}")
         
         return summary_file
 
@@ -1653,7 +1653,7 @@ class UnifiedPreprocessingProcessor:
         dataset_path = dataset_path.resolve()
         csv_file = csv_file.resolve()
         
-        print(f"📊 Analyzing dataset: {dataset_name}")
+        print(f"Analyzing dataset: {dataset_name}")
         print(f"   Dataset path: {dataset_path}")
         print(f"   CSV output: {csv_file}")
         
@@ -1670,21 +1670,21 @@ class UnifiedPreprocessingProcessor:
                 )
                 
                 if csv_mtime > dataset_mtime:
-                    print(f"📊 Analysis CSV for {dataset_name} is up to date, skipping generation")
+                    print(f"Analysis CSV for {dataset_name} is up to date, skipping generation")
                     return csv_file
                 else:
-                    print(f"📊 Dataset {dataset_name} has newer files, regenerating analysis CSV")
+                    print(f"Dataset {dataset_name} has newer files, regenerating analysis CSV")
             except Exception as e:
-                print(f"⚠️  Could not check file timestamps: {e}, regenerating CSV")
+                print(f"️ Could not check file timestamps: {e}, regenerating CSV")
         else:
-            print(f"📊 Generating new analysis CSV for {dataset_name}")
+            print(f"Generating new analysis CSV for {dataset_name}")
         
         results = []
         total_shapes = 0
         
         # Count total shapes first for progress bar
         if not dataset_path.exists():
-            print(f"❌ Dataset path does not exist: {dataset_path}")
+            print(f"Dataset path does not exist: {dataset_path}")
             return None
             
         for class_folder in dataset_path.iterdir():
@@ -1699,7 +1699,7 @@ class UnifiedPreprocessingProcessor:
                 total_shapes += len(obj_files)
         
         if total_shapes == 0:
-            print(f"❌ No OBJ files found in {dataset_path}")
+            print(f"No OBJ files found in {dataset_path}")
             return None
         
         # Analyze each shape
@@ -1740,7 +1740,7 @@ class UnifiedPreprocessingProcessor:
                 row['bounding_box'] = json.dumps(row['bounding_box'])
                 writer.writerow(row)
         
-        print(f"✅ Analysis CSV saved: {csv_file}")
+        print(f"Analysis CSV saved: {csv_file}")
         print(f"   Analyzed {len(results)} shapes across {len(set(r['class'] for r in results))} classes")
         
         return csv_file
@@ -1756,7 +1756,7 @@ class UnifiedPreprocessingProcessor:
         generated_csvs = []
         
         # 1. Generate analysis for original datasets in Preprocessing folder
-        print("\n📊 ANALYZING ORIGINAL DATASETS")
+        print("\n ANALYZING ORIGINAL DATASETS")
         print("-" * 40)
         
         original_datasets = ["Data", "Data_sampled", "Data_resampled", "Data_sampled_resampled", "Data_sampled_resampled_normalized"]
@@ -1766,47 +1766,47 @@ class UnifiedPreprocessingProcessor:
                 # Check if original dataset exists
                 original_dataset_path = Path(f"../../Datasets/{dataset_name}")
                 if original_dataset_path.exists():
-                    print(f"\n🔍 Analyzing original dataset: {dataset_name}")
+                    print(f"\n Analyzing original dataset: {dataset_name}")
                     csv_file = self.analyze_processed_dataset(dataset_name, output_dir="../../Preprocessing")
                     if csv_file:
                         generated_csvs.append(csv_file)
                 else:
-                    print(f"⚠️  Original dataset not found: {original_dataset_path}")
+                    print(f"️ Original dataset not found: {original_dataset_path}")
             except Exception as e:
-                print(f"❌ Error analyzing original dataset {dataset_name}: {e}")
+                print(f"Error analyzing original dataset {dataset_name}: {e}")
         
         # 2. Generate analysis for processed datasets in their respective folders
-        print("\n📊 ANALYZING PROCESSED DATASETS")
+        print("\n ANALYZING PROCESSED DATASETS")
         print("-" * 40)
         
         # Check if unified preprocessed dataset exists
         unified_path = Path("../../Datasets/UnifiedPreprocessed/Data")
         if unified_path.exists():
             try:
-                print(f"\n🔍 Analyzing UnifiedPreprocessed dataset")
+                print(f"\n Analyzing UnifiedPreprocessed dataset")
                 csv_file = self.analyze_processed_dataset("UnifiedPreprocessed/Data")
                 if csv_file:
                     generated_csvs.append(csv_file)
             except Exception as e:
-                print(f"❌ Error analyzing UnifiedPreprocessed dataset: {e}")
+                print(f"Error analyzing UnifiedPreprocessed dataset: {e}")
         else:
-            print(f"⚠️  UnifiedPreprocessed dataset not found: {unified_path}")
+            print(f"️ UnifiedPreprocessed dataset not found: {unified_path}")
         
         # 3. Check for any other processed datasets in the output directory
         if self.output_base_dir.exists():
-            print(f"\n🔍 Checking for additional processed datasets in: {self.output_base_dir}")
+            print(f"\n Checking for additional processed datasets in: {self.output_base_dir}")
             for dataset_dir in self.output_base_dir.iterdir():
                 if dataset_dir.is_dir() and dataset_dir.name not in ["validation_plots", "__pycache__"]:
                     # Check if it has OBJ files
                     has_obj_files = any(dataset_dir.rglob("*.obj"))
                     if has_obj_files:
                         try:
-                            print(f"\n🔍 Analyzing additional processed dataset: {dataset_dir.name}")
+                            print(f"\n Analyzing additional processed dataset: {dataset_dir.name}")
                             csv_file = self.analyze_processed_dataset(dataset_dir.name)
                             if csv_file:
                                 generated_csvs.append(csv_file)
                         except Exception as e:
-                            print(f"❌ Error analyzing dataset {dataset_dir.name}: {e}")
+                            print(f"Error analyzing dataset {dataset_dir.name}: {e}")
         
         # 4. Summary
         print("\n" + "=" * 60)
@@ -1814,17 +1814,17 @@ class UnifiedPreprocessingProcessor:
         print("=" * 60)
         
         if generated_csvs:
-            print(f"✅ Generated {len(generated_csvs)} analysis CSV files:")
+            print(f"Generated {len(generated_csvs)} analysis CSV files:")
             for csv_file in generated_csvs:
-                print(f"   📄 {csv_file}")
+                print(f"{csv_file}")
         else:
-            print("⚠️  No analysis CSV files were generated")
+            print("️ No analysis CSV files were generated")
         
         return generated_csvs
 
 def main():
     """Main enhanced unified preprocessing function"""
-    print("🚀 Starting Enhanced Unified Preprocessing & Normalization with Comprehensive Validation")
+    print("Starting Enhanced Unified Preprocessing & Normalization with Comprehensive Validation")
     print("Pipeline: Vertex-based Remeshing → Enhanced 4-Step Normalization → Step-by-Step Validation")
     print("Remeshing approach: Target vertices=7500 (range: 5000-10000)")
     print("Validation features:")
@@ -1859,7 +1859,7 @@ def main():
             break
     
     if skip_processing:
-        print("\n📋 All datasets appear to be already processed, skipping preprocessing and normalization")
+        print("\n All datasets appear to be already processed, skipping preprocessing and normalization")
         print("   To force reprocessing, delete the UnifiedPreprocessed folder")
     else:
         # Process each dataset
@@ -1867,7 +1867,7 @@ def main():
             try:
                 processor.process_dataset(dataset)
             except Exception as e:
-                print(f"❌ Failed to process dataset {dataset}: {str(e)}")
+                print(f"Failed to process dataset {dataset}: {str(e)}")
         
         # Generate and save processing report
         report = processor.save_processing_report()

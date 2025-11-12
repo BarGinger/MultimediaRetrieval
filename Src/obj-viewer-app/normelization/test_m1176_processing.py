@@ -18,7 +18,7 @@ def test_m1176_with_processor():
     output_dir = Path(r"C:\Users\bar24\OneDrive - Universiteit Utrecht\Documents\School\UU Data Sceince MSc\2nd Year\Period 1\Multimedia Retrieval - INFOMR\Assignments\MultimediaRetrieval\Datasets\UnifiedPreprocessed\JetTest")
     
     if not mesh_path.exists():
-        print(f"❌ File not found: {mesh_path}")
+        print(f"File not found: {mesh_path}")
         return
     
     print("="*70)
@@ -51,10 +51,10 @@ def test_m1176_with_processor():
         )
         
         if vertices is None:
-            print("❌ Remeshing returned None")
+            print("Remeshing returned None")
             return
         
-        print(f"\n✅ Remeshing completed!")
+        print(f"\n Remeshing completed!")
         print(f"   Original vertices: {len(mesh.vertices)}")
         print(f"   Result vertices: {len(vertices)}")
         print(f"   Result faces: {len(faces)}")
@@ -68,7 +68,7 @@ def test_m1176_with_processor():
         # Save output
         output_path = output_dir / "m1176_remeshed.obj"
         o3d.io.write_triangle_mesh(str(output_path), remeshed_mesh)
-        print(f"\n💾 Saved remeshed mesh to: {output_path}")
+        print(f"\n Saved remeshed mesh to: {output_path}")
         
         # Now test full normalization pipeline
         print("\n3. Testing full normalization pipeline...")
@@ -85,26 +85,26 @@ def test_m1176_with_processor():
             success = processor.process_shape(row, 'JetTest')
             
             if success:
-                print("✅ Full processing completed successfully!")
+                print("Full processing completed successfully!")
                 
                 # Check output files
                 category_dir = output_dir / 'Jet'
                 if category_dir.exists():
                     step_files = list(category_dir.glob("m1176_*.obj"))
-                    print(f"\n📁 Generated {len(step_files)} step files:")
+                    print(f"\n Generated {len(step_files)} step files:")
                     for step_file in sorted(step_files):
                         mesh_check = o3d.io.read_triangle_mesh(str(step_file))
                         print(f"   {step_file.name}: {len(mesh_check.vertices)} vertices, {len(mesh_check.triangles)} triangles")
             else:
-                print("❌ Processing failed!")
+                print("Processing failed!")
                 
         except Exception as e:
-            print(f"❌ Normalization pipeline error: {e}")
+            print(f"Normalization pipeline error: {e}")
             import traceback
             traceback.print_exc()
         
     except Exception as e:
-        print(f"❌ Remeshing error: {e}")
+        print(f"Remeshing error: {e}")
         import traceback
         traceback.print_exc()
         

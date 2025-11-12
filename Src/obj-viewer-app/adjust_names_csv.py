@@ -1,4 +1,6 @@
-r"""adjust_names_csv.py
+"""
+File: adjust_names_csv.py
+Last modified: 30-10-2025
 
 Normalize the `name` column in CSV files by either stripping a number of leading path components
 or by replacing a filename suffix in the basename. This is useful when one CSV stores full paths
@@ -23,6 +25,15 @@ import re
 
 
 def strip_leading_components(s: str, n: int) -> str:
+    """
+    Strip the first `n` leading path components from the given path string `s`.
+
+    Parameters:
+        s (str): The input path string.
+        n (int): Number of leading components to strip.
+    Returns:
+        str: The path string with leading components stripped.
+    """
     if s is None:
         return s
     # Support both forward and backward slashes; normalize to OS sep, then split
@@ -34,6 +45,22 @@ def strip_leading_components(s: str, n: int) -> str:
 
 
 def adjust_csv(input_csv: Path, output_csv: Path, key: str = 'name', strip: int = 3, inplace: bool = False, suffix_replace: tuple | None = None, split_class: bool = False) -> None:
+    """
+    Adjust the CSV file by normalizing the `name` column.
+
+    Parameters:
+        input_csv (Path): Path to the input CSV file.
+        output_csv (Path): Path to the output CSV file.
+        key (str): Column name containing the path to adjust (default: 'name').
+        strip (int): Number of leading components to strip (default: 3).
+        inplace (bool): If True, modify the input file in-place (default: False).
+        suffix_replace (tuple | None): If provided, a tuple (OLD, NEW) to
+        replace trailing OLD suffix on file stem with NEW.
+        split_class (bool): If True, split the path into filename and class (parent folder).
+    Returns:
+        None
+    """
+    
     if not input_csv.exists():
         raise FileNotFoundError(f"Input CSV not found: {input_csv}")
 
@@ -106,6 +133,15 @@ def adjust_csv(input_csv: Path, output_csv: Path, key: str = 'name', strip: int 
 
 
 def _parse_args(argv: Optional[list] = None):
+    """
+    Parse command-line arguments.
+
+    Parameters:
+        argv (list | None): List of command-line arguments. If None, uses sys.argv.
+    Returns:
+        argparse.Namespace: Parsed arguments.
+    """
+
     p = argparse.ArgumentParser(description='Strip leading path components from `name` column in a CSV')
     p.add_argument('input_csv', type=Path, help='Input CSV path')
     p.add_argument('output_csv', type=Path, nargs='?', help='Output CSV path (defaults to input with .fixed.csv)')

@@ -35,7 +35,7 @@ plt.rcParams['figure.titlesize'] = 13
 
 class ValidationPlotGenerator:
     def plot_pca_axis_angle_boxplot(self):
-        print("📈 Generating PCA axis-to-world angle histograms...")
+        print("Generating PCA axis-to-world angle histograms...")
         import numpy as np
         import matplotlib.pyplot as plt
         import glob
@@ -97,7 +97,7 @@ class ValidationPlotGenerator:
         plt.tight_layout()
         fig.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close(fig)
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
     def __init__(self, validation_data_path, output_dir):
         """
         Initialize plot generator
@@ -111,7 +111,7 @@ class ValidationPlotGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Load validation data
-        print(f"📊 Loading validation data from: {self.validation_data_path}")
+        print(f"Loading validation data from: {self.validation_data_path}")
         with open(self.validation_data_path, 'r') as f:
             self.data = json.load(f)
         
@@ -136,7 +136,7 @@ class ValidationPlotGenerator:
     
     def plot_overview_panel(self):
         """Figure 1: Multi-panel overview of key validation metrics"""
-        print("📈 Generating Figure 1: Validation Overview Panel...")
+        print("Generating Figure 1: Validation Overview Panel...")
         
         fig = plt.figure(figsize=(12, 8))
         gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.3)
@@ -252,12 +252,12 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         
         output_path = self.output_dir / 'fig1_validation_overview.png'
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
         plt.close()
     
     def plot_step_progression(self):
         """Figure 2: Cross-step consistency analysis"""
-        print("📈 Generating Figure 2: Step-by-Step Progression...")
+        print("Generating Figure 2: Step-by-Step Progression...")
         
         fig, axes = plt.subplots(2, 2, figsize=(12, 8))
         
@@ -413,12 +413,12 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         
         output_path = self.output_dir / 'fig2_step_progression.png'
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
         plt.close()
     
     def plot_pca_analysis(self):
         """Figure 3: PCA and eigenvalue analysis"""
-        print("📈 Generating Figure 3: PCA Quality Analysis...")
+        print("Generating Figure 3: PCA Quality Analysis...")
         
         fig, axes = plt.subplots(2, 3, figsize=(14, 8))
         
@@ -546,7 +546,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         
         output_path = self.output_dir / 'fig3_pca_analysis.png'
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
         plt.close()
 
         # --- Additional figure: Average explained variance (pie chart) ---
@@ -638,11 +638,11 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         pie_out = self.output_dir / 'fig3_pca_explained_variance_pie.png'
         plt.savefig(pie_out, dpi=300, bbox_inches='tight')
         plt.close()
-        print(f"   ✅ Saved PCA explained-variance pie: {pie_out}")
+        print(f"Saved PCA explained-variance pie: {pie_out}")
     
     def plot_moment_and_symmetry(self):
         """Figure 4: Moment test and symmetry analysis"""
-        print("📈 Generating Figure 4: Moment Test and Symmetry Analysis...")
+        print("Generating Figure 4: Moment Test and Symmetry Analysis...")
 
         # Create a single row with three subplots
         fig, axes = plt.subplots(1, 3, figsize=(14, 5), constrained_layout=True)
@@ -748,12 +748,12 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         plt.tight_layout()
         output_path = self.output_dir / 'fig4_moment_symmetry.png'
         plt.savefig(output_path, dpi=300)
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
         plt.close()
     
     def plot_numerical_precision(self):
         """Figure 5: Numerical precision and robustness"""
-        print("📈 Generating Figure 5: Numerical Precision Analysis...")
+        print("Generating Figure 5: Numerical Precision Analysis...")
         
         fig, ax = plt.subplots(figsize=(14, 8))
 
@@ -909,12 +909,12 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         
         output_path = self.output_dir / 'fig5_numerical_precision.png'
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
         plt.close()
     
     def plot_category_performance_heatmap(self):
         """Figure 6: Category performance heatmap"""
-        print("📈 Generating Figure 6: Category Performance Heatmap...")
+        print("Generating Figure 6: Category Performance Heatmap...")
         
         # Collect per-category metrics
         category_metrics = {}
@@ -995,7 +995,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         plt.tight_layout()
         output_path = self.output_dir / 'fig6_category_heatmap.png'
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
         plt.close()
 
         # --- Create a separate figure with scatter plots of final bounding-box dimensions for all shapes ---
@@ -1074,7 +1074,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
             # Anchor legend slightly lower to avoid touching the title
             fig2.legend(handles, labels, loc='upper right', bbox_to_anchor=(0.98, 0.9), frameon=False)
             plt.savefig(out2, dpi=300, bbox_inches='tight')
-            print(f"   ✅ Saved: {out2}")
+            print(f"Saved: {out2}")
             plt.close(fig2)
     
     def plot_pca_axis_angle_violinplot(self):
@@ -1084,7 +1084,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         import glob
         import os
         import json
-        print("📈 Generating PCA axis-to-world angle violin plots...")
+        print("Generating PCA axis-to-world angle violin plots...")
         world_axes = np.eye(3)
         colors = ['red', 'green', 'blue']
         axis_labels = ['X-axis', 'Y-axis', 'Z-axis']
@@ -1142,7 +1142,7 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         plt.tight_layout()
         fig.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close(fig)
-        print(f"   ✅ Saved: {output_path}")
+        print(f"Saved: {output_path}")
     def generate_all_plots(self):
         """Generate all validation plots"""
         print("\n" + "="*60)
@@ -1152,46 +1152,46 @@ Overall Success: {self.data['processing_summary']['success_rate']:.1f}%
         try:
             self.plot_overview_panel()
         except Exception as e:
-            print(f"   ⚠️ Error generating Figure 1: {e}")
+            print(f"️ Error generating Figure 1: {e}")
         
         try:
             self.plot_step_progression()
         except Exception as e:
-            print(f"   ⚠️ Error generating Figure 2: {e}")
+            print(f"️ Error generating Figure 2: {e}")
         
         try:
             self.plot_pca_analysis()
         except Exception as e:
-            print(f"   ⚠️ Error generating Figure 3: {e}")
+            print(f"️ Error generating Figure 3: {e}")
         try:
             self.plot_pca_axis_angle_boxplot()
         except Exception as e:
-            print(f"   ⚠️ Error generating PCA axis angle boxplot: {e}")
+            print(f"️ Error generating PCA axis angle boxplot: {e}")
 
         try:
             self.plot_pca_axis_angle_violinplot()
         except Exception as e:
-            print(f"   ⚠️ Error generating PCA axis angle violinplot: {e}")
+            print(f"️ Error generating PCA axis angle violinplot: {e}")
         
         try:
             self.plot_moment_and_symmetry()
         except Exception as e:
-            print(f"   ⚠️ Error generating Figure 4: {e}")
+            print(f"️ Error generating Figure 4: {e}")
         
         try:
             self.plot_numerical_precision()
         except Exception as e:
-            print(f"   ⚠️ Error generating Figure 5: {e}")
+            print(f"️ Error generating Figure 5: {e}")
         
         try:
             self.plot_category_performance_heatmap()
         except Exception as e:
-            print(f"   ⚠️ Error generating Figure 6: {e}")
+            print(f"️ Error generating Figure 6: {e}")
         
         print("\n" + "="*60)
         print("  PLOT GENERATION COMPLETE")
         print("="*60)
-        print(f"\n📁 All figures saved to: {self.output_dir.absolute()}\n")
+        print(f"\n All figures saved to: {self.output_dir.absolute()}\n")
 
 
 def main():    
@@ -1208,7 +1208,7 @@ def main():
     
     # Check if input exists
     if not input_path.exists():
-        print(f"❌ Error: Input file not found: {input_path}")
+        print(f"Error: Input file not found: {input_path}")
         print(f"\nPlease run normalize_database.py first to generate validation data.")
         return 1
     

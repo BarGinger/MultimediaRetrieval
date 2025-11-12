@@ -18,10 +18,10 @@ def create_dash_app():
         assets_folder=str(project_root / "assets")
     )
 
-    print("🚀 Initializing high-performance 3D Shape Viewer...")
+    print("Initializing high-performance 3D Shape Viewer...")
     
     # Use high-performance dataset discovery
-    print("📁 Discovering available datasets...")
+    print("Discovering available datasets...")
     DATASET_OPTIONS = get_available_datasets()
     # Prefer the UnifiedPreprocessed/Data dataset when available (either discovered or present on disk)
     preferred = 'UnifiedPreprocessed/Data'
@@ -34,16 +34,16 @@ def create_dash_app():
             DEFAULT_DATASET = preferred
         else:
             DEFAULT_DATASET = DATASET_OPTIONS[0] if DATASET_OPTIONS else 'Data'
-    print(f"✅ Found {len(DATASET_OPTIONS)} datasets: {DATASET_OPTIONS}")
+    print(f"Found {len(DATASET_OPTIONS)} datasets: {DATASET_OPTIONS}")
     
     # Preload all datasets for instant switching
-    print("⚡ Preloading datasets for instant switching...")
+    print("Preloading datasets for instant switching...")
     preload_datasets()
-    print("✅ All datasets preloaded!")
+    print("All datasets preloaded!")
     
     # Get initial file data (now instant from cache)
     file_df = get_cached_dataset_data(DEFAULT_DATASET)
-    print(f"🎯 Using default dataset: {DEFAULT_DATASET} ({len(file_df)} shapes)")
+    print(f"Using default dataset: {DEFAULT_DATASET} ({len(file_df)} shapes)")
 
     # Base stores / top-level layout pieces
     app.layout = html.Div([

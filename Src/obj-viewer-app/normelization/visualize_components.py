@@ -1,11 +1,20 @@
 """
+File: visualize_components.py
+
 Visualize the connected components of a mesh
 """
 import open3d as o3d
 import numpy as np
 
 def visualize_components(mesh_path):
-    """Visualize each connected component in a different color"""
+    """
+    Visualize each connected component in a different color
+    
+    Parameters:
+        mesh_path (str): Path to the mesh file
+    Returns:
+        None
+    """
     mesh = o3d.io.read_triangle_mesh(mesh_path)
     
     # Get connected components

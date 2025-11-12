@@ -56,9 +56,9 @@ class PreprocessingEvaluator:
         (self.output_dir / "plots").mkdir(exist_ok=True)
         (self.output_dir / "csv").mkdir(exist_ok=True)
         
-        print(f"📁 Original dataset: {self.original_dataset_dir}")
-        print(f"📁 Processed dataset: {self.processed_dataset_dir}")
-        print(f"📁 Output directory: {self.output_dir}")
+        print(f"Original dataset: {self.original_dataset_dir}")
+        print(f"Processed dataset: {self.processed_dataset_dir}")
+        print(f"Output directory: {self.output_dir}")
         
         # Initialize results storage
         self.evaluation_results = []
@@ -78,7 +78,7 @@ class PreprocessingEvaluator:
                 faces = np.asarray(mesh.triangles)
                 return vertices, faces
         except Exception as e:
-            print(f"❌ Error loading {filepath}: {e}")
+            print(f"Error loading {filepath}: {e}")
             return None, None
     
     def compute_mesh_statistics(self, vertices, faces, label=""):
@@ -190,19 +190,19 @@ class PreprocessingEvaluator:
     
     def compare_datasets(self):
         """Compare original vs processed datasets"""
-        print("🔍 Analyzing dataset comparison...")
+        print("Analyzing dataset comparison...")
         
         # Get file lists
         if self.original_dataset_dir.exists():
             original_files = list(self.original_dataset_dir.rglob("*.obj"))
         else:
-            print(f"⚠️ Original dataset not found: {self.original_dataset_dir}")
+            print(f"️ Original dataset not found: {self.original_dataset_dir}")
             original_files = []
             
         if self.processed_dataset_dir.exists():
             processed_files = list(self.processed_dataset_dir.rglob("*_unified.obj"))
         else:
-            print(f"⚠️ Processed dataset not found: {self.processed_dataset_dir}")
+            print(f"️ Processed dataset not found: {self.processed_dataset_dir}")
             processed_files = []
         
         print(f"Found {len(original_files)} original files and {len(processed_files)} processed files")
@@ -257,7 +257,7 @@ class PreprocessingEvaluator:
                             processed_stats['remeshing_applied'] = processing_info.get('remeshing_applied', False)
                             processed_stats['target_faces'] = processing_info.get('target_faces', 0)
                     except Exception as e:
-                        print(f"⚠️ Error reading metadata for {base_name}: {e}")
+                        print(f"️ Error reading metadata for {base_name}: {e}")
                 
                 self.evaluation_results.append(processed_stats)
                 
@@ -301,7 +301,7 @@ class PreprocessingEvaluator:
                             'dataset_type': 'original'
                         })
         
-        print(f"✅ Processed {len(self.evaluation_results)} shapes")
+        print(f"Processed {len(self.evaluation_results)} shapes")
     
     def extract_face_edge_data(self, vertices, faces):
         """Extract face areas and edge lengths for detailed analysis"""
@@ -327,7 +327,7 @@ class PreprocessingEvaluator:
     
     def save_csv_results(self):
         """Save evaluation results to CSV files"""
-        print("💾 Saving CSV results...")
+        print("Saving CSV results...")
         
         # Main evaluation results
         if self.evaluation_results:
@@ -370,10 +370,10 @@ class PreprocessingEvaluator:
     
     def generate_evaluation_plots(self):
         """Generate comprehensive evaluation plots"""
-        print("📊 Generating evaluation plots...")
+        print("Generating evaluation plots...")
         
         if not self.evaluation_results:
-            print("⚠️ No evaluation results to plot")
+            print("️ No evaluation results to plot")
             return
         
         df = pd.DataFrame(self.evaluation_results)
@@ -403,7 +403,7 @@ class PreprocessingEvaluator:
         # 7. Before/After Comparison
         self.plot_before_after_comparison(df)
         
-        print("✅ All plots generated successfully!")
+        print("All plots generated successfully!")
     
     def plot_compliance_overview(self, df):
         """Plot overall compliance with technical tips"""
@@ -495,7 +495,7 @@ class PreprocessingEvaluator:
     def plot_face_area_distributions(self):
         """Plot face area distributions as recommended in technical tips"""
         if not self.face_area_results:
-            print("⚠️ No face area data available")
+            print("️ No face area data available")
             return
         
         df_faces = pd.DataFrame(self.face_area_results)
@@ -565,7 +565,7 @@ Uniformity: {1 - np.std(processed_data)/max(np.mean(processed_data), 1e-10):.3f}
     def plot_edge_length_distributions(self):
         """Plot edge length distributions"""
         if not self.edge_length_results:
-            print("⚠️ No edge length data available")
+            print("️ No edge length data available")
             return
         
         df_edges = pd.DataFrame(self.edge_length_results)
@@ -743,7 +743,7 @@ Uniformity: {1 - np.std(processed_data)/max(np.mean(processed_data), 1e-10):.3f}
         comparison_df = df[df['original_file_found'] == True].copy()
         
         if len(comparison_df) == 0:
-            print("⚠️ No original data available for before/after comparison")
+            print("️ No original data available for before/after comparison")
             return
         
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
@@ -817,7 +817,7 @@ Uniformity: {1 - np.std(processed_data)/max(np.mean(processed_data), 1e-10):.3f}
     def generate_summary_report(self):
         """Generate a comprehensive summary report"""
         if not self.evaluation_results:
-            print("⚠️ No evaluation results available for summary")
+            print("️ No evaluation results available for summary")
             return
         
         df = pd.DataFrame(self.evaluation_results)
@@ -881,11 +881,11 @@ Uniformity: {1 - np.std(processed_data)/max(np.mean(processed_data), 1e-10):.3f}
             f.write(f"Output directory: {self.output_dir}\n")
             f.write(f"=" * 80 + "\n")
         
-        print(f"📄 Summary report saved: {report_path}")
+        print(f"Summary report saved: {report_path}")
     
     def run_full_evaluation(self):
         """Run the complete evaluation pipeline"""
-        print("🚀 Starting comprehensive preprocessing evaluation...")
+        print("Starting comprehensive preprocessing evaluation...")
         print("=" * 60)
         
         # Step 1: Compare datasets
@@ -900,15 +900,15 @@ Uniformity: {1 - np.std(processed_data)/max(np.mean(processed_data), 1e-10):.3f}
         # Step 4: Generate summary report
         self.generate_summary_report()
         
-        print("\n✅ Evaluation complete!")
-        print(f"📁 Results saved in: {self.output_dir}")
-        print(f"📊 Plots available in: {self.output_dir / 'plots'}")
-        print(f"📈 CSV files available in: {self.output_dir / 'csv'}")
-        print(f"📄 Summary report: {self.output_dir / 'evaluation_summary_report.txt'}")
+        print("\n Evaluation complete!")
+        print(f"Results saved in: {self.output_dir}")
+        print(f"Plots available in: {self.output_dir / 'plots'}")
+        print(f"CSV files available in: {self.output_dir / 'csv'}")
+        print(f"Summary report: {self.output_dir / 'evaluation_summary_report.txt'}")
 
 def main():
     """Main evaluation function"""
-    print("📊 Preprocessing & Normalization Evaluation Tool")
+    print("Preprocessing & Normalization Evaluation Tool")
     print("Following Technical Tips guidelines for validation")
     
     # Initialize evaluator
