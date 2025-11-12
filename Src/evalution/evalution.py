@@ -1,6 +1,11 @@
-"""Evaluation utilities for Step 6: compute retrieval quality metrics.
+"""
+File: Src/evalution/evalution.py
+Last Modified: 11-11-2025
 
-This script compares three distance/ranking outputs against ground-truth class labels
+
+Evaluation utilities for Step 6: compute retrieval quality metrics.
+
+This script compares three distance/ranking outputs and KNN approaches against ground-truth class labels
 and computes a broad set of binary-relevance metrics per query, per class, and overall.
 
 Usage (from project root):
@@ -11,6 +16,8 @@ analysis file under `Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedP
 
 The script writes per-approach CSV summaries into `Reports/evaluation/` and prints a short summary.
 """
+
+# Imports
 from __future__ import annotations
 import os
 import math
@@ -18,13 +25,14 @@ import re
 from pathlib import Path
 import argparse
 from typing import Dict, List, Tuple, Optional
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import interpolate
 from tqdm import tqdm
 import joblib
-
+import re
+import matplotlib
 
 def progress_iterable(iterable, desc: Optional[str] = None):
     """Return an iterable with progress display: tqdm if available, else a simple generator
@@ -52,6 +60,7 @@ def progress_iterable(iterable, desc: Optional[str] = None):
 
     return _gen()
 
+# Global constants
 
 DEFAULT_MATCHING = [
     "Src/matching/matrix_minmax_optimized.csv",
@@ -72,19 +81,22 @@ DEFAULT_ANALYSIS = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPr
 
 
 def normalize_id(name: str) -> str:
-    """Normalize a filename to a short id used to match across tables.
-
-    Strategy: remove path, lowercase, remove extension, then take leading alphanumeric token
-    (characters before first underscore) if present. This works with names like
-    'm1337_unified.obj' and 'm1337_06_fill_holes_and_orientation.obj' mapping to 'm1337'.
     """
+    Normalize a filename to a short id used to match across tables.
+
+    Parameters:
+        name (str): The filename to normalize.
+
+    Returns:
+        str: The normalized id. 
+    
+    """    
     if pd.isna(name):
         return ""
     s = os.path.basename(str(name)).lower()
     if s.endswith('.obj'):
         s = s[:-4]
-    # If there's a leading alphanumeric token, return it
-    import re
+    # If there's a leading alphanumeric token, return it    
     m = re.match(r"^([a-z0-9]+)", s)
     if m:
         return m.group(1)
@@ -92,6 +104,16 @@ def normalize_id(name: str) -> str:
 
 
 def load_analysis_labels(path: str) -> pd.DataFrame:
+    """
+    Load the analysis CSV and return a DataFrame with columns:
+    - filename: The original filename
+    - id: A normalized identifier for the shape
+    - class: The class label
+    Parameters:
+        path (str): Path to the analysis CSV file.
+    Returns:
+        pd.DataFrame: DataFrame with columns 'filename', 'id', and 'class'.
+    """
     df = pd.read_csv(path)
     # Try to find filename column (common names: 'shape_file','filename','name')
     filename_col = None
@@ -116,12 +138,18 @@ def load_analysis_labels(path: str) -> pd.DataFrame:
 
 
 def load_distance_matrix(path: str) -> pd.DataFrame:
-    """Load a distance matrix CSV into a DataFrame.
+    """
+    Load a distance matrix CSV into a DataFrame.
 
     Accepts either a full matrix (rows and columns are filenames) or a table with
     a leading filename column and distance columns.
     
     For KDTree files (.joblib), converts to distance matrix format on-the-fly.
+
+    Parameters:
+        path (str): Path to the distance matrix file.
+    Returns:
+        pd.DataFrame: The distance matrix with shape names as index and columns.
     """
     # Check if this is a KDTree file
     if path.endswith('.joblib'):
@@ -143,18 +171,19 @@ def load_distance_matrix(path: str) -> pd.DataFrame:
 
 
 def load_kdtree_as_distance_matrix(kdtree_path: str) -> pd.DataFrame:
-    """Load a KDTree file and convert it to a distance matrix format.
+    """
+    Load a KDTree file and convert it to a distance matrix format.
     
     This computes all pairwise distances using the KDTree, which can be memory intensive
     for large datasets. The resulting matrix has the same format as CSV distance matrices.
     
-    Args:
-        kdtree_path: Path to the .joblib file containing KDTree data
-        
+    Parameters:
+        kdtree_path (str): Path to the .joblib file containing KDTree data
+
     Returns:
-        DataFrame with shape names as both index and columns, containing pairwise distances
+        pd.DataFrame: DataFrame with shape names as both index and columns, containing pairwise distances
     """
-    print(f"   Loading KDTree from {kdtree_path}...")
+    print(f"Loading KDTree from {kdtree_path}...")
     kdtree_data = joblib.load(kdtree_path)
     
     tree = kdtree_data['tree']
@@ -162,8 +191,8 @@ def load_kdtree_as_distance_matrix(kdtree_path: str) -> pd.DataFrame:
     X_data = np.asarray(tree.data)
     
     n_samples = X_data.shape[0]
-    print(f"   Computing pairwise distances for {n_samples} shapes...")
-    
+    print(f"Computing pairwise distances for {n_samples} shapes...")
+
     # Compute all pairwise distances
     # For efficiency, query the tree for all points at once
     # Note: This can be memory intensive for very large datasets
@@ -187,12 +216,19 @@ def load_kdtree_as_distance_matrix(kdtree_path: str) -> pd.DataFrame:
     names_list = [str(name) for name in names]
     dist_df = pd.DataFrame(distances_matrix, index=names_list, columns=names_list)
     
-    print(f"   ✓ KDTree converted to distance matrix ({dist_df.shape[0]}x{dist_df.shape[1]})")
+    print(f"KDTree converted to distance matrix ({dist_df.shape[0]}x{dist_df.shape[1]})")
     return dist_df
 
 
 def map_columns_to_ids(df: pd.DataFrame) -> Dict[str, str]:
-    """Return map colname -> normalized id."""
+    """
+    Return map colname -> normalized id.
+    
+    Parameters:
+        df (pd.DataFrame): DataFrame whose columns to map.
+    Returns:
+        Dict[str, str]: Mapping from column names to normalized ids.
+    """
     mapping = {}
     for c in df.columns:
         mapping[c] = normalize_id(c)
@@ -208,6 +244,17 @@ def map_columns_to_ids(df: pd.DataFrame) -> Dict[str, str]:
 
 
 def compute_metrics_for_query(tp: int, fp: int, fn: int, tn: int) -> Dict[str, Optional[float]]:
+    """
+    Compute binary classification metrics given TP, FP, FN, TN counts.
+
+    Parameters:
+        tp (int): True Positives
+        fp (int): False Positives
+        fn (int): False Negatives
+        tn (int): True Negatives
+    Returns:
+        Dict[str, Optional[float]]: Dictionary of computed metrics
+    """
     # Handle zero divisors gracefully
     def safe_div(a, b):
         return float(a) / float(b) if b and not math.isclose(b, 0.0) else None
@@ -265,10 +312,12 @@ def compute_metrics_for_query(tp: int, fp: int, fn: int, tn: int) -> Dict[str, O
 
 
 def compute_dcg(labels: List[int], k: Optional[int] = None) -> float:
-    """Compute Discounted Cumulative Gain at position k.
-    
-    labels: relevance scores (binary 1/0 or graded) in ranked order
-    k: position cutoff (if None, use all positions)
+    """
+    Compute Discounted Cumulative Gain at position k.
+
+    Parameters:
+        labels: relevance scores (binary 1/0 or graded) in ranked order
+        k: position cutoff (if None, use all positions)
     Returns: DCG value
     """
     labels_arr = np.asarray(labels, dtype=float)
@@ -284,10 +333,12 @@ def compute_dcg(labels: List[int], k: Optional[int] = None) -> float:
 
 
 def compute_ndcg(labels: List[int], k: Optional[int] = None) -> Optional[float]:
-    """Compute Normalized Discounted Cumulative Gain at position k.
+    """C
+    ompute Normalized Discounted Cumulative Gain at position k.
     
-    labels: relevance scores (binary 1/0 or graded) in ranked order
-    k: position cutoff (if None, use all positions)
+    Parameters:
+        labels: relevance scores (binary 1/0 or graded) in ranked order
+        k: position cutoff (if None, use all positions)
     Returns: NDCG value (0 to 1), or None if no relevant items
     """
     dcg = compute_dcg(labels, k)
@@ -300,12 +351,14 @@ def compute_ndcg(labels: List[int], k: Optional[int] = None) -> Optional[float]:
 
 
 def compute_roc_auc(labels: List[int], scores: List[float]) -> Optional[float]:
-    """Compute ROC AUC using trapezoidal integration.
+    """
+    Compute ROC AUC using trapezoidal integration.
 
-    labels: binary relevance (1 positive, 0 negative)
-    scores: higher means more likely positive. For our distances, we pass -distance so
-    higher score -> more similar.
-    Returns None if AUC is undefined (no positives or no negatives).
+    Parameters:
+        labels: binary relevance (1 positive, 0 negative)
+        scores: higher means more likely positive. For our distances, we pass -distance so
+        higher score -> more similar.
+    Returns: None if AUC is undefined (no positives or no negatives).
     """
     # convert to numpy
     y = np.asarray(labels, dtype=int)
@@ -331,9 +384,16 @@ def compute_roc_auc(labels: List[int], scores: List[float]) -> Optional[float]:
 
 
 def compute_roc_curve(labels: List[int], scores: List[float]) -> Tuple[np.ndarray, np.ndarray]:
-    """Return (fpr, tpr) arrays for a given labels/scores pair.
-
+    """
+    Return (fpr, tpr) arrays for a given labels/scores pair.
     Uses the same ranking and construction as compute_roc_auc.
+
+    Parameters:
+        labels: binary relevance (1 positive, 0 negative)
+        scores: higher means more likely positive. For our distances, we pass -distance so
+        higher score -> more similar.
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: (fpr, tpr) arrays; empty arrays
     """
     y = np.asarray(labels, dtype=int)
     x = np.asarray(scores, dtype=float)
@@ -352,14 +412,18 @@ def compute_roc_curve(labels: List[int], scores: List[float]) -> Tuple[np.ndarra
 
 
 def plot_roc_curve(fpr: np.ndarray, tpr: np.ndarray, out_path: Optional[str] = None, title: Optional[str] = None):
-    """Plot a single ROC curve and optionally save it to disk.
-
-    Requires matplotlib; if not present, raises ImportError.
     """
-    try:
-        import matplotlib.pyplot as plt
-    except Exception as e:
-        raise ImportError('matplotlib required to plot ROC curves') from e
+    Plot a single ROC curve and optionally save it to disk.
+    Requires matplotlib; if not present, raises ImportError.
+
+    Parameters:
+        fpr (np.ndarray): False Positive Rate array
+        tpr (np.ndarray): True Positive Rate array
+        out_path (Optional[str]): If provided, save the plot to this path
+        title (Optional[str]): Title for the plot
+    Returns:
+        Union[str, matplotlib.figure.Figure]: The output path if saved, else the Figure object
+    """
     if fpr.size == 0 or tpr.size == 0:
         raise ValueError('Empty ROC arrays')
     fig, ax = plt.subplots(figsize=(6, 6))
@@ -378,17 +442,23 @@ def plot_roc_curve(fpr: np.ndarray, tpr: np.ndarray, out_path: Optional[str] = N
 
 
 def plot_mean_roc_for_class(dist_df: pd.DataFrame, analysis_df: pd.DataFrame, class_name: str, out_path: Optional[str] = None, n_points: int = 200):
-    """Compute and plot the averaged ROC curve for a class.
+    """
+    Compute and plot the averaged ROC curve for a class.
 
     This pools per-query ROC curves for queries belonging to `class_name`, interpolates
     TPR values onto a common FPR grid, averages them, and plots the mean ROC with
     +/- std shading.
+
+    Parameters:
+        dist_df (pd.DataFrame): Distance matrix DataFrame
+        analysis_df (pd.DataFrame): Analysis DataFrame with 'id' and 'class' columns
+        class_name (str): The class name to compute the mean ROC for
+        out_path (Optional[str]): If provided, save the plot to this path
+        n_points (int): Number of points in the FPR grid for interpolation
+
+    Returns:
+        Union[str, matplotlib.figure.Figure]: The output path if saved, else the Figure object
     """
-    try:
-        import matplotlib.pyplot as plt
-        from scipy import interpolate
-    except Exception:
-        raise ImportError('matplotlib and scipy required to plot mean ROC')
 
     analysis_df = analysis_df.copy()
     # build id->class mapping
@@ -443,10 +513,19 @@ def plot_mean_roc_for_class(dist_df: pd.DataFrame, analysis_df: pd.DataFrame, cl
 
 
 def evaluate_distance_matrix(dist_df: pd.DataFrame, analysis_df: pd.DataFrame, top_n: int = 10, out_dir: Optional[str] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Evaluate a distance matrix and return (per_query_df, per_class_summary_df).
+    """
+    Evaluate a distance matrix and return (per_query_df, per_class_summary_df).
 
     per_query_df contains metrics for each query (one row per query). per_class_summary_df
     contains averaged metrics per class plus overall weighted averages.
+
+    Parameters:
+        dist_df (pd.DataFrame): Distance matrix DataFrame
+        analysis_df (pd.DataFrame): Analysis DataFrame with 'id' and 'class' columns
+        top_n (int): Number of top results to consider for top-N metrics
+        out_dir (Optional[str]): If provided, directory to save ROC curve plots
+    Returns:
+        Tuple[pd.DataFrame, pd.DataFrame]: (per_query_df, per_class_summary_df)
     """
     # Build mapping id -> class and id -> filenames list
     analysis_df = analysis_df.copy()
@@ -670,37 +749,31 @@ def evaluate_distance_matrix(dist_df: pd.DataFrame, analysis_df: pd.DataFrame, t
     # If out_dir is provided, generate plots: per-class mean ROC, per-class AP histogram,
     # overall ROC, overall AP histogram, and top-N confusion heatmap.
     if out_dir:
-        try:
-            import matplotlib.pyplot as plt
-            import numpy as np
-        except Exception:
-            print('matplotlib required to generate plots; skipping plot generation')
-        else:
-            plots_dir = Path(out_dir) / 'plots'
-            plots_dir.mkdir(parents=True, exist_ok=True)
+        plots_dir = Path(out_dir) / 'plots'
+        plots_dir.mkdir(parents=True, exist_ok=True)
 
-            # Per-class plots
-            for cls in progress_iterable(classes, desc='Classes'):
+        # Per-class plots
+        for cls in progress_iterable(classes, desc='Classes'):
+            try:
+                outp = plots_dir / f'{cls}_mean_roc.png'
                 try:
-                    outp = plots_dir / f'{cls}_mean_roc.png'
-                    try:
-                        plot_mean_roc_for_class(dist_df, analysis_df, cls, out_path=str(outp))
-                    except Exception as e:
-                        # skip if not enough data
-                        print(f'Could not plot mean ROC for class {cls}: {e}')
-
-                    # histogram of AP for queries in this class
-                    ap_vals = per_query_df[per_query_df['class'] == cls]['AP'].dropna().astype(float)
-                    if not ap_vals.empty:
-                        fig, ax = plt.subplots(figsize=(6, 4))
-                        ax.hist(ap_vals, bins=20, color='C0', edgecolor='black')
-                        ax.set_title(f'AP distribution for class {cls}')
-                        ax.set_xlabel('Average Precision (AP)')
-                        ax.set_ylabel('Count')
-                        fig.savefig(plots_dir / f'{cls}_AP_histogram.png', bbox_inches='tight')
-                        plt.close(fig)
+                    plot_mean_roc_for_class(dist_df, analysis_df, cls, out_path=str(outp))
                 except Exception as e:
-                    print(f'Error while generating plots for class {cls}: {e}')
+                    # skip if not enough data
+                    print(f'Could not plot mean ROC for class {cls}: {e}')
+
+                # histogram of AP for queries in this class
+                ap_vals = per_query_df[per_query_df['class'] == cls]['AP'].dropna().astype(float)
+                if not ap_vals.empty:
+                    fig, ax = plt.subplots(figsize=(6, 4))
+                    ax.hist(ap_vals, bins=20, color='C0', edgecolor='black')
+                    ax.set_title(f'AP distribution for class {cls}')
+                    ax.set_xlabel('Average Precision (AP)')
+                    ax.set_ylabel('Count')
+                    fig.savefig(plots_dir / f'{cls}_AP_histogram.png', bbox_inches='tight')
+                    plt.close(fig)
+            except Exception as e:
+                print(f'Error while generating plots for class {cls}: {e}')
 
             # Overall pooled ROC
             try:
@@ -755,6 +828,19 @@ def evaluate_distance_matrix(dist_df: pd.DataFrame, analysis_df: pd.DataFrame, t
 
 
 def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, out_dir: str):
+    """
+    Run evaluation on multiple distance matrix files and generate combined comparison plots.
+
+    Parameters:
+        matching_files (List[str]): List of paths to distance matrix CSV files
+        analysis_file (str): Path to analysis labels CSV file
+        top_n (int): Number of top results to consider for top-N metrics
+        out_dir (str): Output directory to save results
+    
+    Returns:
+        None
+    """
+
     analysis_df = load_analysis_labels(analysis_file)
     os.makedirs(out_dir, exist_ok=True)
     # Collect results per approach to enable combined comparisons
@@ -790,7 +876,15 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
     # After processing all approaches, generate combined CSVs and comparison plots
 
     def generate_comparison_plots(all_summary: Dict[str, pd.DataFrame], out_dir: str):
-        """Create combined CSVs and plots to compare approaches across classes and overall."""
+        """
+        Create combined CSVs and plots to compare approaches across classes and overall.
+        
+        Parameters:
+            all_summary (Dict[str, pd.DataFrame]): Mapping from approach name to per-class summary DataFrame
+            out_dir (str): Output directory to save combined results
+        Returns:
+            None
+        """
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         # Build combined per-class DataFrame: index=class, columns=(approach, metric)
@@ -879,8 +973,7 @@ def run_evaluation(matching_files: List[str], analysis_file: str, top_n: int, ou
                 cbar.ax.tick_params(labelsize=20)
                 
                 # annotate values inside cells with contrast-aware text color and larger font
-                # determine threshold from colormap midpoint
-                import matplotlib
+                # determine threshold from colormap midpoint                
                 cmap_obj = matplotlib.colormaps.get_cmap(cmap_name)
                 if vmin is not None and vmax is not None:
                     norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)

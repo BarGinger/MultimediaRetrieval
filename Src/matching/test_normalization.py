@@ -39,7 +39,7 @@ print(f"  Diagonal (should be 0): {[dm.iloc[i,i] for i in range(min(5, len(dm)))
 
 # Verify all values are non-negative
 if (dm >= 0).all().all():
-    print("\n✓ SUCCESS: All distances are non-negative!")
+    print("\nSUCCESS: All distances are non-negative!")
 else:
     negative_count = (dm < 0).sum().sum()
     print(f"\n✗ FAILED: Found {negative_count} negative distances!")

@@ -1,4 +1,7 @@
-"""Interactive tool to adjust 3D shape rotations and save configurations.
+"""
+File: interactive_rotation_adjuster.py
+Last Edited: 09-11-2025
+Interactive tool to adjust 3D shape rotations and save configurations.
 
 This tool allows you to:
 1. Load all shapes that will be used in visualizations
@@ -9,6 +12,8 @@ This tool allows you to:
 Usage (from project root):
     python -m Src.evalution.interactive_rotation_adjuster
 """
+
+# Imports
 import os
 import sys
 from pathlib import Path
@@ -38,10 +43,15 @@ class ShapeRotationAdjuster:
     """Interactive tool for adjusting shape rotations."""
     
     def __init__(self, shapes_to_adjust: List[Tuple[str, str, str]]):
-        """Initialize the adjuster.
+        """
+        Initialize the adjuster.
+
+        Parameters:
+            shapes_to_adjust (List[Tuple[str, str, str]]): List of (shape_id, class_name, label) tuples.
+
+        Returns:
+            None
         
-        Args:
-            shapes_to_adjust: List of (shape_id, class_name, label) tuples
         """
         self.shapes_to_adjust = shapes_to_adjust
         self.current_index = 0
@@ -67,7 +77,16 @@ class ShapeRotationAdjuster:
         self.setup_figure()
         
     def setup_figure(self):
-        """Setup the matplotlib figure with 3D view and sliders."""
+        """
+        Setup the matplotlib figure with 3D view and sliders.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        
+        """
         self.fig = plt.figure(figsize=(12, 10))
         
         # 3D axes for shape display
@@ -131,7 +150,16 @@ class ShapeRotationAdjuster:
         self.load_current_shape()
         
     def load_current_shape(self):
-        """Load and display the current shape."""
+        """
+        Load and display the current shape.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        
+        """
         # Set loading flag to prevent slider updates
         self.loading = True
         
@@ -191,7 +219,7 @@ class ShapeRotationAdjuster:
                 self.info_text.set_text(f"❌ Failed to load {shape_id}")
             else:
                 saved_msg = " (Previously saved)" if shape_id in self.rotation_configs else ""
-                self.info_text.set_text(f"✓ Loaded {shape_id}{saved_msg} - Adjust sliders and click 'Save & Next'")
+                self.info_text.set_text(f"Loaded {shape_id}{saved_msg} - Adjust sliders and click 'Save & Next'")
         
         self.class_name = class_name
         self.shape_id = shape_id
@@ -203,7 +231,16 @@ class ShapeRotationAdjuster:
         self.render_shape()
         
     def render_shape(self):
-        """Render the shape with current rotation settings."""
+        """
+        Render the shape with current rotation settings.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        
+        """
         self.ax.clear()
         
         if self.vertices is None or self.faces is None:
@@ -292,13 +329,31 @@ class ShapeRotationAdjuster:
         plt.draw()
         
     def update(self, val):
-        """Update the visualization when sliders change."""
+        """
+        Update the visualization when sliders change.
+
+        Parameters:
+            val: The new value from the slider.
+
+        Returns:
+            None
+        
+        """
         # Don't update while loading a new shape
         if not self.loading:
             self.render_shape()
         
     def save_current(self):
-        """Save current rotation configuration."""
+        """
+        Save current rotation configuration.
+
+        Parameters:
+            None
+
+        Returns:
+            bool: True if saved successfully, False otherwise.
+        
+        """
         if self.vertices is not None and self.faces is not None:
             self.rotation_configs[self.shape_id] = {
                 'rot_x': float(self.rot_x),
@@ -307,35 +362,80 @@ class ShapeRotationAdjuster:
                 'elev': float(self.elev),
                 'azim': float(self.azim)
             }
-            print(f"✓ Saved rotation config for {self.shape_id}")
+            print(f"Saved rotation config for {self.shape_id}")
             return True
         return False
         
     def previous_shape(self, event):
-        """Go to previous shape."""
+        """
+        Go to previous shape.
+
+        Parameters:
+            event: The button click event.
+
+        Returns:
+            None
+        
+        """
         if self.current_index > 0:
             self.current_index -= 1
             self.load_current_shape()
             
     def next_shape(self, event):
-        """Go to next shape without saving."""
+        """
+        Go to next shape without saving.
+
+        Parameters:
+            event: The button click event.
+
+        Returns:
+            None
+        
+        """
         if self.current_index < len(self.shapes_to_adjust):
             self.current_index += 1
             self.load_current_shape()
             
     def save_and_next(self, event):
-        """Save current configuration and move to next shape."""
+        """
+        Save current configuration and move to next shape.
+
+        Parameters:
+            event: The button click event.
+
+        Returns:
+            None
+        
+        """
         if self.save_current():
             self.current_index += 1
             self.load_current_shape()
             
     def export_and_exit(self, event):
-        """Export all configurations to file and close."""
+        """
+        Export all configurations to file and close.
+
+        Parameters:
+            event: The button click event.
+
+        Returns:
+            None
+        
+        """
         self.export_configs()
         plt.close(self.fig)
         
     def export_configs(self):
-        """Export rotation configurations to shape_rotation_config.py."""
+        """
+        Export rotation configurations to shape_rotation_config.py.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        
+        """
         output_path = project_root / "Src" / "evalution" / "shape_rotation_config.py"
         
         with open(output_path, 'w') as f:
@@ -359,19 +459,34 @@ class ShapeRotationAdjuster:
             f.write("DEFAULT_ROTATION = {'rot_x': 90, 'rot_y': 15, 'rot_z': 0, 'elev': 20, 'azim': 45}\n")
         
         print(f"\n{'='*70}")
-        print(f"✓ Exported {len(self.rotation_configs)} rotation configurations to:")
+        print(f"Exported {len(self.rotation_configs)} rotation configurations to:")
         print(f"  {output_path}")
         print(f"{'='*70}\n")
         
     def run(self):
-        """Run the interactive adjuster."""
+        """
+        Run the interactive adjuster.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        
+        """
         plt.show()
 
 
 def collect_all_shapes_for_visualization():
-    """Collect all shapes that will be used in the final visualization.
+    """
+    Collect all shapes that will be used in the final visualization.
+
+    Parameters:
+        None
+
+    Returns:
+        List[Tuple[str, str, str]]: List of (shape_id, class_name, label) tuples.
     
-    Returns list of (shape_id, class_name, label) tuples.
     """
     print("="*70)
     print("Collecting shapes for rotation adjustment...")
@@ -445,14 +560,23 @@ def collect_all_shapes_for_visualization():
     # Convert to sorted list
     shapes_list = sorted(list(shapes_set), key=lambda x: (x[2], x[0]))
     
-    print(f"\n✓ Collected {len(shapes_list)} unique shapes to adjust")
+    print(f"\nCollected {len(shapes_list)} unique shapes to adjust")
     print(f"  This includes queries and all retrieval results across all approaches")
     
     return shapes_list
 
 
 def main():
-    """Main execution function."""
+    """
+    Main execution function.
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    
+    """
     # Collect all shapes
     shapes_to_adjust = collect_all_shapes_for_visualization()
     
