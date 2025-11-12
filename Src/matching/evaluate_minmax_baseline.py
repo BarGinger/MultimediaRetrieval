@@ -1,7 +1,3 @@
-"""
-Evaluation of the min-max normalized approach with optimized weights.
-This corresponds to the final_shape_query.py approach that achieved the previous best results.
-"""
 
 import sys
 import os
@@ -47,10 +43,10 @@ def evaluate_minmax_optimized():
     print(f"Average shapes per class: {len(shape_query.shape_names) / len(set(shape_query.shape_classes)):.1f}")
     
     print(f"\\nEvaluating with robust parameters...")
-    print(f"  • k = 10 (precision@10)")
-    print(f"  • 1000 random queries")
-    print(f"  • Full dataset ({len(shape_query.shape_names)} shapes)")
-    print(f"  • Optimized weights")
+    print(f"  - k = 10 (precision@10)")
+    print(f"  - 1000 random queries")
+    print(f"  - Full dataset ({len(shape_query.shape_names)} shapes)")
+    print(f"  - Optimized weights")
     
     # Evaluate with robust parameters
     metrics = shape_query.evaluate_retrieval(n_queries=1000, k=10)

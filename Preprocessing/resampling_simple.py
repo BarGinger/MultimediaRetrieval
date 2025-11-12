@@ -12,8 +12,6 @@ Approach:
       - If BPA fails or still too small, fallback to single midpoint subdivision then light decimation.
   * If above range -> iterative gentle decimation (ratio-based) until inside or just above target.
 
-This is intentionally self-contained so you can A/B compare with the original pipeline.
-
 Requirements: open3d>=0.18
 """
 from __future__ import annotations

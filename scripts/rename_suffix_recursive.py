@@ -12,10 +12,6 @@ Usage:
 Defaults:
   src: _unified_prepared.obj
   dst: _06_fill_holes_and_orientation.obj
-
-This script intentionally keeps behavior simple to match the repository layout
-used by normalize_database.py: root contains category folders, each category
-contains the OBJ files.
 """
 from __future__ import annotations
 

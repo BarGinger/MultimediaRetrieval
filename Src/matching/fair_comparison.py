@@ -115,13 +115,13 @@ def compare_both_approaches():
     
     if zscore_precision > minmax_precision:
         improvement = ((zscore_precision - minmax_precision) / minmax_precision) * 100
-        print(f"\\n🎉 Z-Score approach wins! (+{improvement:.1f}% better)")
-        print("✅ The corrected z-score approach with EQUAL weights already")
-        print("   outperforms the min-max approach with OPTIMIZED weights!")
+        print(f"\\nZ-Score approach wins! (+{improvement:.1f}% better)")
+        print("The corrected z-score approach with EQUAL weights already")
+        print("outperforms the min-max approach with OPTIMIZED weights!")
     else:
         gap = ((minmax_precision - zscore_precision) / minmax_precision) * 100
-        print(f"\\n📊 Min-Max approach leads by {gap:.1f}%")
-        print("🔧 Weight optimization for Z-Score approach should close this gap")
+        print(f"\\nMin-Max approach leads by {gap:.1f}%")
+        print("Weight optimization for Z-Score approach should close this gap")
     
     # Calculate confidence intervals
     zscore_se = zscore_metrics['std_precision@k'] / (zscore_metrics['n_queries'] ** 0.5)

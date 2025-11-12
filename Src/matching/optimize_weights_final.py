@@ -1,18 +1,3 @@
-"""
-Weight optimization for FinalShapeQuery using individual descriptor weights.
-
-This version:
-- Uses the corrected FinalShapeQuery with raw distances + [0,1] normalization
-- Optimizes individual weights for all 11 descriptors
-- Uses full 2,438 shape dataset with cached distance matrices
-- Targets 30%+ performance as expected by assignment
-
-Key improvements over previous approach:
-✅ No broken distance computation (no abs() on z-scores)
-✅ Uses raw EMD + Euclidean distances as assignment requires
-✅ Individual weights allow optimization to find discriminative descriptors
-✅ Pre-computed matrices enable fast optimization trials
-"""
 
 import optuna
 import numpy as np
@@ -132,11 +117,11 @@ if __name__ == "__main__":
     print(f"Required improvement: {target_improvement:.1f}x from baseline")
     
     if baseline_precision >= 0.30:
-        print("🎉 Baseline already meets target! Optimization will push higher.")
+        print("Baseline already meets target! Optimization will push higher.")
     elif baseline_precision >= 0.15:
-        print("📈 Strong baseline - optimization should reach target.")
+        print("Strong baseline - optimization should reach target.")
     else:
-        print("📊 Moderate baseline - optimization will search for discriminative features.")
+        print("Moderate baseline - optimization will search for discriminative features.")
     
     print("\\n" + "="*60)
     print("STARTING BAYESIAN OPTIMIZATION")
@@ -214,13 +199,13 @@ if __name__ == "__main__":
         
         # Target achievement
         if best_trial.value >= 0.30:
-            print("🎉 TARGET ACHIEVED: 30%+ precision@30!")
+            print("TARGET ACHIEVED: 30%+ precision@30!")
         elif best_trial.value >= 0.25:
-            print("📈 EXCELLENT: Close to 30% target")
+            print("EXCELLENT: Close to 30% target")
         elif best_trial.value >= 0.20:
-            print("📊 GOOD: Solid improvement toward target")
+            print("GOOD: Solid improvement toward target")
         else:
-            print("📋 PROGRESS: Meaningful improvement from baseline")
+            print("PROGRESS: Meaningful improvement from baseline")
         
         # Save results
         output_dir = os.path.join(base_dir, "optimization_results_final")

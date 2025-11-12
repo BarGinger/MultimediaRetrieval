@@ -370,11 +370,11 @@ if __name__ == "__main__":
     print("="*80)
     
     print("This approach:")
-    print("✅ Uses raw EMD + Euclidean distances")
-    print("✅ Simple [0,1] min-max normalization") 
-    print("✅ Individual weights per descriptor")
-    print("✅ No negative distance cancellation")
-    print("✅ Ready for weight optimization")
+    print("Uses raw EMD + Euclidean distances")
+    print("Simple [0,1] min-max normalization") 
+    print("Individual weights per descriptor")
+    print("No negative distance cancellation")
+    print("Ready for weight optimization")
     print()
     
     # Test with 500 shapes first
@@ -402,11 +402,11 @@ if __name__ == "__main__":
         print(f"All values in [0,1]: {np.min(sample):.3f} to {np.max(sample):.3f}")
         
         if metrics['mean_precision@k'] >= 0.25:
-            print("\\n🎉 EXCELLENT: Ready for optimization!")
+            print("\\nEXCELLENT: Ready for optimization!")
         elif metrics['mean_precision@k'] >= 0.20:
-            print("\\n📈 GOOD: Solid baseline for optimization")
+            print("\\nGOOD: Solid baseline for optimization")
         else:
-            print("\\n📊 BASELINE: Shows approach viability")
+            print("\\nBASELINE: Shows approach viability")
         
         print(f"\\nNext step: Optimize individual descriptor weights with Bayesian optimization!")
         

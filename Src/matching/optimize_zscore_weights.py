@@ -1,18 +1,3 @@
-"""
-Weight optimization for CorrectedZScoreShapeQuery using individual descriptor weights.
-
-This version:
-- Uses the corrected Z-Score approach with proper standardization (no .abs())
-- Optimizes individual weights for all 11 descriptors  
-- Uses full 2,438 shape dataset with cached z-score matrices
-- Targets improved performance beyond the 27.4% equal-weight baseline
-
-Key advantages:
-✅ Z-score standardization preserves negative "closer than average" semantics
-✅ Individual weights allow optimization to find discriminative descriptors
-✅ Pre-computed z-score matrices enable fast optimization trials
-✅ Already outperforms min-max approach with equal weights
-"""
 
 import optuna
 import numpy as np

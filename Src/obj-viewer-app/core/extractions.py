@@ -364,10 +364,9 @@ class MeshExtractions:
         """
         num_vertices = len(mesh.vertices)
 
-        # Number of histogram bins (change here to adjust resolution)
+        # Number of histogram bins
         bins = 20
 
-        # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
         n_samples = 100000
 
         verts = mesh.vertices
@@ -475,7 +474,6 @@ class MeshExtractions:
         # Maximum possible distance inside a unit box is between opposite corners
         max_dist = math.sqrt(3.0)
 
-        # Heuristic: sample roughly up to half the vertices but clamp between 100 and 5000
         n_samples = 100000
 
         verts = mesh.vertices

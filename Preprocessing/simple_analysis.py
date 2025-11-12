@@ -101,12 +101,12 @@ def compare_datasets():
         pd.DataFrame({'original_vertices': original_vertex_counts}).to_csv(original_vertex_csv, index=False)
         pd.DataFrame({'resampled_vertices': resampled_vertex_counts}).to_csv(resampled_vertex_csv, index=False)
     
-    print(f"📊 COMPARISON STATISTICS:")
+    print(f"COMPARISON STATISTICS:")
     print(f"Total files compared: {len(comparisons)}")
     print()
     
     # Original dataset stats
-    print(f"📈 ORIGINAL DATASET:")
+    print(f"ORIGINAL DATASET:")
     print(f"  Average vertices: {statistics.mean(original_vertex_counts):.0f}")
     print(f"  Median vertices: {statistics.median(original_vertex_counts):.0f}")
     print(f"  Min vertices: {min(original_vertex_counts)}")
@@ -114,7 +114,7 @@ def compare_datasets():
     print(f"  Standard deviation: {statistics.stdev(original_vertex_counts):.0f}")
     
     # Resampled dataset stats
-    print(f"\n📈 RESAMPLED DATASET:")
+    print(f"\nRESAMPLED DATASET:")
     print(f"  Average vertices: {statistics.mean(resampled_vertex_counts):.0f}")
     print(f"  Median vertices: {statistics.median(resampled_vertex_counts):.0f}")
     print(f"  Min vertices: {min(resampled_vertex_counts)}")
@@ -125,7 +125,7 @@ def compare_datasets():
     original_within_tolerance = sum(1 for v in original_vertex_counts if min_target <= v <= max_target)
     resampled_within_tolerance = sum(1 for v in resampled_vertex_counts if min_target <= v <= max_target)
     
-    print(f"\n🎯 TARGET COMPLIANCE:")
+    print(f"\nTARGET COMPLIANCE:")
     print(f"  Original within acceptable range: {original_within_tolerance}/{len(original_vertex_counts)} ({original_within_tolerance/len(original_vertex_counts)*100:.1f}%)")
     print(f"  Resampled within acceptable range: {resampled_within_tolerance}/{len(resampled_vertex_counts)} ({resampled_within_tolerance/len(resampled_vertex_counts)*100:.1f}%)")
     print(f"  Improvement: {resampled_within_tolerance - original_within_tolerance} files (+{(resampled_within_tolerance - original_within_tolerance)/len(original_vertex_counts)*100:.1f}%)")
@@ -136,13 +136,13 @@ def compare_datasets():
         key = f"{comp['expected_action']} -> {comp['actual_action']}"
         action_stats[key] = action_stats.get(key, 0) + 1
     
-    print(f"\n🔄 ACTION ANALYSIS:")
+    print(f"\nACTION ANALYSIS:")
     for action, count in sorted(action_stats.items()):
         percentage = count / len(comparisons) * 100
         print(f"  {action:<25}: {count:>3} files ({percentage:>5.1f}%)")
     
     # Show biggest improvements and failures
-    print(f"\n✅ BIGGEST IMPROVEMENTS (moved closer to target):")
+    print(f"\nBIGGEST IMPROVEMENTS (moved closer to target):")
     improvements = [c for c in comparisons if abs(c['resampled_vertices'] - TARGET_VERTEX_COUNT) < abs(c['original_vertices'] - TARGET_VERTEX_COUNT)]
     improvements.sort(key=lambda x: abs(x['original_vertices'] - TARGET_VERTEX_COUNT) - abs(x['resampled_vertices'] - TARGET_VERTEX_COUNT), reverse=True)
     
@@ -152,7 +152,7 @@ def compare_datasets():
         improvement = original_diff - resampled_diff
         print(f"  {i+1}. {comp['category']:<15} {comp['file']:<25} {comp['original_vertices']:>5} → {comp['resampled_vertices']:>5} (improved by {improvement:+.0f})")
     
-    print(f"\n❌ WORST CASES (still far from target):")
+    print(f"\nWORST CASES (still far from target):")
     worst_cases = sorted(comparisons, key=lambda x: abs(x['resampled_vertices'] - TARGET_VERTEX_COUNT), reverse=True)
     
     for i, comp in enumerate(worst_cases[:5]):
@@ -160,7 +160,7 @@ def compare_datasets():
         print(f"  {i+1}. {comp['category']:<15} {comp['file']:<25} {comp['original_vertices']:>5} → {comp['resampled_vertices']:>5} ({diff:+d} from target)")
     
     # Distribution comparison
-    print(f"\n📊 DISTRIBUTION COMPARISON:")
+    print(f"\nDISTRIBUTION COMPARISON:")
     ranges = [
         (0, 2000, "Very Small"),
         (2000, 5000, "Small"),
@@ -188,7 +188,7 @@ def compare_datasets():
     try:
         create_analysis_plots(original_vertex_counts, resampled_vertex_counts, comparisons)
     except Exception as e:
-        print(f"❌ Error creating plots: {e}")
+        print(f"Error creating plots: {e}")
         print("   Make sure matplotlib is installed: pip install matplotlib")
 
 def create_analysis_plots(original_vertex_counts, resampled_vertex_counts, comparisons):
@@ -374,7 +374,7 @@ def create_analysis_plots(original_vertex_counts, resampled_vertex_counts, compa
     fig.subplots_adjust(left=0.07, right=0.95, top=0.90, bottom=0.10, wspace=0.15, hspace=0.25)
     combined_path = figures_dir / 'compliance_and_distribution.png'
     fig.savefig(combined_path, dpi=300, bbox_inches='tight')
-    print(f'✅ Saved combined figure to: {combined_path}')
+    print(f'Saved combined figure to: {combined_path}')
 
     plt.show()
     return fig

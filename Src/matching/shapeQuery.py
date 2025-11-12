@@ -1,11 +1,4 @@
-"""
-Shape querying system with weighted distance matrices and k-nearest neighbor retrieval.
 
-This module provides:
-- Automatic computation or loading of total-distance matrices based on descriptor weights
-- Deterministic filename generation from weight configurations (for caching)
-- k-NN query functionality for shape retrieval
-"""
 
 import os
 import hashlib
@@ -158,7 +151,7 @@ class ShapeQuery:
         t_matrices_end = time.time()
         print(f"Loaded {cache_hits}/{len(all_descriptors)} matrices in {(t_matrices_end-t_matrices_start):.1f}s")
         if cache_misses > 0:
-            print(f"⚠ Warning: {cache_misses} descriptor matrices not found - those will be skipped")
+            print(f"Warning: {cache_misses} descriptor matrices not found - those will be skipped")
         
         self.precomputed_matrices = precomputed_matrices
         return t_matrices_start, t_matrices_end
@@ -238,7 +231,6 @@ class ShapeQuery:
         print(f"Using weights from: {os.path.basename(self.weights_csv)}")
         print(f"Using precomputed distances from: {os.path.basename(self.precomputed_dir)}\n")
         
-        # === OPTIMIZATION: Load ALL precomputed matrices ONCE ===
         # Already loaded above, get timing info
         if self.precomputed_matrices is None:
             t_matrices_start, t_matrices_end = self._load_precomputed_matrices()
@@ -247,7 +239,6 @@ class ShapeQuery:
         
         precomputed_matrices = self.precomputed_matrices
         
-        # === OPTIMIZATION: Vectorized weighted sum ===
         t_compute_start = time.time()
         n = len(self.shapes)
         

@@ -20,13 +20,6 @@ from sklearn.metrics.pairwise import euclidean_distances
 
 
 class CorrectedZScoreShapeQuery:
-    """
-    Corrected Z-Score ShapeQuery using proper statistical standardization.
-    
-    Key fix: No .abs() on z-score standardized distances!
-    This preserves the semantic meaning where negative z-scores indicate
-    "closer than average" (more similar) shape pairs.
-    """
     
     def __init__(self, 
                  csv_file_path: str = "final_006_cleaned.csv",
@@ -242,12 +235,6 @@ class CorrectedZScoreShapeQuery:
         return distance_matrix
     
     def _zscore_standardize_matrix(self, raw_matrix, descriptor):
-        """
-        Apply z-score standardization to distance matrix.
-        
-        Key fix: NO .abs() is applied! Negative z-scores are preserved.
-        Negative z-scores indicate "closer than average" pairs.
-        """
         # Get valid (non-NaN, non-diagonal) distances
         n = raw_matrix.shape[0]
         valid_distances = []
@@ -270,7 +257,6 @@ class CorrectedZScoreShapeQuery:
             std = 1.0  # Avoid division by zero
         
         # Apply z-score: (x - mean) / std
-        # KEY FIX: NO .abs() applied here!
         zscore_matrix = (raw_matrix - mean) / std
         
         if self.debug:
@@ -508,15 +494,15 @@ if __name__ == "__main__":
     print(f"Improvement:      {improvement:+.1f}%")
     
     if improvement > 0:
-        print("\\n🎉 Feature space approach performs better!")
+        print("\\nFeature space approach performs better!")
         best_method = "feature_space"
         print(f"   Winner: Feature Space (+{improvement:.1f}% improvement)")
     elif improvement < -5:
-        print("\\n⚠️  Weighted sum approach performs better.")
+        print("\\nWeighted sum approach performs better.")
         best_method = "weighted_sum"
         print(f"   Winner: Weighted Sum ({-improvement:.1f}% better)")
     else:
-        print("\\n➖ Performance is similar between approaches.")
+        print("\\nPerformance is similar between approaches.")
         best_method = "feature_space"  # Default to new approach if similar
         print("   Winner: Feature Space (default choice)")
     

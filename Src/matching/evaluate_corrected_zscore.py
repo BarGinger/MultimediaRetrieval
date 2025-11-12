@@ -1,6 +1,3 @@
-"""
-Proper evaluation of the corrected z-score approach using robust parameters.
-"""
 
 from corrected_zscore_shape_query import CorrectedZScoreShapeQuery
 
