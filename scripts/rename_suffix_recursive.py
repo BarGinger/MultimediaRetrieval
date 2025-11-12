@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
 """
+File: scripts/rename_suffix_recursive.py
+Last modified: 01-11-2025
+
 Simple renamer for dataset folders.
 
 Given a root folder that contains category subfolders, scan each immediate
@@ -22,9 +24,18 @@ import sys
 
 
 def process_folder(root: Path, src_suffix: str, dst_suffix: str, dry_run: bool, force: bool) -> int:
-    """Scan immediate subdirectories of root and rename matching files.
+    """
+    Scan immediate subdirectories of root and rename matching files.
+    
+    Parameters:
+        root (Path): Root folder containing category subfolders.
+        src_suffix (str): Source suffix to match.
+        dst_suffix (str): Destination suffix to use.
+        dry_run (bool): If True, only print what would be done.
+        force (bool): If True, overwrite target files if they exist.
 
-    Returns number of files renamed (or that would be renamed in dry-run).
+    Returns:
+        int: Number of files renamed (or that would be renamed in dry-run).
     """
     if not root.exists():
         raise FileNotFoundError(f"Root path does not exist: {root}")

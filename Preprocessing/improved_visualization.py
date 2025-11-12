@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+"""
+File:  Preprocessing/improved_visualization.py
+Last modified: 15-10-2025
+
+Improved visualization script for enhanced data analysis and presentation.
+This script generates enhanced histograms, comparison plots, box and violin plots
+"""
 
 import pandas as pd
 import numpy as np

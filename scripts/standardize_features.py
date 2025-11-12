@@ -1,4 +1,6 @@
 """
+File: scripts/standardize_features.py
+Last modified: 02-11-2025
 Standardize numeric features in a CSV using z-score (mean/std).
 
 Reads:  output/features_unified_prepared.csv
@@ -25,7 +27,18 @@ import seaborn as sns
 
 
 def export_outliers_per_feature(df: pd.DataFrame, id_column: str, out_dir: Path) -> None:
-    """For each numeric feature, export outliers (by 1.5*IQR rule) to a CSV file."""
+    """
+    For each numeric feature, export outliers (by 1.5*IQR rule) to a CSV file.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame containing features.
+        id_column (str): The name of the identifier column.
+        out_dir (Path): The directory to save outlier CSV files.
+
+    Returns:
+        None
+    
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     features = df.drop(columns=[id_column])
     numeric = features.apply(pd.to_numeric, errors='coerce')
@@ -48,6 +61,18 @@ def export_outliers_per_feature(df: pd.DataFrame, id_column: str, out_dir: Path)
 
 
 def standardize_csv(input_path: Path, output_path: Path, id_column: str = "name") -> None:
+    """
+    Standardize numeric features in a CSV using z-score normalization.
+
+    Parameters:
+        input_path (Path): Path to the input CSV file.
+        output_path (Path): Path to save the standardized CSV file.
+        id_column (str): The name of the identifier column to preserve.
+
+    Returns:
+        None
+    
+    """
     df = pd.read_csv(input_path)
 
     if id_column not in df.columns:
@@ -92,14 +117,32 @@ def standardize_csv(input_path: Path, output_path: Path, id_column: str = "name"
 
 
 def safe_filename(s: str) -> str:
+    """
+    Replace unsafe characters in a string for use as a filename.
+
+    Parameters:
+        s (str): The string to make safe for filename use.
+
+    Returns:
+        str: The sanitized filename string.
+    
+    """
     # Replace unsafe characters for filenames
     return "".join([c if c.isalnum() or c in (' ', '.', '_', '-') else '_' for c in s]).replace(' ', '_')
 
 
 def plot_features(df: pd.DataFrame, id_column: str, out_dir: Path) -> None:
-    """Create histogram + boxplot for each numeric feature in df (excluding id_column).
+    """
+    Create histogram and boxplot for each numeric feature in df.
 
-    Saves one PNG per feature into out_dir.
+    Parameters:
+        df (pd.DataFrame): The DataFrame containing features to plot.
+        id_column (str): The name of the identifier column to exclude.
+        out_dir (Path): The directory to save plot PNG files.
+
+    Returns:
+        None
+    
     """
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -149,11 +192,18 @@ def plot_features(df: pd.DataFrame, id_column: str, out_dir: Path) -> None:
 
 
 def plot_features_combined(df_before: pd.DataFrame, df_after: pd.DataFrame, id_column: str, out_dir: Path) -> None:
-    """Create combined before/after histogram+boxplot per feature.
+    """
+    Create combined before/after histogram and boxplot per feature.
 
-    Layout: 2 rows x 2 columns per figure
-      [hist before] [hist after]
-      [box before]  [box after]
+    Parameters:
+        df_before (pd.DataFrame): The DataFrame with original values.
+        df_after (pd.DataFrame): The DataFrame with standardized values.
+        id_column (str): The name of the identifier column to exclude.
+        out_dir (Path): The directory to save combined plot PNG files.
+
+    Returns:
+        None
+    
     """
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -301,6 +351,16 @@ def plot_features_combined(df_before: pd.DataFrame, df_after: pd.DataFrame, id_c
 
 
 def main(argv=None):
+    """
+    Main execution function for standardizing features.
+
+    Parameters:
+        argv: Command line arguments (optional).
+
+    Returns:
+        None
+    
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", "-i", help="Input CSV path",
                         default="output/descriptor_values/features_unified_prepared.csv")
