@@ -65,7 +65,7 @@ def estimate_time_remaining(completed, total, start_time):
         return "Calculating..."
 
 def main():
-    print("🔍 Normalize Database Progress Monitor")
+    print("Normalize Database Progress Monitor")
     print("=" * 50)
     
     start_time = time.time()
@@ -83,39 +83,39 @@ def main():
             time_remaining = estimate_time_remaining(completed, total_expected_files, start_time)
             
             # Display status
-            print(f"\n⏰ {time.strftime('%H:%M:%S')} - Progress Update:")
-            print(f"✅ Completed shapes: {completed}/{total_expected_files} ({progress_percent:.1f}%)")
-            print(f"📊 Total OBJ files: {total_objs}")
-            print(f"📁 Categories processing: {categories}")
-            print(f"🔍 Validation files: {validation_count}")
-            print(f"📋 Metadata files: {metadata_count}")
-            print(f"⏱️  Estimated time remaining: {time_remaining}")
+            print(f"\n{time.strftime('%H:%M:%S')} - Progress Update:")
+            print(f"Completed shapes: {completed}/{total_expected_files} ({progress_percent:.1f}%)")
+            print(f"Total OBJ files: {total_objs}")
+            print(f"Categories processing: {categories}")
+            print(f"Validation files: {validation_count}")
+            print(f"Metadata files: {metadata_count}")
+            print(f"Estimated time remaining: {time_remaining}")
             
             # Progress bar
             bar_length = 30
             filled_length = int(bar_length * completed / total_expected_files)
             bar = "█" * filled_length + "░" * (bar_length - filled_length)
-            print(f"📈 Progress: [{bar}] {progress_percent:.1f}%")
+            print(f"Progress: [{bar}] {progress_percent:.1f}%")
             
             # Health checks
-            print(f"\n🏥 Health Checks:")
+            print(f"\nHealth Checks:")
             
             # Check if we have all expected files per completed shape
             if completed > 0:
                 expected_objs_per_shape = 7  # 00_original through 05_scaled + unified
                 actual_ratio = total_objs / completed if completed > 0 else 0
                 if actual_ratio >= 6:  # At least 6 files per shape (some might not need remeshing)
-                    print(f"✅ File generation: {actual_ratio:.1f} files/shape (healthy)")
+                    print(f"File generation: {actual_ratio:.1f} files/shape (healthy)")
                 else:
-                    print(f"⚠️  File generation: {actual_ratio:.1f} files/shape (check for issues)")
+                    print(f" File generation: {actual_ratio:.1f} files/shape (check for issues)")
             
             # Check validation ratio
             if completed > 0:
                 validation_ratio = validation_count / completed
                 if validation_ratio > 0.8:
-                    print(f"✅ Validation files: {validation_ratio:.1%} (healthy)")
+                    print(f"Validation files: {validation_ratio:.1%} (healthy)")
                 else:
-                    print(f"⚠️  Validation files: {validation_ratio:.1%} (some missing)")
+                    print(f" Validation files: {validation_ratio:.1%} (some missing)")
             
             # Check for recent activity
             recent_files = []
@@ -125,31 +125,31 @@ def main():
                     recent_files.append(file_path)
             
             if recent_files:
-                print(f"✅ Recent activity: {len(recent_files)} files created in last 5 minutes")
+                print(f"Recent activity: {len(recent_files)} files created in last 5 minutes")
             else:
-                print(f"⚠️  No recent activity (might be stuck or finished)")
+                print(f" No recent activity (might be stuck or finished)")
             
             # Warning if progress is too slow
             if completed > 10:  # Only after some shapes are done
                 elapsed_hours = (time.time() - start_time) / 3600
                 rate_per_hour = completed / elapsed_hours
                 if rate_per_hour < 100:  # Less than 100 shapes per hour
-                    print(f"⚠️  Processing rate: {rate_per_hour:.1f} shapes/hour (might be slow)")
+                    print(f" Processing rate: {rate_per_hour:.1f} shapes/hour (might be slow)")
                 else:
-                    print(f"✅ Processing rate: {rate_per_hour:.1f} shapes/hour (good)")
+                    print(f" Processing rate: {rate_per_hour:.1f} shapes/hour (good)")
             
             if completed >= total_expected_files:
-                print(f"\n🎉 PROCESSING COMPLETE! All {total_expected_files} shapes processed!")
+                print(f"\nPROCESSING COMPLETE! All {total_expected_files} shapes processed!")
                 break
             
-            print(f"\n💡 Press Ctrl+C to stop monitoring")
+            print(f"\nPress Ctrl+C to stop monitoring")
             time.sleep(30)  # Update every 30 seconds
             
         except KeyboardInterrupt:
-            print(f"\n👋 Monitoring stopped by user")
+            print(f"\nMonitoring stopped by user")
             break
         except Exception as e:
-            print(f"\n❌ Error in monitoring: {e}")
+            print(f"\nError in monitoring: {e}")
             time.sleep(10)
 
 if __name__ == "__main__":

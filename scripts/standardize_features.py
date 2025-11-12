@@ -12,8 +12,6 @@ Behavior:
 
 Usage:
     python scripts standardize_features.py
-
-This script is intentionally small and dependency-light (uses pandas, numpy).
 """
 from pathlib import Path
 import sys

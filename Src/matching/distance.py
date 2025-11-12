@@ -178,12 +178,6 @@ class ShapeDistance:
         """
         Earth Mover's Distance (Wasserstein-1 distance) for 1D distributions.
         
-        For 1D distributions, EMD can be computed as the L1 distance between 
-        cumulative distribution functions (CDFs), weighted by bin widths.
-        
-        A CDF is the cumulative sum of the histogram - it tells you what 
-        proportion of the distribution falls at or below each bin.
-        
         Args:
             hist_a: First frequency histogram (already normalized)
             hist_b: Second frequency histogram (already normalized)
@@ -328,7 +322,6 @@ class ShapeDistance:
             # Keep original scale (sum to <= 1 if some missing)
             norm_factor = 1.0
             # But if the full weights sum to something other than 1, respect original CSV scale
-            # We won't adjust further here.
         
         total = 0.0
         for name, dist in used.items():

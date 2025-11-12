@@ -126,7 +126,7 @@ def run(main_folder: str, output_csv: str):
             feats = compute_scalar_features(mesh)
             row = {"name": rel_name, **feats}
         except Exception:
-            print(f"❌ Error processing mesh: {rel_name}")
+            print(f"Error processing mesh: {rel_name}")
             traceback.print_exc()
             row = {"name": rel_name}
             for f in FEATURES:
@@ -136,7 +136,7 @@ def run(main_folder: str, output_csv: str):
         df_row = pd.DataFrame([row], columns=ordered_cols).fillna(0.0)
         df_row.to_csv(output_csv, mode="a", header=False, index=False, float_format="%.6f")
 
-    print(f"✅ Wrote: {output_csv}")
+    print(f"Wrote: {output_csv}")
 
 
 if __name__ == "__main__":

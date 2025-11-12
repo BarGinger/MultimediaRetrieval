@@ -11,11 +11,11 @@ print("FINAL APPROACH - FULL DATASET COMPUTATION")
 print("="*80)
 
 print("Computing raw distance matrices for the complete dataset:")
-print("✅ 2,438 shapes across 69 classes")
-print("✅ Raw EMD + Euclidean distances")
-print("✅ [0,1] min-max normalization")
-print("✅ Individual descriptor weights (equal baseline)")
-print("✅ Cache for future optimization")
+print("2,438 shapes across 69 classes")
+print("Raw EMD + Euclidean distances")
+print("[0,1] min-max normalization")
+print("Individual descriptor weights (equal baseline)")
+print("Cache for future optimization")
 print()
 
 try:
@@ -51,16 +51,16 @@ try:
     
     # Performance assessment
     if metrics['mean_precision@k'] >= 0.25:
-        print("\\n🎉 EXCELLENT BASELINE: Great foundation for optimization!")
+        print("\\nEXCELLENT BASELINE: Great foundation for optimization!")
         print("   Expected after optimization: 30%+ precision@30")
     elif metrics['mean_precision@k'] >= 0.20:
-        print("\\n📈 GOOD BASELINE: Solid foundation for optimization")
+        print("\\nGOOD BASELINE: Solid foundation for optimization")
         print("   Expected after optimization: 25-35% precision@30")
     elif metrics['mean_precision@k'] >= 0.15:
-        print("\\n📊 DECENT BASELINE: Reasonable starting point")
+        print("\\nDECENT BASELINE: Reasonable starting point")
         print("   Expected after optimization: 20-30% precision@30")
     else:
-        print("\\n⚠️  LOW BASELINE: May need further refinement")
+        print("\\nLOW BASELINE: May need further refinement")
     
     # Compare with previous approaches
     print(f"\\n" + "="*60)
@@ -131,7 +131,7 @@ This baseline is ready for optimization!
         f.write(baseline_info)
     
     print(f"\\nBaseline results saved to: full_dataset_final_baseline.txt")
-    print(f"\\n🚀 READY FOR OPTIMIZATION!")
+    print(f"\\nREADY FOR OPTIMIZATION!")
     print(f"   Distance matrices: Cached and ready")
     print(f"   Optimization target: 30%+ precision@30")
     print(f"   Next step: Integrate with Bayesian optimization framework")
