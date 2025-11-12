@@ -51,10 +51,10 @@ def run(main_folder: str):
             mesh_prepped.save_as_obj(str(prepared_path))
 
         except Exception:
-            print(f"❌ Error processing mesh: {rel_name}")
+            print(f"Error processing mesh: {rel_name}")
             traceback.print_exc()
 
-    print("✅ All meshes processed.")
+    print("All meshes processed.")
 
 
 if __name__ == "__main__":

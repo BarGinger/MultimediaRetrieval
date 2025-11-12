@@ -87,7 +87,7 @@ try:
         files = [f for f in os.listdir(query_system.cache_dir) if f.endswith('.csv')]
         print(f"Files created: {len(files)}")
         for file in sorted(files):
-            print(f"  ✅ {file}")
+            print(f"{file}")
     
     # Show sample distance ranges
     print(f"\\nSample distance ranges (all normalized to [0,1]):")

@@ -1,3 +1,10 @@
+"""
+File: layout.py
+Last modified: 11-11-2025
+
+Dash app layout for the 3D Shape Viewer.
+"""
+
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import numpy as np
@@ -8,12 +15,32 @@ from .category_colors import CATEGORIES_LIST, CATEGORY_COLOR_MAP
 
 
 def _category_options(file_df):
+    """
+    Generate category options for the dropdown based on the file DataFrame.
+
+    Parameters:
+        file_df (pd.DataFrame): DataFrame containing file metadata.
+    Returns:
+        list: List of category options for the dropdown.
+    """
     if file_df.empty:
         return []
     return [{'label': 'All Categories', 'value': 'all'}] + \
            [{'label': cat, 'value': cat} for cat in sorted(file_df['category'].unique())]
 
 def build_layout(file_df, dataset_options, selected_dataset):
+    """
+    Build the Dash app layout for the 3D Shape Viewer.
+
+    Parameters:
+        file_df (pd.DataFrame): DataFrame containing file metadata.
+        dataset_options (list): List of available dataset options.
+        selected_dataset (str): Currently selected dataset.
+
+    Returns:
+        html.Div: The layout for the Dash app.
+    """
+
     # Load the analysis results for UnifiedPreprocessed/Data
     analysis_results_path = "Datasets/UnifiedPreprocessed/Data/analysis_results_unifiedPreprocessed_data.csv"
     analysis_df = pd.read_csv(analysis_results_path)

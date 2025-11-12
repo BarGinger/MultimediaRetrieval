@@ -23,6 +23,15 @@ FEATURES = [
 
 
 def compute_values(mesh: ShapeMesh) -> dict:
+    """Compute min/max values for all histogram descriptors.
+
+    Parameters:
+        mesh (ShapeMesh): The mesh object to extract values from.
+
+    Returns:
+        dict: Dictionary mapping descriptor names to min/max float values.
+
+    """
     out = {}
     try:
         # A3
@@ -74,7 +83,15 @@ def compute_values(mesh: ShapeMesh) -> dict:
 
 
 def scan_mesh_files(root_dir: Path):
-    """Yield Path objects for all mesh files under root_dir recursively"""
+    """Yield Path objects for all mesh files under root_dir recursively.
+
+    Parameters:
+        root_dir (Path): Root directory to scan for mesh files.
+
+    Returns:
+        Generator[Path]: Generator yielding Path objects for mesh files.
+
+    """
     for p in root_dir.rglob("*"):
         if p.is_file() and p.suffix.lower() in MESH_EXTS:
             name = p.stem.lower()
@@ -83,6 +100,16 @@ def scan_mesh_files(root_dir: Path):
 
 
 def run(main_folder: str, output_csv: str):
+    """Process all mesh files and extract histogram min/max values to CSV.
+
+    Parameters:
+        main_folder (str): Path to the main folder containing mesh files.
+        output_csv (str): Path to the output CSV file.
+
+    Returns:
+        None
+
+    """
     root = Path(main_folder).resolve()
     if not root.exists():
         raise FileNotFoundError(f"Main folder not found: {root}")

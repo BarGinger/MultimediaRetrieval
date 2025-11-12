@@ -1,5 +1,5 @@
 """
-descriptor_plots.py
+File: descriptor_plots.py
 
 Read output/descriptors_all_histograms.csv and produce comparison grids per descriptor.
 
@@ -52,9 +52,14 @@ TRANSFORMS = {
 
 
 def load_percentile_99(csv_path: Path):
-    """Load percentiles from output/descriptors_global_percentiles_99.csv.
+    """
+    Load percentiles from output/descriptors_global_percentiles_99.csv.
 
-    Returns dict descriptor->float or empty dict if file not found or invalid.
+    Parameters:
+        csv_path (Path): Path to the CSV file.
+    
+    Returns:
+        dict descriptor->float or empty dict if file not found or invalid.
     """
     if not csv_path.exists():
         return {}
@@ -78,6 +83,14 @@ def load_percentile_99(csv_path: Path):
 
 
 def parse_semicolon_floats(s: str) -> np.ndarray:
+    """
+        Parse semicolon-separated floats into numpy array.
+
+        Parameters:
+            s (str): Semicolon-separated string of floats.
+        Returns:
+            np.ndarray: Array of floats.
+    """
     if s is None or s == "":
         return np.array([])
     parts = s.split(";")
@@ -89,7 +102,14 @@ def parse_semicolon_floats(s: str) -> np.ndarray:
 
 
 def load_histograms(csv_path: Path):
-    """Return list of rows: dict with keys: name, and for each descriptor hist and bins arrays"""
+    """
+    Return list of rows: dict with keys: name, and for each descriptor hist and bins arrays
+    
+    Parameters:
+            csv_path (Path): Path to the CSV file.
+    Returns:
+        list: List of dicts with histogram data.
+    """
     rows = []
     with csv_path.open("r", newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)

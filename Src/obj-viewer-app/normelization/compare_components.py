@@ -46,13 +46,13 @@ if __name__ == "__main__":
     
     # Original mesh
     original_path = r"C:\Users\bar24\OneDrive - Universiteit Utrecht\Documents\School\UU Data Sceince MSc\2nd Year\Period 1\Multimedia Retrieval - INFOMR\Assignments\MultimediaRetrieval\Datasets\Jet\Jet\m1176.obj"
-    print("\n📊 ORIGINAL MESH (before processing):")
+    print("\n ORIGINAL MESH (before processing):")
     print("-" * 70)
     orig_n, orig_info = get_component_stats(original_path)
     
     # Processed mesh
     processed_path = r"C:\Users\bar24\OneDrive - Universiteit Utrecht\Documents\School\UU Data Sceince MSc\2nd Year\Period 1\Multimedia Retrieval - INFOMR\Assignments\MultimediaRetrieval\Datasets\UnifiedPreprocessed\JetTest\m1176_remeshed.obj"
-    print("\n📊 PROCESSED MESH (after Midpoint subdivision):")
+    print("\n PROCESSED MESH (after Midpoint subdivision):")
     print("-" * 70)
     proc_n, proc_info = get_component_stats(processed_path)
     
@@ -64,13 +64,13 @@ if __name__ == "__main__":
     print(f"Processed components: {proc_n}")
     
     if orig_n == proc_n:
-        print("\n✅ SUCCESS: Component count preserved during subdivision!")
+        print("\n SUCCESS: Component count preserved during subdivision!")
         print("   The mesh topology was NOT fragmented by processing.")
     elif proc_n > orig_n:
-        print(f"\n⚠️  WARNING: {proc_n - orig_n} extra component(s) created during processing")
+        print(f"\n️ WARNING: {proc_n - orig_n} extra component(s) created during processing")
         print("   Some fragmentation occurred, but may be acceptable if minor.")
     else:
-        print(f"\n⚠️  INFO: {orig_n - proc_n} fewer component(s) after processing")
+        print(f"\n️ INFO: {orig_n - proc_n} fewer component(s) after processing")
         print("   Some components may have been merged during processing.")
     
     # Check if the major component is still major
@@ -82,6 +82,6 @@ if __name__ == "__main__":
     print(f"  Processed: {proc_major_pct:.1f}% of triangles")
     
     if abs(orig_major_pct - proc_major_pct) < 5:
-        print("  ✅ Main component size preserved (±5%)")
+        print("Main component size preserved (±5%)")
     else:
-        print(f"  ⚠️  Main component size changed by {abs(orig_major_pct - proc_major_pct):.1f}%")
+        print(f"️ Main component size changed by {abs(orig_major_pct - proc_major_pct):.1f}%")

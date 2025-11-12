@@ -210,13 +210,13 @@ class ShapeRotationAdjuster:
         # Load OBJ file
         obj_path = find_shape_obj_file(shape_id, class_name, DEFAULT_MESH_DIR)
         if not obj_path:
-            self.info_text.set_text(f"❌ OBJ file not found for {shape_id}")
+            self.info_text.set_text(f"OBJ file not found for {shape_id}")
             self.vertices = None
             self.faces = None
         else:
             self.vertices, self.faces = load_obj_file(obj_path)
             if self.vertices is None:
-                self.info_text.set_text(f"❌ Failed to load {shape_id}")
+                self.info_text.set_text(f"Failed to load {shape_id}")
             else:
                 saved_msg = " (Previously saved)" if shape_id in self.rotation_configs else ""
                 self.info_text.set_text(f"Loaded {shape_id}{saved_msg} - Adjust sliders and click 'Save & Next'")

@@ -29,6 +29,15 @@ DESCRIPTORS = ["A3", "D1", "D2", "D3", "D4"]
 
 
 def parse_semicolon_floats(s: str):
+    """Parse semicolon-separated float string into numpy array.
+
+    Parameters:
+        s (str): Semicolon-separated string of floats.
+
+    Returns:
+        np.ndarray: Array of float values.
+
+    """
     if s is None or s == "":
         return np.array([])
     parts = [p.strip() for p in s.split(';') if p.strip() != '']
@@ -36,6 +45,15 @@ def parse_semicolon_floats(s: str):
 
 
 def load_rows(csv_path: Path):
+    """Load histogram data from CSV file.
+
+    Parameters:
+        csv_path (Path): Path to the CSV file containing histogram data.
+
+    Returns:
+        list: List of dictionaries containing histogram and bin data for each shape.
+
+    """
     rows = []
     with csv_path.open('r', newline='', encoding='utf-8') as fh:
         reader = csv.DictReader(fh)
@@ -49,6 +67,16 @@ def load_rows(csv_path: Path):
 
 
 def bin_centers_from_bins(bins: np.ndarray, hist: np.ndarray):
+    """Compute bin centers from bin edges.
+
+    Parameters:
+        bins (np.ndarray): Bin edges array.
+        hist (np.ndarray): Histogram values array.
+
+    Returns:
+        np.ndarray: Array of bin center values.
+
+    """
     # If bins represent edges (len = len(hist)+1) compute centers, else use as-is
     if bins is None or len(bins) == 0:
         return np.array([])
@@ -58,7 +86,7 @@ def bin_centers_from_bins(bins: np.ndarray, hist: np.ndarray):
 
 
 def compute_percentiles(rows, percentile: float):
-    """Return dict descriptor->value for the percentile.
+    """Compute percentile cutoff for each descriptor from histogram data.
 
     Approach: for each descriptor, build a combined empirical distribution by
     summing per-shape histograms (normalize each shape's hist to sum=1 to treat as pmf),
@@ -67,6 +95,14 @@ def compute_percentiles(rows, percentile: float):
     sorting by center — equivalent to merging distributions on the value axis.
 
     This assumes histograms are comparable (same bin centers or overlapping).
+
+    Parameters:
+        rows (list): List of dictionaries containing histogram data for each shape.
+        percentile (float): Percentile value to compute (0-1).
+
+    Returns:
+        dict: Dictionary mapping descriptor names to percentile values.
+
     """
     result = {}
     for desc in DESCRIPTORS:
@@ -128,6 +164,17 @@ def compute_percentiles(rows, percentile: float):
 
 
 def write_percentile_csv(p: float, percentiles: dict, out_dir: Path):
+    """Write percentile values to CSV file.
+
+    Parameters:
+        p (float): Percentile value (0-1).
+        percentiles (dict): Dictionary mapping descriptor names to percentile values.
+        out_dir (Path): Output directory path.
+
+    Returns:
+        Path: Path to the written CSV file.
+
+    """
     p_int = int(round(p * 100))
     out_path = out_dir / f"descriptors_global_percentiles_{p_int}.csv"
     fieldnames = ['name'] + [f'percentile_{d}' for d in DESCRIPTORS]

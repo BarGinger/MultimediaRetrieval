@@ -1,4 +1,7 @@
 """
+File: category_colors.py
+Last modified: 03-11-2025
+
 Shared category color mapping utilities.
 
 This module provides consistent color generation for all 69 shape categories
@@ -135,7 +138,7 @@ def get_category_color(category_name, default='#999999'):
     """
     Get the hex color for a specific category.
     
-    Args:
+    Parameters:
         category_name (str): Name of the category
         default (str): Default color if category not found
         

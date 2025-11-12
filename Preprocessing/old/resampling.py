@@ -174,7 +174,7 @@ def iterative_decimation(mesh, target_vertices, max_iterations=5):
             # Check if we're close enough
             tolerance_range = target_vertices * 0.05  # 5% tolerance for convergence
             if error <= tolerance_range:
-                print(f"        ✅ Converged with {test_vertices} vertices (error: {error})")
+                print(f"Converged with {test_vertices} vertices (error: {error})")
                 return test_mesh
             
             # Adjust search bounds

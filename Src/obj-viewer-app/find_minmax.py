@@ -19,6 +19,16 @@ OUTPUT_CSV = REPO_ROOT / "output" / "descriptors_global_minmax.csv"
 
 
 def aggregate_min_max(input_path: Path, output_path: Path):
+    """Compute global minima and maxima from per-shape min/max values.
+
+    Parameters:
+        input_path (Path): Path to input CSV with per-shape min/max values.
+        output_path (Path): Path to output CSV for aggregated global min/max.
+
+    Returns:
+        None
+
+    """
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 

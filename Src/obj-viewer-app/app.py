@@ -1,3 +1,10 @@
+"""
+File: app.py
+Last modified: 01-10-2025
+
+Main entry point for the 3D Shape Viewer Dash application.
+"""
+
 from viewer.init import create_dash_app
 
 def main():

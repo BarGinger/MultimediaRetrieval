@@ -23,7 +23,7 @@ def run_normalization_and_plots():
     validation_file = Path("../../Datasets/UnifiedPreprocessed/validation_detailed.json")
     
     if not validation_file.exists():
-        print("📋 Step 1: Running normalization pipeline...")
+        print("Step 1: Running normalization pipeline...")
         print("   (This may take a while for large datasets)")
         print()
         
@@ -33,12 +33,12 @@ def run_normalization_and_plots():
                 check=True,
                 capture_output=False
             )
-            print("\n✅ Normalization complete!")
+            print("\n Normalization complete!")
         except subprocess.CalledProcessError as e:
-            print(f"\n❌ Error running normalization: {e}")
+            print(f"\n Error running normalization: {e}")
             return False
     else:
-        print("✅ Validation data already exists, skipping normalization")
+        print("Validation data already exists, skipping normalization")
         print(f"   Found: {validation_file}")
     
     print()
@@ -46,7 +46,7 @@ def run_normalization_and_plots():
     print()
     
     # Step 2: Generate validation plots
-    print("📊 Step 2: Generating validation plots...")
+    print("Step 2: Generating validation plots...")
     print()
     
     try:
@@ -55,9 +55,9 @@ def run_normalization_and_plots():
             check=True,
             capture_output=False
         )
-        print("\n✅ Validation plots generated!")
+        print("\n Validation plots generated!")
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ Error generating plots: {e}")
+        print(f"\n Error generating plots: {e}")
         return False
     
     print()
@@ -65,11 +65,11 @@ def run_normalization_and_plots():
     print("  WORKFLOW COMPLETE")
     print("="*70)
     print()
-    print("📁 Output locations:")
+    print("Output locations:")
     print(f"   Validation data: {validation_file}")
     print(f"   Figures: ./validation_figures/")
     print()
-    print("📊 Generated figures:")
+    print("Generated figures:")
     print("   • fig1_validation_overview.png     - Multi-panel validation overview")
     print("   • fig2_step_progression.png        - Step-by-step progression analysis")
     print("   • fig3_pca_analysis.png            - PCA quality metrics")
@@ -77,7 +77,7 @@ def run_normalization_and_plots():
     print("   • fig5_numerical_precision.png     - Numerical precision analysis")
     print("   • fig6_category_heatmap.png        - Category performance heatmap")
     print()
-    print("💡 Next steps:")
+    print("Next steps:")
     print("   1. Review the generated figures")
     print("   2. Include them in your report")
     print("   3. Reference validation statistics in your analysis")

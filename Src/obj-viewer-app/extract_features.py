@@ -21,9 +21,14 @@ FEATURES = [
 
 
 def compute_scalar_features(mesh: ShapeMesh) -> dict:
-    """
-    Compute all scalar MeshExtractions for a mesh safely.
-    Returns a dict {feature_name: float}. Missing/failed become 0.0
+    """Compute all scalar MeshExtractions for a mesh safely.
+
+    Parameters:
+        mesh (ShapeMesh): The mesh object to extract features from.
+
+    Returns:
+        dict: Dictionary mapping feature names to float values. Missing/failed features become 0.0.
+
     """
     out = {}
     try:
@@ -98,7 +103,15 @@ def compute_scalar_features(mesh: ShapeMesh) -> dict:
 
 
 def scan_mesh_files(root_dir: Path):
-    """Yield Path objects for all mesh files under root_dir recursively"""
+    """Yield Path objects for all mesh files under root_dir recursively.
+
+    Parameters:
+        root_dir (Path): Root directory to scan for mesh files.
+
+    Returns:
+        Generator[Path]: Generator yielding Path objects for mesh files.
+
+    """
     for p in root_dir.rglob("*"):
         if p.is_file() and p.suffix.lower() in MESH_EXTS:
             name = p.stem.lower()
@@ -107,6 +120,16 @@ def scan_mesh_files(root_dir: Path):
 
 
 def run(main_folder: str, output_csv: str):
+    """Process all mesh files and extract features to CSV.
+
+    Parameters:
+        main_folder (str): Path to the main folder containing mesh files.
+        output_csv (str): Path to the output CSV file.
+
+    Returns:
+        None
+
+    """
     root = Path(main_folder).resolve()
     if not root.exists():
         raise FileNotFoundError(f"Main folder not found: {root}")

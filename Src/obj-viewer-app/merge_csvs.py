@@ -35,14 +35,18 @@ except Exception as e:
 def merge_csvs(path_a: Path, path_b: Path, out: Path, key: str = "name", how: str = "outer", suffix: str = "_b", overwrite: bool = False) -> None:
     """Merge two CSV files and write the result to out.
 
-    Args:
-        path_a: first CSV file (its columns appear first in the output)
-        path_b: second CSV file (its non-key columns are appended)
-        out: output CSV path
-        key: primary key column name
-        how: join type (inner/left/right/outer)
-        suffix: suffix to append to overlapping non-key columns from file B (ignored if overwrite=True)
-        overwrite: if True, values from file B overwrite same-named columns from file A (no suffix)
+    Parameters:
+        path_a (Path): First CSV file (its columns appear first in the output).
+        path_b (Path): Second CSV file (its non-key columns are appended).
+        out (Path): Output CSV path.
+        key (str): Primary key column name.
+        how (str): Join type (inner/left/right/outer).
+        suffix (str): Suffix to append to overlapping non-key columns from file B (ignored if overwrite=True).
+        overwrite (bool): If True, values from file B overwrite same-named columns from file A (no suffix).
+
+    Returns:
+        None
+
     """
     if not path_a.exists():
         raise FileNotFoundError(f"File not found: {path_a}")
@@ -130,9 +134,22 @@ def merge_csvs(path_a: Path, path_b: Path, out: Path, key: str = "name", how: st
 def merge_analysis_with_features(path_analysis: Path, path_features: Path, out: Path, left_key: str = 'shape_file', right_key: str = 'name', how: str = 'left', overwrite: bool = True, version_suffix: str | None = '_06_fill_holes_and_orientation.obj') -> None:
     """Specialized merge for analysis_results (A) and final_features (B).
 
-    - left_key: column in analysis CSV (default 'shape_file')
-    - right_key: column in features CSV (default 'name')
-    Produces output with columns: shape, class, <analysis columns except left_key/class>, <feature columns except right_key/class and duplicates>
+    Produces output with columns: shape, class, <analysis columns except left_key/class>, 
+    <feature columns except right_key/class and duplicates>.
+
+    Parameters:
+        path_analysis (Path): Path to analysis results CSV file.
+        path_features (Path): Path to features CSV file.
+        out (Path): Output CSV path.
+        left_key (str): Column in analysis CSV (default 'shape_file').
+        right_key (str): Column in features CSV (default 'name').
+        how (str): Join type (default 'left').
+        overwrite (bool): If True, prefer values from features file.
+        version_suffix (str | None): Only keep analysis rows whose filename ends with this suffix.
+
+    Returns:
+        None
+
     """
     if not path_analysis.exists():
         raise FileNotFoundError(f"File not found: {path_analysis}")
@@ -229,6 +246,15 @@ def merge_analysis_with_features(path_analysis: Path, path_features: Path, out: 
 
 
 def _parse_args(argv: Optional[list] = None):
+    """Parse command line arguments.
+
+    Parameters:
+        argv (Optional[list]): Command line arguments list.
+
+    Returns:
+        argparse.Namespace: Parsed arguments.
+
+    """
     p = argparse.ArgumentParser(description="Merge two CSV files on a key and preserve column ordering.")
     p.add_argument('file_a', type=Path, help='First CSV file (its columns appear first)')
     p.add_argument('file_b', type=Path, help='Second CSV file (its non-key columns are appended)')
@@ -245,6 +271,15 @@ def _parse_args(argv: Optional[list] = None):
 
 
 def main(argv: Optional[list] = None):
+    """Main entry point for the merge script.
+
+    Parameters:
+        argv (Optional[list]): Command line arguments list.
+
+    Returns:
+        int: Exit code (0 for success, 2 for error).
+
+    """
     args = _parse_args(argv)
     try:
         if args.analysis_merge:
