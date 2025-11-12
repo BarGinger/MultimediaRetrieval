@@ -1,8 +1,12 @@
-"""Create visual query result grids for high, medium, and low F1-score classes.
+"""
+File: create_query_visualization.py
+Last Modified: 11-11-2025
+
+Create visual query result grids for high, medium, and low F1-score classes.
 
 This script generates a figure showing retrieval results for representative queries
 from three performance tiers (high, medium, low F1-score classes) across all three
-descriptor aggregation approaches.
+descriptor aggregation approaches and KNN approache.
 
 Usage (from project root):
     python -m Src.evalution.create_query_visualization
@@ -20,6 +24,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from typing import List, Dict, Tuple, Optional
 import joblib
+import traceback
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent.parent
@@ -32,7 +37,16 @@ except ImportError:
     print("Warning: Could not import from evalution.py, defining functions locally")
     
     def normalize_id(name: str) -> str:
-        """Normalize a filename to a short id."""
+        """
+        Normalize a filename to a short id.
+
+        Parameters:
+            name (str): The filename to normalize.
+
+        Returns:
+            str: The normalized id.
+        
+        """
         if pd.isna(name):
             return ""
         s = os.path.basename(str(name)).lower()
@@ -44,7 +58,16 @@ except ImportError:
         return s
     
     def load_analysis_labels(path: str) -> pd.DataFrame:
-        """Load class labels from analysis file."""
+        """
+        Load class labels from analysis file.
+
+        Parameters:
+            path (str): Path to the analysis CSV file.
+
+        Returns:
+            pd.DataFrame: DataFrame with filename, id, and class columns.
+        
+        """
         df = pd.read_csv(path)
         filename_col = None
         for c in ['shape_file', 'filename', 'name', 'shape', 'file']:
@@ -75,24 +98,6 @@ try:
     from Src.evalution.shape_rotation_config import SHAPE_ROTATIONS, CLASS_ROTATIONS, DEFAULT_ROTATION
 except ImportError:
     print("Warning: Could not import rotation config, using defaults")
-    # SHAPE_ROTATIONS = {
-    #     'd00131': {'rot_x': 90, 'rot_y': 30, 'rot_z': -10, 'elev': 15, 'azim': 60},
-    #     'm355': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm365': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'D00072': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm526': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'd00340': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'd00358': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm472': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'D00960': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm168': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm189': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm00400': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'D00054': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm168': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'm189': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    #     'D00616': {'rot_x': 85, 'rot_y': 15, 'rot_z': 5, 'elev': 20, 'azim': 45},
-    # }
     SHAPE_ROTATIONS = {
         # Human heads - rotate to face camera
         'd00131': {'rot_x': 90, 'rot_y': 210, 'rot_z': 0, 'elev': 20, 'azim': 45},
@@ -145,15 +150,30 @@ NUMBER_OF_SIMILAR_SHAPES = 5
 
 
 def load_distance_matrix(path: str) -> pd.DataFrame:
-    """Load a distance matrix CSV into a DataFrame."""
+    """
+    Load a distance matrix CSV into a DataFrame.
+
+    Parameters:
+        path (str): Path to the distance matrix CSV file.
+
+    Returns:
+        pd.DataFrame: The distance matrix as a DataFrame.
+    
+    """
     df = pd.read_csv(path, index_col=0)
     return df
 
 
 def get_class_f1_scores(f1_path: str) -> Dict[str, Dict[str, float]]:
-    """Load F1 scores per class and approach.
+    """
+    Load F1 scores per class and approach.
+
+    Parameters:
+        f1_path (str): Path to the F1 scores CSV file.
+
+    Returns:
+        Dict[str, Dict[str, float]]: Dictionary mapping approach names to class F1 scores.
     
-    Returns dict: {approach_name: {class_name: f1_score}}
     """
     df = pd.read_csv(f1_path)
     
@@ -171,9 +191,16 @@ def get_class_f1_scores(f1_path: str) -> Dict[str, Dict[str, float]]:
 
 def select_representative_classes(f1_scores: Dict[str, float], 
                                    exclude_macro: bool = True) -> Tuple[List[str], List[str], List[str]]:
-    """Select high, medium, and low F1-score classes.
+    """
+    Select high, medium, and low F1-score classes.
+
+    Parameters:
+        f1_scores (Dict[str, float]): Dictionary mapping class names to F1 scores.
+        exclude_macro (bool): Whether to exclude macro average entries.
+
+    Returns:
+        Tuple[List[str], List[str], List[str]]: Three lists of 3 class names each for high, medium, and low tiers.
     
-    Returns (high_classes, medium_classes, low_classes) where each is a list of 3 class names
     """
     # Filter out macro averages if present
     classes = [(cls, score) for cls, score in f1_scores.items() 
@@ -206,9 +233,18 @@ def retrieve_closest_shapes(query_id: str,
                             distance_matrix: pd.DataFrame,
                             analysis_df: pd.DataFrame,
                             n: int = 10) -> List[Dict]:
-    """Retrieve n closest shapes for a query ID.
+    """
+    Retrieve n closest shapes for a query ID.
+
+    Parameters:
+        query_id (str): The query shape identifier.
+        distance_matrix (pd.DataFrame): Distance matrix containing shape similarities.
+        analysis_df (pd.DataFrame): DataFrame with shape IDs and classes.
+        n (int): Number of closest shapes to retrieve.
+
+    Returns:
+        List[Dict]: List of dictionaries with keys 'id', 'class', 'distance'.
     
-    Returns list of dicts with keys: 'id', 'class', 'distance'
     """
     # Find matching row in distance matrix - try multiple patterns
     matching_rows = []
@@ -273,16 +309,18 @@ def retrieve_closest_shapes_using_knn(query_id: str,
                                        kdtree_data: Dict,
                                        analysis_df: pd.DataFrame,
                                        n: int = 10) -> List[Dict]:
-    """Retrieve n closest shapes using KDTree with Euclidean distance.
-    
-    Args:
-        query_id: The query shape ID
-        kdtree_data: Dictionary containing 'tree', 'names', and 'X' arrays
-        analysis_df: DataFrame with shape IDs and classes
-        n: Number of neighbors to retrieve
-    
+    """
+    Retrieve n closest shapes using KDTree with Euclidean distance.
+
+    Parameters:
+        query_id (str): The query shape ID.
+        kdtree_data (Dict): Dictionary containing 'tree', 'names', and 'X' arrays.
+        analysis_df (pd.DataFrame): DataFrame with shape IDs and classes.
+        n (int): Number of neighbors to retrieve.
+
     Returns:
-        List of dicts with keys: 'id', 'class', 'distance'
+        List[Dict]: List of dictionaries with keys 'id', 'class', 'distance'.
+    
     """
     try:
         tree = kdtree_data['tree']
@@ -348,8 +386,7 @@ def retrieve_closest_shapes_using_knn(query_id: str,
         return results
         
     except Exception as e:
-        print(f"Error retrieving shapes using KNN: {e}")
-        import traceback
+        print(f"Error retrieving shapes using KNN: {e}")        
         traceback.print_exc()
         return []
 
@@ -358,16 +395,18 @@ def get_best_query_shape_from_class(class_name: str,
                                      analysis_df: pd.DataFrame,
                                      distance_matrix: pd.DataFrame,
                                      n: int = 10) -> Optional[str]:
-    """Select the query shape with best retrieval accuracy from the specified class.
-    
-    Args:
-        class_name: The class to select from
-        analysis_df: DataFrame with shape IDs and classes
-        distance_matrix: Distance matrix for retrievals
-        n: Number of neighbors to consider for accuracy calculation
-    
+    """
+    Select the query shape with best retrieval accuracy from the specified class.
+
+    Parameters:
+        class_name (str): The class to select from.
+        analysis_df (pd.DataFrame): DataFrame with shape IDs and classes.
+        distance_matrix (pd.DataFrame): Distance matrix for retrievals.
+        n (int): Number of neighbors to consider for accuracy calculation.
+
     Returns:
-        ID of the shape with best retrieval accuracy in this class
+        Optional[str]: ID of the shape with best retrieval accuracy in this class.
+    
     """
     class_shapes = analysis_df[analysis_df['class'] == class_name]
     if class_shapes.empty:
@@ -399,10 +438,15 @@ def get_best_query_shape_from_class(class_name: str,
 
 
 def load_obj_file(obj_path: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-    """Load vertices and faces from an OBJ file.
+    """
+    Load vertices and faces from an OBJ file.
+
+    Parameters:
+        obj_path (str): Path to the OBJ file.
+
+    Returns:
+        Tuple[Optional[np.ndarray], Optional[np.ndarray]]: Vertices (Nx3) and faces (Mx3) arrays, or (None, None) if error.
     
-    Returns (vertices, faces) where vertices is Nx3 and faces is Mx3 (triangle indices).
-    Returns (None, None) if file not found or error.
     """
     if not os.path.exists(obj_path):
         return None, None
@@ -446,15 +490,17 @@ def load_obj_file(obj_path: str) -> Tuple[Optional[np.ndarray], Optional[np.ndar
 
 
 def find_shape_obj_file(shape_id: str, class_name: str, data_dir: str) -> Optional[str]:
-    """Find the OBJ file path for a given shape ID and class.
-    
-    Args:
-        shape_id: The shape identifier (e.g., 'd00487')
-        class_name: The class folder name (e.g., 'HumanHead')
-        data_dir: Root directory containing class folders
-    
+    """
+    Find the OBJ file path for a given shape ID and class.
+
+    Parameters:
+        shape_id (str): The shape identifier (e.g., 'd00487').
+        class_name (str): The class folder name (e.g., 'HumanHead').
+        data_dir (str): Root directory containing class folders.
+
     Returns:
-        Full path to OBJ file if found, None otherwise
+        Optional[str]: Full path to OBJ file if found, None otherwise.
+    
     """
     # Construct path: data_dir/class_name/shape_id*.obj
     class_dir = os.path.join(data_dir, class_name)
@@ -494,9 +540,15 @@ def find_shape_obj_file(shape_id: str, class_name: str, data_dir: str) -> Option
 
 
 def get_class_color(class_name: str) -> Tuple[float, float, float]:
-    """Get RGB color for a class name.
+    """
+    Get RGB color for a class name.
+
+    Parameters:
+        class_name (str): The name of the class.
+
+    Returns:
+        Tuple[float, float, float]: RGB color tuple (0-1 range).
     
-    Uses CATEGORY_COLOR_MAP if available, otherwise generates a consistent color.
     """
     if CATEGORY_COLOR_MAP and class_name in CATEGORY_COLOR_MAP:
         hex_color = CATEGORY_COLOR_MAP[class_name]
@@ -512,19 +564,16 @@ def get_class_color(class_name: str) -> Tuple[float, float, float]:
 
 
 def get_rotation_config(shape_id: str, class_name: str) -> Dict[str, float]:
-    """Get rotation configuration for a specific shape.
-    
-    Priority order:
-    1. SHAPE_ROTATIONS (per-shape ID)
-    2. CLASS_ROTATIONS (per-class)
-    3. DEFAULT_ROTATION (fallback)
-    
-    Args:
-        shape_id: The shape identifier (e.g., 'd00131', 'm355')
-        class_name: The class name (e.g., 'HumanHead')
-    
+    """
+    Get rotation configuration for a specific shape.
+
+    Parameters:
+        shape_id (str): The shape identifier (e.g., 'd00131', 'm355').
+        class_name (str): The class name (e.g., 'HumanHead').
+
     Returns:
-        Dictionary with rotation parameters
+        Dict[str, float]: Dictionary with rotation parameters (rot_x, rot_y, rot_z, elev, azim).
+    
     """
     # Check for shape-specific configuration first
     if shape_id in SHAPE_ROTATIONS:
@@ -544,17 +593,22 @@ def render_mesh_to_axis(ax: Axes3D, vertices: np.ndarray, faces: np.ndarray,
                        class_name: str,
                        edge_color: Optional[str] = None,
                        edge_linewidth: float = 0.5):
-    """Render a 3D mesh to a matplotlib 3D axis with improved appearance.
+    """
+    Render a 3D mesh to a matplotlib 3D axis with improved appearance.
+
+    Parameters:
+        ax (Axes3D): Matplotlib 3D axis.
+        vertices (np.ndarray): Nx3 array of vertex coordinates.
+        faces (np.ndarray): Mx3 array of triangle indices.
+        color (Tuple[float, float, float]): RGB tuple (0-1 range) for face color.
+        shape_id (str): Shape identifier for rotation configuration.
+        class_name (str): Class name for rotation configuration.
+        edge_color (Optional[str]): Optional edge color (e.g., 'green', 'red').
+        edge_linewidth (float): Width of edges.
+
+    Returns:
+        None
     
-    Args:
-        ax: Matplotlib 3D axis
-        vertices: Nx3 array of vertex coordinates
-        faces: Mx3 array of triangle indices
-        color: RGB tuple (0-1 range) for face color
-        shape_id: Shape identifier for rotation configuration
-        class_name: Class name for rotation configuration
-        edge_color: Optional edge color (e.g., 'green', 'red')
-        edge_linewidth: Width of edges
     """
     # Get rotation configuration for this specific shape
     config = get_rotation_config(shape_id, class_name)
@@ -667,6 +721,8 @@ def render_mesh_to_axis(ax: Axes3D, vertices: np.ndarray, faces: np.ndarray,
     
     # Set distance to make shape more prominent
     ax.dist = 7
+
+
 def create_query_grid(approach_results: Dict[str, Dict[str, List]], 
                       query_classes: Dict[str, str],
                       query_ids: Dict[str, str],
@@ -675,16 +731,22 @@ def create_query_grid(approach_results: Dict[str, Dict[str, List]],
                       rank_number: int,
                       tier_name: str,
                       data_dir: str = DEFAULT_MESH_DIR):
-    """Create a grid visualization showing query results with 3D meshes for one rank and one tier.
+    """
+    Create a grid visualization showing query results with 3D meshes for one rank and one tier.
+
+    Parameters:
+        approach_results (Dict[str, Dict[str, List]]): Dictionary mapping approach names to tier results.
+        query_classes (Dict[str, str]): Dictionary mapping tier labels to class names.
+        query_ids (Dict[str, str]): Dictionary mapping tier labels to query IDs.
+        f1_scores (Dict[str, Dict[str, float]]): Dictionary mapping approach names to class F1 scores.
+        output_path (str): Path to save the figure.
+        rank_number (int): Which rank (1, 2, or 3) this figure represents.
+        tier_name (str): Which tier ('high', 'medium', or 'low').
+        data_dir (str): Path to directory containing class folders with OBJ files.
+
+    Returns:
+        None
     
-    approach_results: {approach_name: {tier_label: [result_dicts]}}
-    query_classes: {tier_label: class_name}
-    query_ids: {tier_label: query_id}
-    f1_scores: {approach_name: {class_name: f1_score}}
-    output_path: path to save the figure
-    rank_number: which rank (1, 2, or 3) this figure represents
-    tier_name: which tier ('high', 'medium', or 'low')
-    data_dir: path to directory containing class folders with OBJ files
     """
     # Setup: 4 approaches (rows) x 1 tier (column group)
     # Each row has 6 columns: 1 query + 5 results
@@ -799,7 +861,7 @@ def create_query_grid(approach_results: Dict[str, Dict[str, List]],
             if row_idx == 0:
                 ax_result.set_title(f"Rank {res_idx + 1}", fontsize=10, pad=5)
     
-    print("   ✓ Meshes rendered")
+    print("Meshes rendered")
     
     # Add row labels (approach names) - adjusted for 4 rows
     for row_idx, approach in enumerate(approach_names):
@@ -839,12 +901,21 @@ def create_query_grid(approach_results: Dict[str, Dict[str, List]],
     
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white', 
                 edgecolor='none', pad_inches=0.1)
-    print(f"   ✓ Saved {tier_name} tier, rank #{rank_number} visualization to: {output_path}")
+    print(f"Saved {tier_name} tier, rank #{rank_number} visualization to: {output_path}")
     plt.close()
 
 
 def main():
-    """Main execution function."""
+    """
+    Main execution function.
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    
+    """
     print("="*70)
     print("Creating Query Visualization Grid")
     print("="*70)
@@ -982,8 +1053,8 @@ def main():
                              f1_scores, output_path, rank, tier)
     
     print(f"\n{'='*70}")
-    print("✓ Query visualization complete!")
-    print(f"   Generated 9 figures (3 ranks × 3 tiers) in: {DEFAULT_OUTPUT_DIR}")
+    print("Query visualization complete!")
+    print(f"   Generated 9 figures (3 ranks x 3 tiers) in: {DEFAULT_OUTPUT_DIR}")
     print(f"{'='*70}\n")
 
 
