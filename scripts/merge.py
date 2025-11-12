@@ -1,4 +1,8 @@
-"""Merge final_006.csv into analysis_results_unifiedPreprocessed_data.csv.
+"""
+File: scripts/merge.py
+Last modified: 01-11-2025
+
+Merge final_006.csv into analysis_results_unifiedPreprocessed_data.csv.
 
 This script takes the rows in the final CSV (which contain only
 *_06_fill_holes_and_orientation.obj files) and copies a set of
@@ -43,17 +47,21 @@ COPY_COLS = [
     "D3_bins",
     "D4_hist",
     "D4_bins",
-    # NOTE: shape_file is NOT copied - we preserve the original filename for each processing step
-    # "shape_file",  # REMOVED - keep original filenames (m1337_00_original.obj, m1337_01_remeshed.obj, etc.)
     "name",
     "class_b",
 ]
 
 
 def detect_filename_column(df: pd.DataFrame) -> str | None:
-    """Return a column name from df that looks like it contains the filename.
+    """
+    Return a column name from df that looks like it contains the filename.
 
-    Preference order: shape_file, shape, file, filename
+    Parameters:
+        df (pd.DataFrame): The DataFrame to search for filename column.
+
+    Returns:
+        str | None: The filename column name or None if not found.
+    
     """
     for cand in ("shape_file", "shape", "file", "filename"):
         if cand in df.columns:
@@ -62,9 +70,15 @@ def detect_filename_column(df: pd.DataFrame) -> str | None:
 
 
 def base_id_from_filename(fname: str) -> str:
-    """Extract base id from filename like m1337_06_fill_holes_and_orientation.obj -> m1337
+    """
+    Extract base id from filename like m1337_06_fill_holes_and_orientation.obj -> m1337.
 
-    This uses the part before the first underscore which matches the repository naming.
+    Parameters:
+        fname (str): The filename to extract base id from.
+
+    Returns:
+        str: The base id (part before first underscore).
+    
     """
     if not isinstance(fname, str):
         return ""
@@ -72,6 +86,18 @@ def base_id_from_filename(fname: str) -> str:
 
 
 def main(final_csv: Path, analysis_csv: Path, backup: bool = True) -> int:
+    """
+    Merge final_006.csv into analysis_results_unifiedPreprocessed_data.csv.
+
+    Parameters:
+        final_csv (Path): Path to the final CSV file containing _06 rows.
+        analysis_csv (Path): Path to the analysis CSV file to update.
+        backup (bool): Whether to create a timestamped backup before writing.
+
+    Returns:
+        int: Exit code (0 for success, 2 for error).
+    
+    """
     if not final_csv.exists():
         print(f"ERROR: final CSV not found: {final_csv}")
         return 2

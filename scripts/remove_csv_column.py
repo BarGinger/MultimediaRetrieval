@@ -1,4 +1,7 @@
-"""Utility: remove a column from a CSV quickly.
+"""
+File: scripts/remove_csv_column.py
+Last modified: 01-11-2025
+Utility: remove a column from a CSV quickly.
 
 Usage:
     python scripts\remove_csv_column.py path/to/file.csv column_name [--out out.csv] [--inplace]
@@ -10,14 +13,21 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import sys
-
-try:
-    import pandas as pd
-except Exception as e:
-    raise ImportError("pandas is required. Install with `pip install pandas`.") from e
+import pandas as pd
 
 
 def remove_column(path: Path, column: str, out: Path | None = None, inplace: bool = False) -> int:
+    """
+    Remove a column from a CSV file.
+
+    Parameters:
+        path (Path): Path to the input CSV file.
+        column (str): Name of the column to remove.
+        out (Path | None): Path to output CSV file (if not inplace).
+        inplace (bool): Whether to overwrite the original file (with backup).
+    Returns:
+        int: 0 on success, 2 if file not found.
+    """
     if not path.exists():
         print(f"File not found: {path}", file=sys.stderr)
         return 2
@@ -40,6 +50,15 @@ def remove_column(path: Path, column: str, out: Path | None = None, inplace: boo
 
 
 def _parse_args(argv=None):
+    """
+    Parse command line arguments.
+    
+    Parameters:
+        argv (list[str] | None): List of command line arguments (or None to use sys.argv).
+
+    Returns:
+        argparse.Namespace: Parsed command line arguments.
+    """
     p = argparse.ArgumentParser(description="Remove a column from a CSV quickly.")
     p.add_argument('file', type=Path, help='CSV file path')
     p.add_argument('column', type=str, help='Column name to remove')

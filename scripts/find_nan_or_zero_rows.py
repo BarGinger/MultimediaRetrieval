@@ -1,4 +1,7 @@
 """
+File: quickscript/scripts/find_nan_or_zero_rows.py
+Last modified: 01-11-2025
+
 Find rows in a CSV file where any feature column contains NaN or 0 values.
 
 Reads: output/final_feature_values.csv
@@ -7,9 +10,12 @@ Writes: output/final_feature_values_nan_or_zero.csv
 Usage:
     python scripts/find_nan_or_zero_rows.py
 """
+
+# import necessary libraries
 import pandas as pd
 from pathlib import Path
 
+# Global constants
 INPUT_PATH = Path("Src/matching/final_006.csv")
 OUTPUT_PATH = Path("Src/matching/final_006_nan_or_zero.csv")
 ID_COLUMN = "name"  # Change if your ID column is named differently
