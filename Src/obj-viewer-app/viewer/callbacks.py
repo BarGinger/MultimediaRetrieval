@@ -556,8 +556,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call=True
     )
 
-    # NOTE: aux-plots-message removed; spinner-only loading remains for similar shapes
-
     # Show toast for shape loading when file button is clicked
     app.clientside_callback(
         """
@@ -716,10 +714,10 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             toast_data = create_toast_data("No analysis data available for average calculation", "warning", "⚠️")
             return no_update, no_update, toast_data, no_update
         
-        # Apply category filter (same as file list)
+        # Apply category filter 
         df = file_df if selected_category == 'all' else file_df[file_df['category'] == selected_category]
         
-        # Apply filename filtering (same as file list)
+        # Apply filename filtering 
         if filename_filter and filename_filter.strip() and not df.empty and 'filename' in df.columns:
             try:
                 pattern = filename_filter.strip()
@@ -728,7 +726,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             except Exception as e:
                 print(f"Error applying filename filter '{filename_filter}': {e}")
         
-        # Apply vertices filtering (same as file list)
+        # Apply vertices filtering 
         if vertices_val is not None and vertices_val != '' and 'num_vertices' in df.columns:
             try:
                 val = int(vertices_val)
@@ -741,7 +739,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             except ValueError:
                 pass
         
-        # Apply faces filtering (same as file list)
+        # Apply faces filtering 
         if faces_val is not None and faces_val != '' and 'num_faces' in df.columns:
             try:
                 val = int(faces_val)
@@ -754,7 +752,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             except ValueError:
                 pass
         
-        # Apply sorting (same as file list)
+        # Apply sorting 
         ascending = True if sort_order == 'asc' else False
         df = df.copy()
         if sort_field == 'category':
@@ -784,7 +782,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             # Get the selected row and create shape info
             row = df.iloc[selected_idx]
             
-            # IMPORTANT: Calculate if we need to load more files to show this item
+            # Calculate if we need to load more files to show this item
             batch_size = 150
             # Ensure we load enough files to show the target (add 1 because index is 0-based)
             required_batch = ((selected_idx + 1) // batch_size + 1) * batch_size
@@ -1101,7 +1099,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
                 const fileListMarginBottom = parseInt(fileListStyle.marginBottom || 0);
                 const fileListBorderBottom = parseInt(fileListStyle.borderBottomWidth || 0);
                 
-                // IMPORTANT: Reserve space for the load more button container
+                // Reserve space for the load more button container
                 const loadMoreContainer = document.querySelector('.load-more-container');
                 let loadMoreHeight = 0;
                 if (loadMoreContainer) {
@@ -2468,7 +2466,6 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
             df_candidates = None
             if dataset:
                 try:
-                    # must exist in your codebase; mirrors your other function
                     df_candidates = get_cached_dataset_data(dataset)
                 except Exception:
                     df_candidates = None
@@ -3545,7 +3542,7 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
     def show_aux_descriptors(is_open, aux_file_data, selected_dataset):
         """Display or hide the auxiliary modal depending on its store value.
 
-        This mirrors show_global_descriptors but uses separate stores/modal ids so
+        This follows the same logic as show_global_descriptors but uses separate stores/modal ids so
         opening aux info doesn't change the main selected-file-store.
 
         Parameters:
@@ -3693,10 +3690,11 @@ def register_callbacks(app: dash.Dash, file_df, dataset_options, default_dataset
         prevent_initial_call='initial_duplicate'
     )
     def update_inline_descriptors(selected_file_data, selected_dataset, shape_info=None):
-        """Populate the inline thumbnails below Shape Info when a shape is selected.
+        """
+        Populate the inline thumbnails below Shape Info when a shape is selected.
 
-        This mirrors the inline part of the modal rendering but only returns the
-        inline children so it can be updated independently of the modal.
+        This follows the same logic as show_global_descriptors but uses separate stores/modal ids so
+        the inline part can be updated independently of the modal.
 
         Parameters:
             selected_file_data (dict): Currently selected file data.
