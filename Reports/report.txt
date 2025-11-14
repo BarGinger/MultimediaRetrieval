@@ -17,6 +17,7 @@
 \usepackage{float}
 \usepackage{enumitem}
 \usepackage{booktabs}
+\usepackage{subcaption}
 
 \setcounter{secnumdepth}{4}
 \titleformat{\paragraph}
@@ -1230,14 +1231,15 @@ The purpose of this step is to transform normalized 3D meshes into discriminativ
 
 Before computing descriptors, it is crucial to ensure that the normals of the faces are consistent and free of geometric defects. In particular, incomplete meshes with holes or inconsistent face windings can produce invalid volumes or surface areas. To address these issues, we apply a preprocessing routine consisting of two main steps: (1) filling holes and (2) orienting faces consistently.
 
-\paragraph{Filling holes.}
+\paragraph{Filling holes}
 We want to fill holes because properties like volume and surface area are calculated using the faces. If some faces are missing, you do not want these descriptors to be incorrect. Boundary edges of a mesh are identified by counting the number of times each edge occurs in the face list. Edges that appear exactly once belong to the boundary of a hole. By traversing these edges, we group them into closed loops that represent the perimeters of the holes. For each hole loop, we compute its barycenter,
 \begin{equation}
 c_{\text{hole}} = \frac{1}{|E|} \sum_{(i,j) \in E} \frac{v_i + v_j}{2},
 \end{equation}
 where $E$ is the set of edges in the loop. This barycenter is added as a new vertex, and each boundary edge is connected to it to form a new triangular face. The process closes the hole while maintaining manifold connectivity. Although this procedure may simplify fine geometry, it is mostly good enough for the descriptors (volume, surface area) we want to compute.
 
-\paragraph{Filling holes (limitations).}
+
+\paragraph{Filling holes (limitations)} \label{limitations}
 The barycentric triangulation approach for closing boundary loops is a pragmatic heuristic rather than a guaranteed, topology-preserving repair. Several failure modes can occur in practice:
 \begin{itemize}[leftmargin=1.2em]
     \item \textbf{Non-manifold edges:} edges incident to three or more faces break the assumption that each interior edge is shared by exactly two faces; loop detection and subsequent triangulation will fail and holes using these edges will not be repaired.
@@ -1245,16 +1247,16 @@ The barycentric triangulation approach for closing boundary loops is a pragmatic
     \item \textbf{Open or branching boundaries:} when boundary tracing encounters forks or dead-ends, no closed loop exists and triangulation will not complete.
     \item \textbf{Severe non-planarity:} highly warped boundary rims can yield skinny or inverted triangles when all edges are connected to a single barycenter in $\mathbb{R}^3$.
 \end{itemize}
-In our implementation, we treat loop construction as best-effort: if a consistent cycle cannot be recovered, the routine aborts for that component and leaves the boundary unchanged, logging a warning. After any successful fill, we run a cleanup pass that removes duplicate/degenerate faces and drops unreferenced vertices to mitigate newly introduced artifacts. Consequently, hole filling \emph{does not guarantee} watertightness; rather, it increases the likelihood of obtaining a closed, consistently oriented surface suitable for downstream feature extraction while acknowledging the above limitations.
+In our implementation, we treat loop construction as best-effort: if a consistent cycle cannot be recovered, the routine aborts for that component and leaves the boundary unchanged, logging a warning. After any successful fill, we run a cleanup pass that removes duplicate/degenerate faces and drops unreferenced vertices to mitigate newly introduced artifacts. Consequently, hole filling \emph{does not guarantee} watertightness. Rather, it increases the likelihood of obtaining a closed, consistently oriented surface suitable for downstream feature extraction while acknowledging the above limitations.
 
-\paragraph{Consistent face orientation.}
+\paragraph{Consistent face orientation}
 Meshes may contain inconsistently oriented faces, meaning that adjacent triangles along a shared edge traverse that edge in the same direction rather than opposite directions. This creates local inconsistencies in surface normal orientation. This is a problem for several descriptors such as the volume. To correct this, we perform a breadth-first traversal over faces: starting from an arbitrary seed face, all neighbors are visited through their shared edges. Whenever two faces share an edge with the same orientation, one is flipped by swapping two of its vertex indices:
 \begin{equation}
 (i, j, k) \;\;\mapsto\;\; (i, k, j).
 \end{equation}
-This ensures that the mesh forms a consistently oriented surface, suitable for all calculations of the descriptors. 
+This ensures that the mesh forms a consistently oriented surface, suitable for all calculations of the descriptors. It does not matter if the normals are pointed inward or outward because for volume calculation we take the absolute value. We will get back to this in section \ref{volumee}.
 
-\paragraph{Combined preparation.}
+\paragraph{Combined preparation}
 The overall preparation pipeline can thus be summarized as:
 \begin{enumerate}
     \item Detect boundary edges and close holes by barycentric triangulation.
@@ -1263,6 +1265,114 @@ The overall preparation pipeline can thus be summarized as:
 \end{enumerate}
 
 This process produces meshes, which are then used as a more reliable input for feature extraction. Similar to the normalization steps (Subsection \ref{normalization-implementation}), we cached the output of this process as an OBJ file with the suffix \texttt{\_06\_fill\_holes\_and\_orientation.obj}, allowing users to interactively visualize the effects of this step using the same slider controller in the UI.
+
+\paragraph{Results}
+For most shapes, the hole-filling procedure behaved as expected. For example, in the case of the air balloon shown in Figure~\ref{fig:air_thing}, the original mesh contains several visible holes, whereas the processed version correctly reconstructs the missing surfaces. 
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/holes/air_thing_before.png}
+        \caption{Mesh before hole filling}
+        \label{fig:air_thing_before}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/holes/air_thing_after.png}
+        \caption{Mesh after hole filling}
+        \label{fig:air_thing_after}
+    \end{subfigure}
+
+    \caption{Effect of hole filling on mesh geometry of object \textit{m1340}.}
+    \label{fig:air_thing}
+\end{figure}
+
+
+A similar pattern can be observed for the phone model. In the original mesh (Figure~\ref{fig:phone_before}), a face is missing near the top edge just below the text, allowing the viewer to see through the device. A less visible opening is also present behind the button pad. After processing (Figure~\ref{fig:phone_after}), these regions are correctly closed, demonstrating that the method resolves defects effectively.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/holes/phone_before.png}
+        \caption{Mesh before hole filling}
+        \label{fig:phone_before}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/holes/phone_after.png}
+        \caption{Mesh after hole filling}
+        \label{fig:phone_after}
+    \end{subfigure}
+
+    \caption{Effect of hole filling on mesh geometry of object \textit{D00958}.}
+    \label{fig:phone}
+\end{figure}
+
+The largest increase in face count occurs for a tree model seen in Figure \ref{fig:tree}. This behaviour is expected given the structure of the object: the tree consists of numerous thin leaf elements that are not connected to the trunk or to each other. Each leaf terminates in multiple unconnected boundary edges, which the hole-filling algorithm interprets as open surfaces. As a result, the method adds an additional side to many of these leaves, effectively doubling the local surface patches and significantly increasing the total number of faces. A similar effect can be observed for another tree model in Figure~\ref{fig:tree_before} and Figure~\ref{fig:tree_after}, where the increase in face count is clearly visible in the leaves.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/holes/tree.png}
+        \caption{Mesh \textit{D00834}}
+        \label{fig:tree}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/holes/tree_before.png}
+        \caption{Mesh \textit{D00996} before hole filling}
+        \label{fig:tree_before}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/holes/tree_after.png}
+        \caption{Mesh \textit{D00996} after hole filling}
+        \label{fig:tree_after}
+    \end{subfigure}
+
+    \caption{Effect of hole filling on trees.}
+    \label{fig:trees}
+\end{figure}
+
+The histograms in Figure~\ref{fig:hist_hole_filling} illustrate that, for the vast majority of meshes, the difference in number of vertices is close to zero before and after the hole-filling stage. Because this peak at zero is so dominant, the raw distribution obscures the behaviour of the meshes that do experience a change. To address this, we present two different visualisations.  
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/holes/Figure_3.png}
+    \caption{Vertex count changes between stage 05 and 06 (the hole filling process)}
+    \label{fig:hist_hole_filling}
+\end{figure}
+
+Figure~\ref{fig:hist_hole_filling} illustrates the distribution of vertex count changes after the hole-filling stage. The left plot uses a logarithmic $y$-axis to make the flat tail of non-zero differences visible, revealing that although the vast majority of meshes shows almost no change at all, those that do are typically affected only mildly, with progressively fewer meshes showing larger increases. The right plot restricts the distribution to non-zero cases and confirms this pattern: most modifications are small, and only a limited number of meshes display substantial changes. Two meshes exhibit a negative difference, which is explained by the post processing step that removes duplicate or degenerate faces indicating that such faces were present in the original mesh.
+
+
+Figure~\ref{fig:class-change-counts} provides an overview of how many meshes per class experienced a change in vertex count. Although a notable number of meshes show at least some modification, every visually inspected mesh contained either at least one genuine hole or a configuration that the algorithm identifies as a hole (for example two loose faces). Handling every possible geometric edge case would require a lot of work which is beyond the scope of this project. The limitations of this approach are discussed before in section \ref{limitations}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/holes/class_change_counts.png}
+    \caption{Number of meshes per class with changed and unchanged vertex count after hole filling.}
+    \label{fig:class-change-counts}
+\end{figure}
+
+Finally, Figure~\ref{fig:mean-delta-vertices} summarises the mean absolute vertex change per class. As expected, the number of added faces remains low on average. Because every filled hole introduces at least three new faces - and often many more - the observed increases in vertex count align with the expected geometric cost of closing boundary loops. The classes with the greatest mean changes (e.g., \emph{Tree}, \emph{Skyscraper}, and \emph{PlantWildNonTree}) consist of highly fragmented or thin structures, such as foliage, leaves, or fine architectural details. These geometries frequently contain many disconnected boundary edges and therefore receive the largest number of newly added triangles during hole filling. The class \emph{Cup} has the least added faces, which is funny because all cups have holes, but also expected because the holes are not caused by singular edges.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/holes/mean_delta_vertices.png}
+    \caption{Mean absolute change in number of vertices per class.}
+    \label{fig:mean-delta-vertices}
+\end{figure}
+
+
+
+
 
 \subsubsection{Elementary descriptors}
 Before introducing the descriptors, it is important to recall that all meshes in the dataset are first \emph{unified}. As described in section~\ref{normalization}, this includes alignment, scaling, and centering. In a second step, the meshes are prepared by filling holes and equalizing normals (see section~\ref{prepared}). As a result, every mesh is consistently placed inside the cube $[-0.5,0.5]^3$, ensuring that all descriptors are directly comparable across objects, independent of their original position, orientation, or scale.
@@ -1274,7 +1384,7 @@ z = \frac{x - \mu}{\sigma},
 \end{equation}
 where $\mu$ and $\sigma$ are the column mean and population standard deviation, respectively. For each feature listed below, we included a combined figure, (Figures \ref{fig:std:volume}, \ref{fig:std:surface_area}, \ref{fig:std:compactness}, \ref{fig:std:rectangularity}, \ref{fig:std:diameter}, \ref{fig:std:convexity}, and \ref{fig:std:eccentricity}), which includes the original distribution (left column) and the z-score standardized distribution (right column), with histograms (top row), boxplots (middle row), and a compact table of summary statistics (bottom row). After successful standardization the transformed data have a mean near $0$ and a standard deviation near $1$; unusually large values of $\max |z|$ or low percentages within $|z| \leq 1, 2, 3$ indicate skewness or outliers that merit further inspection.
 
-\paragraph{Volume}
+\paragraph{Volume} \label{volumee}
 Several descriptors rely on a robust estimate of the enclosed volume. Following our implementation, we compute the signed volume per connected face component and then sum their absolute values:
 \begin{equation}
 V(M)=\sum_{c \in \mathcal{C}(M)} \left| \frac{1}{6} \sum_{(i,j,k)\in F_c} v_i \cdot \big( (v_j)\times (v_k) \big) \right|,
@@ -1533,7 +1643,7 @@ However, using the theoretical limit resulted in many empty bins in several hist
 To obtain a more informative distribution, we instead determined the empirical upper bound from the dataset by computing the $99$th percentile of all sampled angles and extending this value by an additional $10\%$ buffer.  
 In practice, this adjusted upper limit was still close to the theoretical bound, at approximately $\theta \approx \pi$.  
 
-Finally, the histogram was divided into $20$ bins, which provided a good balance between descriptive granularity and computational efficiency.
+Finally, the histogram was divided into $20$ bins, which provided a good balance between descriptive granularity and computational efficiency. Outlier values that fell above the range of the histogram were included in the last bin.
 
 To verify that the computed A3 descriptor values were reasonable and informative, we analyzed the consistency of the resulting distributions both \emph{within} and \emph{between} object classes.  
 Specifically, we plotted the per-shape angle distributions for $20$ representative classes, selected to be near the median in terms of the number of available shapes per class, ensuring a fair comparison across categories.  
@@ -1721,6 +1831,12 @@ Since the distance matrices $\mathbf{D}_k$ differ in their absolute ranges and d
 
 We evaluated the three normalization schemes by measuring the mean average precision (MAP) at $K=10$ across the full database. The rank-based normalization achieved the best overall retrieval performance, followed by Z-score and min–max normalization. Therefore, rank-based normalization was used in all subsequent steps. Conceptually, it offers robustness to outliers and distribution skew, and it ensures that relative ordering rather than absolute scale determines the contribution of each descriptor.
 
+Although our implementation assumes a fixed database size, rank-based normalization also lends itself well to handling queries from new, unseen shapes. 
+In such cases, the distances between the query and all existing shapes could be computed and directly inserted into the existing ranking structure 
+(e.g., by interpolating a fractional rank such as 345.5). This would allow the system to flexibly accommodate new shapes without recomputing the entire 
+pairwise distance matrix. A full recomputation could then be performed periodically - such as after a certain number of new additions (e.g., 5–10\% of the 
+original dataset) - to maintain overall consistency while keeping computational cost manageable.
+
 \subsection{Combined Distance Metric}
 After normalization, we integrate the individual descriptor distances into a single combined metric using a weighted sum:
 \begin{equation}
@@ -1731,47 +1847,13 @@ where $w_k$ is the learned weight of descriptor $k$.
 To optimize these weights, we applied Bayesian optimization using the \emph{Optuna} framework with a Tree-structured Parzen Estimator (TPE) sampler. The objective function maximized the mean precision at $K=10$, with 200 optimization trials. Bayesian optimization was chosen for its ability to efficiently balance exploration and exploitation in a high-dimensional search space, yielding a set of weights that improved retrieval consistency across shape categories.
 
 \subsection{Results}
-% A detailed quantitative evaluation of the system’s performance is presented in Section~\ref{sec-Evaluation}. Here, we provide a brief qualitative overview.
-
-% Representative examples of query results are shown in Figure \ref{tab-query-results}.
-
-
-
-% \section{Step 4: Querying} \label{sec-Querying}
-% % Introducing section and what querying is
-
-% % Explain what challenges there are and thus what next subsections will be
-
-% \subsection{Normalizing Feature Values}
-% % Standardization (Z-score) for global descriptor values
-
-% % Turn the histograms into frequency histograms
-
-% \subsection{Computing Distances for Individual Features}
-% % Euclidean for global feature values
-
-% % EMD for histogram features
-
-% % Explain that we create a N x N distance matrix for every feature to store distances between shapes
-
-% \subsection{Normalizing Distances Matrices}
-% % Three methods of normalizing the matrices
-
-% % Min-max normalization
-
-% % Z-score standardization
-
-% % Rank-based normalization
-
-% \subsection{Combined Distance}
-% % Explain weighted sum approach
-
-% % Explain weight optimization using Bayesian optimization algorithm using optuna tree structered parzen optimizer (200 trials)
-
-% \subsection{Results}
-% % State that performance will be thoroughly evaluated in section 10, but that we will show some of the results of our custom distance metric
-
-% % Show tables of results
+A detailed quantitative evaluation of the system’s performance is presented in Section~\ref{sec-Evaluation}. 
+Here, we briefly note that the implemented querying pipeline successfully integrates all preceding components - from 
+feature extraction and normalization to distance computation and combination - into a unified retrieval framework. 
+Preliminary qualitative tests confirmed that the system consistently returns visually and semantically similar shapes 
+for a wide range of query inputs, indicating that the combined distance metric captures both fine-grained and 
+category-level similarities. These observations are further substantiated by the quantitative results discussed in 
+Section~\ref{sec-Evaluation}.
 
 \section{Step 5: Scalability}
 As the database grows in size, exhaustive pairwise distance computation for content-based shape retrieval becomes very computationally intensive. For our dataset we precomputed the distance from each shape to each other shape in the database. This however does not work when the database becomes too big or when shapes are queried which are not in the database. To enable efficient similarity search and intuitive exploration of high-dimensional feature spaces, we implemented two scalability mechanisms:
@@ -1792,30 +1874,60 @@ where $\mathbf{f}_i$ denotes the feature vector of the $i$-th shape in the datab
 The algorithm then selects the $K$ shapes with the smallest distances to the query vector and returns them as the most similar matches. This KD-Tree–based approach substantially reduces the computational cost compared to exhaustive pairwise distance computation, especially when the database contains a large number of shapes.
 
 \subsubsection{Limitations}
-However, this KNN-based approach is not as sophisticated as the normal querying method described earlier. Since the individual feature components are not weighted according to their relative importance, and because the Earth Mover’s Distance (EMD) is not used for comparing histogram based features, the retrieval accuracy is noticeably lower. We return to this issue in Step 6: Evaluation, where we discuss the quantitative evaluation of both methods.
+However, this KNN-based approach is not as sophisticated as the normal querying method described earlier in Section \ref{sec-Querying}. Since the individual feature components are not weighted according to their relative importance, and because the Earth Mover’s Distance (EMD) is not used for comparing histogram-based features, the retrieval accuracy is noticeably lower. We return to this issue in Step 6: Evaluation, where we discuss the quantitative evaluation of both methods.
 
 \subsection{Step 5.2: Dimensionality Reduction for Visualization}
+Dimensionality reduction is helpful in our pipeline because each shape is described by an 11-dimensional feature vector. While this high-dimensional data works well for computing distances and running the KNN search, it is difficult to interpret directly, and visualising relationships between shapes in 11 dimensions is not feasible. This will only become more challenging if we add more features in the future. To get an intuitive overview of how shapes relate to one another, we therefore reduce the feature space to two dimensions. This allows us to see how the shapes cluster, whether similar categories group together, and how well our descriptors capture the underlying structure of the dataset.
+
 \subsubsection{Methodology}
-To visualise the similarity relationships captured by the feature descriptors, we applied \textit{t}-Distributed Stochastic Neighbour Embedding (t-SNE) to project the high-dimensional feature space into two dimensions. In contrast to the KNN search, which operates on the raw feature vectors for efficient querying, t-SNE provides an interpretable visual representation of how shapes relate to one another in the overall database.
+To visualise the similarity relationships captured by the feature descriptors, we applied \textit{t}-Distributed Stochastic Neighbour Embedding (t-SNE) to project the high-dimensional feature space into two dimensions \cite{maaten2008visualizing}. In contrast to the KNN search, which operates on the raw feature vectors for efficient querying, t-SNE provides an interpretable visual representation of how shapes relate to one another in the overall database.
 
 As input to t-SNE, we used the precomputed pairwise distance matrix $\mathbf{D} \in \mathbb{R}^{N \times N}$, where each entry $d_{ij}$ represents the Euclidean distance between the feature vectors of shapes $i$ and $j$. This ensures that the embedding directly reflects the distance relationships produced by our descriptors, rather than relying on the raw feature coordinates. 
 
-The algorithm constructs a low-dimensional representation $\mathbf{Y} \in \mathbb{R}^{N \times 2}$ that preserves local neighbourhoods: shapes that are close in the high-dimensional space remain close in the 2D projection. We experimented with several perplexity values (30, 40, and 50) to observe their effects on the visual clustering. A higher perplexity places more emphasis on global structure, whereas lower values highlight local relationships. After testing, we selected a perplexity of $50$ as it provided the best balance between local and global cluster separation for our dataset.
+The algorithm constructs a low-dimensional representation $\mathbf{Y} \in \mathbb{R}^{N \times 2}$ that preserves local neighbourhoods: shapes that are close in the high-dimensional space remain close in the two-dimensional projection. We experimented with several perplexity values (12, 25, 50, and 100) to observe their impact on the visual clustering. Broadly, higher perplexity values place more emphasis on global structure, whereas lower values prioritise local relationships. After testing, we selected a perplexity of $50$, as it provided the best balance between local and global cluster separation for our dataset.
 
-Figures\ref{fig:tsne-perp30}, \ref{fig:tsne-perp40}, and \ref{fig:tsne-perp50} show the resulting t-SNE embeddings for different perplexity values. Each point represents a shape, colour-coded by its class label. Clusters correspond to groups of geometrically or semantically similar shapes, while overlaps or dispersed clusters suggest ambiguous or mixed categories.
+Figures \ref{tsne-12} and \ref{tsne-25} illustrate the effect of using too small a perplexity value. This is particularly apparent in Figure \ref{tsne-12}, but also subtly visible in Figure \ref{tsne-25}. For instance, in the top yellow cluster, several blue points are dispersed throughout the cluster when using a perplexity of 25, indicating insufficient preservation of local structure. With a perplexity of 50, the blue cluster becomes more compact and better separated from the yellow cluster. Conversely, a perplexity of 100 as seen in Figure \ref{tsne-100} places too much emphasis on global structure, causing local clusters to become overly spread out. For example, the purple cluster on the left is clearly identifiable and coherent with a perplexity of 50, but becomes noticeably more diffuse when the perplexity is increased to 100.
 
-% Example figure layout (adjust paths as needed)
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.32\textwidth]{figures/tsne_perp30.png}
-    \includegraphics[width=0.32\textwidth]{figures/tsne_perp40.png}
-    \includegraphics[width=0.32\textwidth]{figures/tsne_perp50.png}
-    \caption{\textbf{t-SNE visualisation of shape similarity.} Comparison of embeddings with perplexities of 30, 40, and 50, respectively. Each point represents one shape, colour-coded by class label. Perplexity $=50$ yields the clearest separation of clusters.}
-    \label{fig:tsne-perp30}
+
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/12.png}
+        \caption{Perplexity = 12}
+        \label{tsne-12}
+    \end{subfigure}
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/25.png}
+        \caption{Perplexity = 25}
+        \label{tsne-25}
+    \end{subfigure}
+
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/50.png}
+        \caption{Perplexity = 50}
+        \label{tsne-50}
+    \end{subfigure}
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/100.png}
+        \caption{Perplexity = 100}
+        \label{tsne-100}
+    \end{subfigure}
+
+    \caption{\textbf{t-SNE visualisation of shape similarity.} 
+    Comparison of embeddings with perplexities of 12, 25, 50, and 100 with the same seed. Each point represents a shape, colour-coded by its class label. Clusters correspond to groups of geometrically or semantically similar shapes, while overlaps or dispersed clusters suggest mixed categories.}
+
+    \label{fig:tsne}
 \end{figure}
 
 
-\subsubsection{Retrieval Methods Exposed in the User Interface}
+
+
+
+\subsubsection{Exposing the Retrieval Methods in the User Interface}
 
 To make the different retrieval strategies accessible and interpretable, we integrated them directly into our 3D Shape Viewer UI. The interface allows users to query a given shape and compare how the following three methods -rank-based normalization, KNN retrieval, and random selection - differ in their returned results. Each method displays the top five most similar shapes alongside their similarity scores and visual previews, enabling intuitive qualitative assessment of retrieval performance.  
 
@@ -1929,54 +2041,61 @@ where $\text{rel}_i$ is the relevance of the item at position $i$, and $\text{ID
 
 \subsection{Experimental Results}
 
-Figure \ref{fig:eval-macro-comparison} presents the macro-averaged performance across all categories for the three evaluated descriptor aggregation approaches. The rank-based transformation achieves the highest overall performance with an ROC AUC of 0.763 and Average Precision of 0.818, demonstrating superior discriminative ability. This approach's success can be attributed to its robustness against descriptor scale variations and outliers, as rank transformations inherently normalize different descriptor ranges. The standardization (z-score) approach shows competitive performance (ROC AUC: 0.738, Average Precision: 0.715), benefiting from the normalization of descriptor distances to zero mean and unit variance. The MinMax normalization approach yields slightly lower but still reasonable performance (ROC AUC: 0.723, Average Precision: 0.699), providing a baseline for comparison.
+Figure \ref{fig:eval-macro-comparison} presents the macro-averaged performance across all categories for four evaluated retrieval approaches: three distance matrix methods with different normalization strategies and one KD-Tree-based KNN method. The rank-based transformation achieves the highest overall performance with an ROC AUC of 0.763 and Average Precision of 0.818, demonstrating superior discriminative ability. This approach's success can be attributed to its robustness against descriptor scale variations and outliers, as rank transformations inherently normalize different descriptor ranges. The standardization (z-score) approach shows competitive performance (ROC AUC: 0.738, Average Precision: 0.715), benefiting from the normalization of descriptor distances to zero mean and unit variance. The MinMax normalization approach yields slightly lower but still reasonable performance (ROC AUC: 0.723, Average Precision: 0.699), providing a baseline for comparison.
+
+The KNN (Euclidean Distance) approach, which uses raw Euclidean distance on standardized features without weighted descriptor combination or Earth Mover's Distance for histograms, exhibits notably lower performance with an ROC AUC of 0.724 and Average Precision of 0.668. While the KNN method offers computational advantages through efficient KD-Tree indexing for fast approximate nearest neighbor search, its inferior retrieval quality highlights the importance of sophisticated distance aggregation strategies. The gap between KNN and rank-based approaches (0.039 difference in ROC AUC, 0.150 difference in Average Precision) demonstrates that treating all features equally with simple Euclidean distance fails to capture the relative importance of different geometric descriptors and the specialized comparison required for histogram-based shape distributions.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\textwidth]{figures/comparison_overall_metrics_macro.png}
-\caption{\textbf{Overall comparison of retrieval quality metrics across three distance matrix approaches (macro-averaged by class).} The rank-based approach (middle) achieves the best overall performance across most metrics, with ROC AUC of 0.763 and Average Precision of 0.818. Numbers in parentheses indicate the ranking (1=best, 2=second, 3=third) for each metric. The consistent superiority of rank-based distances demonstrates the importance of normalization strategies in multi-descriptor shape retrieval systems.}
+\caption{\textbf{Overall comparison of retrieval quality metrics across four retrieval approaches (macro-averaged by class).} The rank-based approach achieves the best overall performance across most metrics, with ROC AUC of 0.763 and Average Precision of 0.818. The KNN approach (rightmost) shows lower performance due to its simplified distance computation without descriptor weighting or Earth Mover's Distance. Numbers in parentheses indicate the ranking (1=best, 2=second, etc.) for each metric. The consistent superiority of rank-based distances demonstrates the importance of normalization strategies and weighted descriptor aggregation in multi-descriptor shape retrieval systems.}
 \label{fig:eval-macro-comparison}
 \end{figure}
 
-Across all three approaches, we observe relatively low precision values (0.18-0.23) and recall values (0.30-0.33), resulting in modest F1-scores (0.32-0.33). These values reflect the inherent difficulty of the retrieval task: with 69 diverse categories and significant intra-class variation, achieving high precision at retrieval depth $n=10$ is challenging. The gap between Average Precision (0.70-0.82) and standard Precision (0.18-0.23) reveals that while many relevant results are retrieved, they often appear at lower ranks. Similarly, the high ROC AUC values (0.72-0.76) compared to precision/recall metrics indicate that the systems can effectively discriminate relevant from non-relevant shapes when considering all thresholds, even if performance at a fixed cutoff ($n=10$) is moderate.
+Across the distance matrix approaches, we observe relatively low precision values (0.217-0.228, shown in orange) and recall values (0.298-0.313, shown in green), resulting in modest F1-scores (0.323-0.331, shown in red). The KNN approach shows even lower precision (0.194) and recall (0.271), with an F1-score of 0.305. These values reflect the inherent difficulty of the retrieval task: with 69 diverse categories and significant intra-class variation, achieving high precision at retrieval depth $n=10$ is challenging. The gap between Average Precision (0.668-0.818, shown in purple) and standard Precision (0.194-0.228, shown in orange) reveals that while many relevant results are retrieved, they often appear at lower ranks. Similarly, the high ROC AUC values (0.723-0.763, shown in brown) compared to precision/recall metrics indicate that the systems can effectively discriminate relevant from non-relevant shapes when considering all thresholds, even if performance at a fixed cutoff ($n=10$) is moderate.
 
-The NDCG metrics provide additional insights into ranking quality. NDCG (Full) values of 0.50-0.52 indicate that the systems achieve roughly half of the ideal ranking performance when considering all results. The lower NDCG@10 values (0.25-0.26) reflect the challenge of placing the most relevant items within the top 10 positions, though they remain significantly above random performance.
+The NDCG metrics provide additional insights into ranking quality. NDCG (Full) values, shown in pink, of 0.504-0.519 for distance matrix approaches indicate that these systems achieve roughly half of the ideal ranking performance when considering all results, while KNN achieves 0.495. The lower NDCG@10 values (0.248-0.258, shown in grey) reflect the challenge of placing the most relevant items within the top 10 positions, though they remain significantly above random performance. The KNN approach's NDCG@10 of 0.222 places it slightly below the distance matrix methods, further confirming the advantage of weighted descriptor combinations.
 
-Figure \ref{fig:eval-accuracy-perclass} shows per-class accuracy across the three approaches, revealing substantial performance variation among semantic categories. Certain classes such as Bicycle (0.71-0.71), Humanoid (0.54-0.65), and Sword (0.53-0.63) achieve notably high accuracy, suggesting strong geometric consistency within these categories. These classes likely exhibit distinctive shape signatures that are well-captured by our descriptor combinations. Conversely, classes like AircraftBuoyant (0.05-0.10), Apartment (0.04-0.06), and Hat (0.05-0.09) show poor retrieval accuracy, indicating either high intra-class variation, insufficient discriminative features, or confusion with geometrically similar classes.
+Figure \ref{fig:eval-accuracy-perclass} shows the accuracy per-class in all four of our approaches, revealing substantial performance variation between categories and providing information on the relative strengths of each retrieval method. Certain classes, such as Bicycle (0.559-0.744), Humanhead (0.572-0.745), and Humanoid (0.493-0.559) achieve notably high accuracy across multiple approaches, suggesting strong geometric consistency within these categories. These classes likely exhibit distinctive shape signatures that are well-captured by our descriptor combinations. Conversely, classes like AircraftBuoyant (0.047-0.101), Apartment (0.036-0.055), and Sign (0 - 0.042) show poor retrieval accuracy across all methods, indicating either high intra-class variation, insufficient discriminative features, or confusion with geometrically similar classes.
+
+The KNN approach (leftmost column) demonstrates competitive but generally lower performance compared to the distance matrix methods. For most categories, KNN accuracy ranges between 0.02 and 0.572, with particularly strong performance on classes like Bicycle (0.559), Fish (0.551), and Humanhead (0.572). However, KNN struggles significantly with classes that have complex geometric variation or share similarities with multiple categories, such as BuildingNonResidential (0.039), Apartment (0.046), and Door (0.131). This pattern confirms that while simple Euclidean distance provides reasonable discrimination for geometrically distinct classes, it lacks the sophistication needed for challenging retrieval scenarios where descriptor weighting and specialized distance metrics become critical.
+
+The rank-based transformation generally outperforms the other methods for difficult classes, demonstrating improved robustness. For instance, the Helicopter class achieves an accuracy of 0.377 with rank-based transformation compared to 0.297 (MinMax normalization), 0.281 (standardization), and 0.299 (KNN). Similarly, Jet shows accuracy of 0.495 (rank-based) versus 0.433 (standardization), 0.407 (MinMax), and 0.45 (KNN). Interestingly, KNN occasionally outperforms some of the weighted methods for specific classes such as Sword, Jet, and Helicopter, suggesting that for certain geometrically coherent categories, the additional complexity of weighted distance aggregation may not provide substantial benefits. However, these cases represent exceptions rather than the norm, as the rank-based approach achieves superior macro-averaged accuracy (0.244) compared to KNN (0.204), MinMax (0.229), and standardization (0.228). These improvements suggest that rank-based transformation helps reduce the impact of descriptor-specific biases that disproportionately affect challenging object categories.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.7\textwidth]{figures/heatmap_per_class_vs_approach_ACC.png}
-\caption{\textbf{Per-class accuracy comparison across three distance matrix approaches.} Each row represents one semantic class, with color intensity indicating accuracy (darker blue = higher accuracy). The rank-based approach (middle) shows improved accuracy for several classes including Helicopter, Humanoid, and NonWheelChair. Notable high-performing classes include Bicycle (0.71), Humanoid (0.64), and Sword (0.63). The final two rows show macro-averaged metrics: "Macro By Class" averages performance across classes (treating each class equally), while "Overall By Query" averages across all queries (weighting by class size).}
+\caption{\textbf{Per-class accuracy comparison across four retrieval approaches.} Each row represents one semantic class, with color intensity indicating accuracy (darker blue = higher accuracy). The final two rows show macro-averaged metrics: "Macro By Class" averages performance across classes (treating each class equally), while "Overall By Query" averages across all queries (weighting by class size).}
 \label{fig:eval-accuracy-perclass}
 \end{figure}
 
-The rank-based transformation generally outperforms the other methods for difficult classes, demonstrating improved robustness. For instance, the Helicopter class achieves accuracy of 0.38 with rank-based transformation compared to 0.30 (MinMax normalization) and 0.28 (standardization). Similarly, NonWheelChair shows accuracy of 0.36 (rank-based) versus 0.34 (standardization) and 0.36 (MinMax). These improvements suggest that rank-based transformation helps reduce the impact of descriptor-specific biases that disproportionately affect challenging object categories.
+Figure \ref{fig:eval-f1score-perclass} presents F1-scores per class, revealing similar patterns to the accuracy comparison but with more emphasis on the precision-recall balance. Classes achieving high F1-scores across the four approaches - such as Bicycle (0.665-0.838), Sword (0.516-0.584), and Fish (0.622-0.719) - demonstrate both high precision and recall, making them reliable targets for retrieval queries. The substantial variation in F1-scores across classes (ranging from 0 to 0.838) underscores the heterogeneous difficulty of different semantic categories within the dataset.
 
-Figure \ref{fig:eval-f1score-perclass} presents F1-scores per class, revealing similar patterns with more emphasis on the precision-recall balance. Classes achieving high F1-scores - such as Bicycle (0.72-0.78), Sword (0.54-0.63), and Wheel (0.27-0.38) - demonstrate both high precision and recall, making them reliable targets for retrieval queries. The substantial variation in F1-scores across classes (ranging from 0.13 to 0.78) underscores the heterogeneous difficulty of different semantic categories within the dataset.
+The KNN approach shows a mixed performance profile in F1-scores compared to the distance matrix methods. For several classes, KNN achieves competitive or even superior F1-scores: Fish (0.678 vs 0.622-0.624 for two of the distance methods), Jet (0.593 vs 0.542 and 0.567 for min-max and z-score respectively), and Bottle (0.532 vs 0.353-0.503). This suggests that for certain geometrically coherent classes with well-separated clusters in feature space, simple Euclidean distance without descriptor weighting can be effective. However, KNN consistently underperforms on classes requiring nuanced distance computation: Humanoid (0.659 vs 0.694 for rank-based), Mug (0.28 vs 0.505 for min-max), and Hand (0.346 vs 0.476 for rank-based). The macro-averaged F1-score comparison (KNN: 0.305, MinMax: 0.327, Rank-based: 0.331, Z-score: 0.323) confirms that while KNN provides a computationally efficient alternative, the weighted distance matrix approaches achieve superior overall retrieval quality through their sophisticated normalization and aggregation strategies.
+
+Reiterating conclusions from the previous plot, several factors contribute to the observed performance variations. First, intra-class geometric diversity affects retrieval: classes like Humanoid encompass a wide range of poses and body types, yet still achieve reasonable performance due to shared structural characteristics (torso, limbs, head). Second, inter-class similarity creates confusion: architecturally similar categories such as BuildingNonResidential, House, and Apartment may share geometric properties that reduce discriminative power. Third, dataset class imbalance affects metrics: larger classes provide more training examples for distance calibration compared to smaller classes. Fourth, feature space structure influences method performance: classes forming compact, well-separated clusters in the standardized feature space (e.g., Fish, Jet) benefit KNN's simple distance computation, while classes requiring careful descriptor weighting to resolve ambiguities (e.g., Computer keyboard, Tree) favor the more sophisticated distance matrix approaches.
+
+The bottom rows of each per-class heatmap present two complementary aggregation perspectives. "Macro By Class" computes the average metric value across all 69 semantic classes, treating each class equally regardless of how many shapes it contains (e.g., Hat with 15 samples receives equal weight to Jet with 143 samples). In contrast, "Overall By Query" computes the average metric value across all 2,438 individual query results, naturally weighting larger classes more heavily. Comparing these two rows reveals whether system performance systematically favors well-represented categories. For our methods, macro-averaged F1 score ranges from 0.305 (KNN) to 0.331 (rank-based), while query-averaged accuracy ranges from 0.385 (KNN) to 0.419 (rank-based). The fact that query-averaged values consistently exceed macro-averaged values indicates that larger classes in our dataset tend to be somewhat easier to retrieve than smaller classes. However, this gap remains relatively modest across all four approaches, suggesting that the retrieval difficulty is driven more by intrinsic geometric properties of each class rather than dataset size effects.
+
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.7\textwidth]{figures/heatmap_per_class_vs_approach_F1.png}
-\caption{\textbf{Per-class F1-Score comparison across three distance matrix approaches.} F1-score balances precision and recall, providing a more nuanced view of retrieval quality than accuracy alone. The rank-based approach achieves the highest macro-averaged F1-score (0.331) and shows consistent improvements for many classes. Top-performing classes include Bicycle (0.78), NonWheelChair (0.49), and Humanoid (0.69), while challenging classes such as Apartment (0.15-0.19) and AircraftBuoyant (0.13-0.22) remain difficult across all approaches.}
+\caption{\textbf{Per-class F1-Score comparison across four retrieval approaches.} F1-score balances precision and recall, providing a more nuanced view of retrieval quality than accuracy alone. The rank-based approach achieves the highest macro-averaged F1-score (0.331) and shows consistent improvements for many classes. The KNN approach (leftmost column) demonstrates competitive performance on certain classes like Fish (0.678), HumanHead (0.707), and Humanoid (0.659), but generally lags behind weighted methods for most categories.}
 \label{fig:eval-f1score-perclass}
 \end{figure}
 
-Several factors contribute to the observed performance variations. First, intra-class geometric diversity affects retrieval: classes like Humanoid encompass a wide range of poses and body types, yet still achieve reasonable performance due to shared structural characteristics (torso, limbs, head). Second, inter-class similarity creates confusion: architecturally similar categories such as BuildingNonResidential, House, and Apartment may share geometric properties that reduce discriminative power. Third, dataset class imbalance affects metrics: larger classes (e.g., Jet with 143 samples, Humanoid with 142 samples) provide more training examples for distance calibration compared to smaller classes (e.g., Hat with 15 samples, Sign with 15 samples).
-
-The macro-averaged metrics at the bottom of each per-class figure provide aggregate summaries: "Macro By Class" treats each class equally regardless of size, while "Overall By Query" weights classes proportionally to their representation in the database. The similar values for both metrics (accuracy: 0.18-0.23 vs. 0.23-0.24; F1-score: 0.32-0.33 vs. 0.40-0.42) suggest that performance is relatively consistent across small and large classes, indicating that our system does not systematically favor well-represented categories.
-
 \subsection{Discussion and Implications}
 
-The evaluation results reveal several important insights for 3D shape retrieval systems. First, normalization strategy significantly impacts retrieval quality: the rank-based approach's consistent superiority across metrics demonstrates that addressing descriptor scale heterogeneity is crucial for multi-feature retrieval systems. The transformation of raw distances into ordinal rankings provides robustness against outliers and scale variations that arise from the diverse geometric properties captured by different shape descriptors.
+The evaluation results reveal several important insights for 3D shape retrieval systems. First, normalization strategy significantly impacts retrieval quality: the rank-based approach's consistent superiority across metrics demonstrates that addressing descriptor scale heterogeneity is crucial for multi-feature retrieval systems. The transformation of raw distances into ordinal rankings provides robustness against outliers and scale variations that arise from the diverse geometric properties captured by different shape descriptors. The comparison with the KNN approach further validates this observation: while KNN offers computational efficiency through KD-Tree indexing, its uniform treatment of all descriptors and reliance on simple Euclidean distance result in lower retrieval quality (ROC AUC: 0.724 vs 0.763 for rank-based), demonstrating that sophisticated distance aggregation strategies are essential for multi-descriptor retrieval systems.
 
-Second, the gap between ROC AUC (0.72-0.76) and precision at fixed cutoff (0.18-0.23) highlights an important distinction: our systems can effectively discriminate relevant from non-relevant shapes when considering the full ranking (as measured by AUC), but struggle to consistently place relevant items within the top-10 results. This suggests opportunities for improvement through ranking refinement techniques such as learning-to-rank approaches or query-specific weight adaptation.
+Second, the gap between ROC AUC (0.72-0.76 for distance matrix methods, 0.724 for KNN) and precision at fixed cutoff (0.16-0.23) highlights an important distinction: our systems can effectively discriminate relevant from non-relevant shapes when considering the full ranking (as measured by AUC), but struggle to consistently place relevant items within the top-10 results. This gap is most pronounced for the KNN approach (precision: 0.194, recall: 0.271), suggesting that while approximate nearest neighbor methods provide reasonable global discrimination, they lack the refinement needed for high-quality top-k retrieval. This pattern suggests opportunities for improvement through ranking refinement techniques such as learning-to-rank approaches \cite{liu2009learning}, query-specific weight adaptation \cite{bhattacharjee2016query}, or hybrid strategies that combine KNN's computational efficiency for initial candidate generation with weighted distance refinement for final ranking.
 
-Third, per-class performance analysis reveals that certain semantic categories are inherently more challenging for purely geometric approaches. Classes exhibiting high intra-class variation (e.g., Apartment, House) or sharing geometric properties with multiple categories may benefit from additional discriminative features beyond the shape descriptors employed here. Potential enhancements could include part-based representations, structural graph descriptors, or learned deep features that capture semantic relationships beyond pure geometry.
+Third, per-class performance analysis reveals that certain semantic categories are inherently more challenging for purely geometric approaches. Classes exhibiting high intra-class variation (e.g., Apartment, House) or sharing geometric properties with multiple categories may benefit from additional discriminative features beyond the shape descriptors employed here. Interestingly, the KNN approach demonstrates competitive or superior performance on specific geometrically coherent classes (e.g., Fish: 0.551 accuracy vs 0.482-0.624 for distance methods), suggesting that when feature space clusters are well-separated and compact, simple Euclidean distance suffices. However, for classes requiring nuanced geometric comparison (e.g., Humanoid, Bicycle, Sword), the weighted distance matrix approaches achieve substantially higher accuracy, confirming the value of descriptor-specific distance metrics and importance weighting. Potential enhancements could include part-based representations, structural graph descriptors, or learned deep features that capture semantic relationships beyond pure geometry.
 
-Fourth, the moderate NDCG@10 values (0.25-0.26) indicate substantial room for improvement in ranking quality at the depths most relevant to users. Future work could explore re-ranking strategies based on user feedback, query expansion techniques, or hybrid approaches combining geometric descriptors with learned embeddings from shape classification networks.
+Fourth, the moderate NDCG@10 values (0.22-0.26 across all methods) indicate substantial room for improvement in ranking quality. The KNN approach's NDCG@10 of 0.222 places it at the lower end of this range, slightly below the distance matrix methods (0.25-0.26), further confirming the ranking quality advantage of weighted descriptor combinations. Future work could explore re-ranking strategies based on user feedback, query expansion techniques, or hybrid approaches combining geometric descriptors with learned embeddings from shape classification networks. Additionally, adaptive weighting schemes that adjust descriptor importance based on query characteristics could bridge the gap between KNN's efficiency and rank-based methods' quality.
 
-Despite these challenges, the overall performance demonstrates that content-based retrieval using geometric descriptors provides a solid foundation for 3D shape search. The rank-based approach's macro-averaged ROC AUC of 0.763 significantly exceeds random performance (0.5), confirming that our descriptor combinations capture meaningful geometric similarities that align with semantic categories. For practical applications, the system performs best for classes with distinctive geometric signatures and consistent intra-class structure, making it suitable for focused domain applications where shape categories exhibit strong geometric coherence.
+Despite these challenges, the overall performance demonstrates that content-based retrieval using geometric descriptors provides a solid foundation for 3D shape search. The rank-based approach's macro-averaged ROC AUC of 0.763 significantly exceeds random performance (0.5) and outperforms both the simpler KNN method (0.724) and alternative normalization strategies (MinMax: 0.723, Z-score: 0.738), confirming that our descriptor combinations capture meaningful geometric similarities that align with semantic categories. For practical applications, the system performs best for classes with distinctive geometric signatures and consistent intra-class structure, making it suitable for focused domain applications where shape categories exhibit strong geometric coherence. The trade-off between retrieval quality and computational efficiency, as exemplified by the comparison between rank-based transformation and KNN approaches, offers practitioners flexibility in choosing appropriate methods based on application-specific requirements: weighted distance matrices for quality-critical applications, and KNN-based approximate search for large-scale databases where query speed is paramount.
 
 \subsection{Query Examples}
 
@@ -1984,14 +2103,13 @@ To provide qualitative insights into the retrieval performance beyond aggregate 
 
 For each selected query shape, we generated comparative visualizations showing the top-5 most similar shapes retrieved by all four matching approaches: KNN with Euclidean distance, MinMax normalization, Rank-based transformation, and Z-score standardization. Each retrieved shape is rendered as a 3D mesh with color-coded visual feedback: green coloring denotes shapes belonging to the same semantic class as the query (true positives), while red coloring indicates shapes from different classes (false positives). This color-coding scheme enables immediate visual assessment of precision within the top-5 results. Figures \ref{fig:query_high_1}-\ref{fig:query_high_3} present examples from the high-performance tier, Figures \ref{fig:query_medium_1}-\ref{fig:query_medium_3} show medium-performance cases, and Figures \ref{fig:query_low_1}-\ref{fig:query_low_3} illustrate low-performance scenarios.
 
-The visualizations reveal distinct patterns that corroborate and explain the quantitative performance differences observed in Figure \ref{fig:eval-f1score-perclass}. Classes in the high-performance tier, such as Bicycle ($F1$ = 0.782), HumanHead ($F1$ = 0.784), and Humanoid ($F1$ = 0.689), display predominantly green-colored retrieved shapes across all four approaches. This consistency indicates that these classes possess distinctive geometric signatures that are robustly captured by our shape descriptors. For instance, bicycles are characterized by their open frame structure with circular wheels, while human heads exhibit recognizable proportions with facial feature arrangements. These classes demonstrate that when intra-class geometric coherence is high and inter-class separability is strong, even different normalization strategies converge on similar correct retrievals.
+The visualizations reveal distinct patterns that corroborate and explain the quantitative performance differences observed in Figure \ref{fig:eval-f1score-perclass}. Classes in the high-performance tier, such as Bicycle ($F1$ = 0.724), HumanHead ($F1$ = 0.837), and Humanoid ($F1$ = 0.694), display predominantly green-colored retrieved shapes across all four approaches. This consistency indicates that these classes possess distinctive geometric signatures that are robustly captured by our shape descriptors. For instance, bicycles are characterized by their open frame structure with circular wheels, while human heads exhibit recognizable proportions with facial feature arrangements. These classes demonstrate that when intra-class geometric coherence is high and inter-class separability is strong, even different normalization strategies converge on similar correct retrievals.
 
-In contrast, classes in the low-performance tier, represented by Sign ($F1$ = 0.131), Vase ($F1$ = 0.136), and FloorLamp ($F1$ = 0.141), display predominantly red-colored retrieved shapes even for the best-performing queries within those categories. This systematic failure across all approaches reveals fundamental limitations in using purely geometric descriptors for certain semantic categories. Signs exemplify extreme intra-class variation, ranging from simple flat rectangular panels to complex three-dimensional structures with irregular geometries, making it difficult to identify a consistent geometric signature. Vases illustrate the challenge of inter-class confusion: their cylindrical geometry with varying height-to-width ratios overlaps significantly with cups, bottles, and lamp bases, leading to semantically incorrect but geometrically plausible retrievals. These cases suggest that low F1-scores often reflect inherent ambiguity in the geometric feature space rather than deficiencies in the distance computation methods.
+In contrast, classes in the low-performance tier, represented by Sign ($F1$ = 0.118), Vase ($F1$ = 0.127), and FloorLamp ($F1$ = 0.143), display predominantly red-colored retrieved shapes even for the best-performing queries within those categories. This systematic failure across all approaches reveals fundamental limitations in using purely geometric descriptors for certain semantic categories. Signs exemplify extreme intra-class variation, ranging from simple flat rectangular panels to complex three-dimensional structures with irregular geometries, making it difficult to identify a consistent geometric signature. Vases illustrate the challenge of inter-class confusion: their cylindrical geometry with varying height-to-width ratios overlaps significantly with cups, bottles, and lamp bases, leading to semantically incorrect but geometrically plausible retrievals. These cases suggest that low F1-scores often reflect inherent ambiguity in the geometric feature space rather than deficiencies in the distance computation methods.
 
-Classes in the medium-performance tier, such as Violin ($F1$ = 0.243), Monoplane ($F1$ = 0.234), and Rocket ($F1$ = 0.228), display mixed retrieval quality with both correct and incorrect matches appearing in the top-5 results. The partial success observed in these cases suggests that retrieval performance is query-dependent: some shapes within these classes possess sufficiently distinctive geometric configurations to enable accurate retrieval, while others share geometric properties with multiple categories. For example, violins may be confused with other string instruments due to similar curved body shapes, while rockets and missiles share elongated cylindrical geometries that lead to cross-class confusion. This variability indicates that medium-tier classes often represent semantically coherent but geometrically diverse categories, where descriptor-based retrieval succeeds for prototypical shapes but struggles with atypical or boundary cases.
+Classes in the medium-performance tier, such as Violin ($F1$ = 0.293), Monoplane ($F1$ = 0.292), and Rocket ($F1$ = 0.267), display mixed retrieval quality with both correct and incorrect matches appearing in the top-5 results. The partial success observed in these cases suggests that retrieval performance is query-dependent: some shapes within these classes possess sufficiently distinctive geometric configurations to enable accurate retrieval, while others share geometric properties with multiple categories. For example, violins may be confused with other string instruments due to similar curved body shapes, while rockets and missiles share elongated cylindrical geometries that lead to cross-class confusion. This variability indicates that medium-tier classes often represent semantically coherent but geometrically diverse categories, where descriptor-based retrieval succeeds for prototypical shapes but struggles with atypical or boundary cases.
 
 Across all performance tiers, we observe that the rank-based transformation approach consistently achieves competitive or superior results compared to alternative normalization strategies, with several queries showing perfect or near-perfect top-5 accuracy. The KNN approach, while computationally efficient, occasionally retrieves geometrically similar shapes from incorrect semantic categories, highlighting the trade-off between query speed and retrieval accuracy inherent in approximate nearest neighbor methods. Overall, these visualizations demonstrate that retrieval quality is determined by a complex interplay between intra-class geometric consistency, inter-class geometric distinctiveness, and the discriminative power of the chosen shape descriptors.
-
 
 \begin{figure}[H]
 \centering
@@ -2102,6 +2220,17 @@ Across all performance tiers, we observe that the rank-based transformation appr
 \end{figure}
 
 
+\subsection{Future Work}
+
+While the current system demonstrates solid retrieval performance on geometrically distinctive shape classes, several extensions could enhance both accuracy and usability for practical deployment.
+
+\begin{itemize}
+\item \textbf{Enhanced Similarity Functions:} The current distance computation relies on manually designed geometric descriptors combined through weighted aggregation. Future work could explore learned similarity functions that automatically discover discriminative feature combinations for specific shape categories. Deep metric learning approaches \cite{schroff2015facenet} could learn embedding spaces where semantically similar shapes cluster more tightly than geometrically similar but semantically different objects. Additionally, incorporating context-aware weighting schemes that adapt descriptor importance based on query shape characteristics could improve retrieval quality for challenging categories exhibiting high intra-class variation. 
+
+\item \textbf{User Interface Performance Optimization:} The current web-based interface experiences latency when rendering complex 3D meshes and computing real-time similarity searches across the full database. Performance improvements could include progressive mesh simplification for faster rendering, spatial indexing structures for accelerated nearest neighbor queries, and result caching strategies to avoid redundant computations. Implementing server-side rendering with lightweight client-side previews would reduce bandwidth requirements for remote access. Additionally, adopting WebGL-based visualization libraries could leverage GPU acceleration for smoother interaction with high-resolution shape models.
+
+\item \textbf{On-the-Fly Shape Integration:} Currently, the system operates on a fixed database requiring offline preprocessing for feature extraction and distance matrix computation. Extending the system to support dynamic shape insertion would enable users to query custom shapes without full database recomputation. This requires developing incremental feature extraction pipelines that compute descriptors for new shapes in real-time, partial distance matrix updates that insert new shape similarities without recalculating all pairwise distances, and adaptive KD-Tree rebalancing for efficient KNN queries on evolving datasets. Such capabilities would transform the system from a static retrieval tool into an interactive shape analysis platform suitable for iterative design workflows and exploratory modeling tasks.
+\end{itemize}
 
 
 
@@ -2111,4 +2240,3 @@ Across all performance tiers, we observe that the rank-based transformation appr
 
 
 \end{document}
-
