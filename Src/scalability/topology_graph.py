@@ -26,7 +26,7 @@ class TopologyGraph:
         tsne = TSNE(
             n_components=2,
             metric='precomputed',
-            perplexity=50,
+            perplexity=12,
             learning_rate='auto',
             init='random',
             random_state=69,
@@ -38,6 +38,7 @@ class TopologyGraph:
         embedding = pd.DataFrame(Y, index=df.index, columns=['x', 'y'])
         print(embedding.head())
         embedding.to_csv("topology_graph.csv")
+        print("KL divergence:", tsne.kl_divergence_)
 
 
     def print_graph(name: str = "", n: int = 0):
@@ -169,11 +170,13 @@ class TopologyGraph:
             out_png = f"topology_graph_{name}_n{len(neigh_list)}.png"
 
         plt.title(title)
-        plt.savefig(out_png, dpi=200, bbox_inches="tight")
+        plt.savefig("12", dpi=200, bbox_inches="tight")
         plt.close()
         print(f"Saved: {out_png}")
+        
 
 
 
     if __name__ == "__main__":
+        generate_graph()
         print_graph("", n=5)
